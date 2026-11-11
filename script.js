@@ -11,6 +11,9 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
+// 🔐 الكود السري لتسجيل الأطباء (يمكنك تغييره في أي وقت من هنا)
+const adminSecretCode = "DOCTOR2024";
+
 let allDoctors = []; 
 let patientDirectory = {}; 
 let currentListener = null; 
@@ -387,6 +390,7 @@ function loginDoctor() {
 async function registerAndSaveDoctor() {
     let email = document.getElementById('regEmail').value.trim();
     let password = document.getElementById('regPassword').value;
+    let activationCode = document.getElementById('regActivationCode').value.trim(); // قراءة الكود
     let name = document.getElementById('docName').value.trim();
     let specialty = document.getElementById('docSpecialty').value.trim();
     let phone = document.getElementById('docPhone').value.trim();
@@ -395,9 +399,15 @@ async function registerAndSaveDoctor() {
     let lat = document.getElementById('docLat').value;
     let lng = document.getElementById('docLng').value;
 
-    if (!email || !password || !name || !specialty || !city) {
-        return alert(currentLang === 'ar' ? "يرجى تعبئة جميع الحقول الأساسية!" : "Please fill all required fields!");
+    if (!email || !password || !name || !specialty || !city || !activationCode) {
+        return alert(currentLang === 'ar' ? "يرجى تعبئة جميع الحقول الأساسية بما فيها كود التفعيل!" : "Please fill all required fields including activation code!");
     }
+    
+    // 🔐 التحقق من الكود السري
+    if (activationCode !== adminSecretCode) {
+        return alert(currentLang === 'ar' ? "كود التفعيل غير صحيح! يرجى التواصل مع إدارة التطبيق." : "Invalid activation code! Please contact app administration.");
+    }
+
     if (password.length < 6) return alert(currentLang === 'ar' ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل" : "Password must be at least 6 characters");
     if (!lat || !lng) return alert(currentLang === 'ar' ? "الرجاء تحديد موقع العيادة على الخريطة!" : "Please select clinic location on map!");
 
