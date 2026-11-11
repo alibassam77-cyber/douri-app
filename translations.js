@@ -1,10 +1,20 @@
 const translations = {
     ar: {
-        app_title: "عيادة | Clinic",
+        app_title: "عيادة",
         doctors_btn: "الأطباء",
         all_cities: "كل المدن",
         search_placeholder: "اسم الطبيب أو التخصص...",
+        no_results: "لا يوجد أطباء يطابقون بحثك.",
+        available: "متاح للحجز",
+        closed_temp: "مغلق مؤقتاً",
+        on_break: "الطبيب في استراحة",
+        book_now: "احجز الآن",
+        clinic_location: "موقع العيادة",
+        at_doctor: "عند: ",
         my_bookings_title: "حجوزاتي النشطة",
+        no_bookings: "لا يوجد لديك حجوزات حالياً.",
+        your_number: "رقم دورك:",
+        view_ticket: "عرض التذكرة",
         back_to_search: "العودة للبحث",
         your_ticket_number: "رقم دورك",
         status_waiting: "في الانتظار",
@@ -42,14 +52,33 @@ const translations = {
         street_ph: "مثال: حدة - شارع تعز",
         map_location_label: "موقع العيادة (اضغط على الخريطة):",
         create_account_btn: "إنشاء الحساب وحفظ العيادة",
-        at_doctor: "عند: "
+        admin_title: "لوحة تحكم العيادة",
+        current_patient: "المريض الحالي (الذي عند الطبيب)",
+        call_next: "نادِ المريض التالي",
+        close_clinic: "إغلاق العيادة (استراحة)",
+        open_clinic: "فتح العيادة للاستقبال",
+        reset_clinic: "تصفير العيادة بالكامل",
+        queue_title: "طابور الانتظار",
+        no_patients: "لا يوجد مرضى في الانتظار حالياً.",
+        status_serving: "عند الطبيب الآن",
+        active_booking_msg: "لديك {n} حجز نشط! اضغط هنا لعرضها"
     },
     en: {
-        app_title: "Clinic | عيادة",
+        app_title: "Clinic",
         doctors_btn: "Doctors",
         all_cities: "All Cities",
         search_placeholder: "Doctor name or specialty...",
+        no_results: "No doctors match your search.",
+        available: "Available",
+        closed_temp: "Temporarily Closed",
+        on_break: "Doctor on break",
+        book_now: "Book Now",
+        clinic_location: "Clinic Location",
+        at_doctor: "At: ",
         my_bookings_title: "My Active Bookings",
+        no_bookings: "No active bookings.",
+        your_number: "Your Number:",
+        view_ticket: "View Ticket",
         back_to_search: "Back to Search",
         your_ticket_number: "Your Ticket Number",
         status_waiting: "Waiting",
@@ -87,7 +116,16 @@ const translations = {
         street_ph: "Example: Hadda - Taiz St.",
         map_location_label: "Clinic Location (Click on map):",
         create_account_btn: "Create Account & Save Clinic",
-        at_doctor: "At: "
+        admin_title: "Clinic Dashboard",
+        current_patient: "Current Patient (with Doctor)",
+        call_next: "Call Next Patient",
+        close_clinic: "Close Clinic (Break)",
+        open_clinic: "Open Clinic",
+        reset_clinic: "Reset Clinic",
+        queue_title: "Waiting Queue",
+        no_patients: "No patients in queue.",
+        status_serving: "With Doctor",
+        active_booking_msg: "You have {n} active booking(s)! Click here to view."
     }
 };
 
@@ -100,11 +138,11 @@ function applyLanguage() {
     if (currentLang === 'ar') {
         document.documentElement.setAttribute('dir', 'rtl');
         document.documentElement.setAttribute('lang', 'ar');
-        document.getElementById('langToggleBtn').innerText = 'EN';
+        if(document.getElementById('langToggleBtn')) document.getElementById('langToggleBtn').innerText = 'EN';
     } else {
         document.documentElement.setAttribute('dir', 'ltr');
         document.documentElement.setAttribute('lang', 'en');
-        document.getElementById('langToggleBtn').innerText = 'عربي';
+        if(document.getElementById('langToggleBtn')) document.getElementById('langToggleBtn').innerText = 'عربي';
     }
 
     // ترجمة النصوص العادية
@@ -125,6 +163,19 @@ function applyLanguage() {
     
     // تحديث عنوان الصفحة
     document.title = dict.app_title;
+
+    // تحديث القائمة المنسدلة للمدن
+    let citySelect = document.getElementById('cityFilter');
+    if (citySelect && citySelect.options.length > 0) {
+        citySelect.options[0].text = dict.all_cities;
+    }
+
+    // إذا كنا في لوحة العيادة، نحدث النصوص الديناميكية
+    if(typeof updateClinicStatusUI === 'function') updateClinicStatusUI();
+    if(typeof listenToQueue === 'function' && selectedDoctorId) {
+        // إعادة تشغيل المستمع لتحديث الحالات
+        listenToQueue();
+    }
 }
 
 function toggleLanguage() {
@@ -132,7 +183,7 @@ function toggleLanguage() {
     localStorage.setItem('douri_lang', currentLang);
     applyLanguage();
     
-    // تحديث قائمة المدن لأن كلمة "كل المدن" تحتاج ترجمة
+    // إعادة رسم الأطباء لترجمة البطاقات
     if(typeof filterDoctors === 'function') {
         filterDoctors();
     }
