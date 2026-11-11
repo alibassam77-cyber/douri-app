@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>عيادة</title>
+    <title data-i18n="app_title">عيادة | Clinic</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
     <style>
-        .header-buttons { display: flex; gap: 10px; align-items: center; }
-        .btn-doctor-login { background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 8px 15px; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 5px; }
+        .header-buttons { display: flex; gap: 8px; align-items: center; }
+        .btn-doctor-login { background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 8px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 5px; }
         .btn-doctor-login:hover { background: white; color: var(--primary); }
+        .lang-btn { background: rgba(255,255,255,0.2); color: white; border: 1px solid white; padding: 8px 12px; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+        .lang-btn:hover { background: white; color: var(--primary); }
         .auth-tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); }
         .auth-tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; font-weight: bold; color: var(--text-muted); border-bottom: 3px solid transparent; }
         .auth-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
@@ -22,11 +24,12 @@
     <header class="top-header">
         <div class="header-content">
             <div>
-                <h1>عيادة</h1>
+                <h1 data-i18n="app_title">عيادة | Clinic</h1>
             </div>
             <div class="header-buttons">
+                <button class="lang-btn" onclick="toggleLanguage()" id="langToggleBtn">EN</button>
                 <button class="btn-doctor-login" onclick="openDoctorModal()">
-                    <i class="fa-solid fa-user-doctor"></i> الأطباء
+                    <i class="fa-solid fa-user-doctor"></i> <span data-i18n="doctors_btn">الأطباء</span>
                 </button>
                 <button id="themeToggle" class="theme-btn" onclick="toggleTheme()">
                     <i class="fa-solid fa-moon"></i>
@@ -46,12 +49,12 @@
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-city"></i>
                     <select id="cityFilter" onchange="filterDoctors()">
-                        <option value="">كل المدن</option>
+                        <option value="" data-i18n="all_cities">كل المدن</option>
                     </select>
                 </div>
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="searchInput" placeholder="اسم الطبيب أو التخصص..." oninput="filterDoctors()">
+                    <input type="text" id="searchInput" placeholder="اسم الطبيب أو التخصص..." oninput="filterDoctors()" data-i18n-placeholder="search_placeholder">
                 </div>
             </div>
             
@@ -63,26 +66,26 @@
 
         <!-- 2. شاشة حجوزاتي -->
         <div id="bookings-view" class="hidden">
-            <h3 class="view-title">حجوزاتي النشطة</h3>
+            <h3 class="view-title" data-i18n="my_bookings_title">حجوزاتي النشطة</h3>
             <div id="myBookingsList"></div>
-            <button class="btn-primary" onclick="goBackToSearch()"><i class="fa-solid fa-arrow-right"></i> العودة للبحث</button>
+            <button class="btn-primary" onclick="goBackToSearch()"><i class="fa-solid fa-arrow-right"></i> <span data-i18n="back_to_search">العودة للبحث</span></button>
         </div>
 
         <!-- 3. شاشة التذكرة -->
         <div id="ticket-view" class="hidden">
             <div class="ticket-card">
-                <p class="muted">رقم دورك</p>
+                <p class="muted" data-i18n="your_ticket_number">رقم دورك</p>
                 <div class="big-number" id="ticketNumber">1</div>
-                <div class="status-badge">في الانتظار</div>
+                <div class="status-badge" data-i18n="status_waiting">في الانتظار</div>
                 <div class="stats-row">
-                    <div class="stat-box"><div class="stat-value" id="peopleAhead">—</div><div class="stat-label">أمامك</div></div>
-                    <div class="stat-box"><div class="stat-value" id="waitTime">—</div><div class="stat-label">دقيقة انتظار</div></div>
-                    <div class="stat-box"><div class="stat-value" id="etaTime">—</div><div class="stat-label">الوقت المتوقع</div></div>
+                    <div class="stat-box"><div class="stat-value" id="peopleAhead">—</div><div class="stat-label" data-i18n="ahead_label">أمامك</div></div>
+                    <div class="stat-box"><div class="stat-value" id="waitTime">—</div><div class="stat-label" data-i18n="wait_time_label">دقيقة انتظار</div></div>
+                    <div class="stat-box"><div class="stat-value" id="etaTime">—</div><div class="stat-label" data-i18n="eta_label">الوقت المتوقع</div></div>
                 </div>
-                <p class="ticket-hint">أهلاً <span id="patientNameDisplay" style="font-weight:bold;"></span>، شاشة التذكرة تتحدث تلقائياً.</p>
+                <p class="ticket-hint"><span data-i18n="welcome_msg">أهلاً</span> <span id="patientNameDisplay" style="font-weight:bold;"></span>، <span data-i18n="ticket_hint">شاشة التذكرة تتحدث تلقائياً.</span></p>
                 <p class="muted" id="doctorNameDisplay" style="font-size:14px; font-weight:bold; color:var(--primary);"></p>
-                <button class="btn-outline" onclick="showMyBookingsView()"><i class="fa-solid fa-list"></i> العودة لقائمة حجوزاتي</button>
-                <button class="btn-danger" onclick="cancelCurrentTicket()"><i class="fa-solid fa-trash"></i> إلغاء هذا الحجز</button>
+                <button class="btn-outline" onclick="showMyBookingsView()"><i class="fa-solid fa-list"></i> <span data-i18n="back_to_bookings">العودة لقائمة حجوزاتي</span></button>
+                <button class="btn-danger" onclick="cancelCurrentTicket()"><i class="fa-solid fa-trash"></i> <span data-i18n="cancel_booking_btn">إلغاء هذا الحجز</span></button>
             </div>
         </div>
     </div>
@@ -90,66 +93,66 @@
     <!-- 4. نافذة حجز المريض -->
     <div id="bookingModal" class="hidden modal-overlay">
         <div class="modal-content">
-            <h3 class="view-title">تأكيد الحجز</h3>
+            <h3 class="view-title" data-i18n="confirm_booking_title">تأكيد الحجز</h3>
             <p class="muted" id="modalDoctorName" style="text-align: center; margin-bottom: 20px;">عند: ...</p>
             <div class="input-group">
-                <label>الاسم الكامل:</label>
-                <input type="text" id="bookingName" list="patientNames" oninput="autofillPhone()" placeholder="اكتب اسمك هنا">
+                <label data-i18n="full_name_label">الاسم الكامل:</label>
+                <input type="text" id="bookingName" list="patientNames" oninput="autofillPhone()" placeholder="اكتب اسمك هنا" data-i18n-placeholder="name_placeholder">
                 <datalist id="patientNames"></datalist>
             </div>
             <div class="input-group">
-                <label>رقم الهاتف:</label>
-                <input type="tel" inputmode="numeric" id="bookingPhone" placeholder="مثال: 777123456">
+                <label data-i18n="phone_label">رقم الهاتف:</label>
+                <input type="tel" inputmode="numeric" id="bookingPhone" placeholder="مثال: 777123456" data-i18n-placeholder="phone_placeholder">
             </div>
-            <button class="btn-primary" onclick="confirmBooking()"><i class="fa-solid fa-check"></i> تأكيد الحجز</button>
-            <button class="btn-outline" onclick="closeModal()" style="margin-top:10px; border:none;">إلغاء</button>
+            <button class="btn-primary" onclick="confirmBooking()"><i class="fa-solid fa-check"></i> <span data-i18n="confirm_btn">تأكيد الحجز</span></button>
+            <button class="btn-outline" onclick="closeModal()" style="margin-top:10px; border:none;" data-i18n="cancel_btn">إلغاء</button>
         </div>
     </div>
 
     <!-- 5. نافذة دخول وتسجيل الأطباء -->
     <div id="doctorModal" class="hidden modal-overlay">
         <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
-            <h3 class="view-title" style="margin-bottom: 10px;">بوابة الأطباء</h3>
+            <h3 class="view-title" style="margin-bottom: 10px;" data-i18n="doctor_portal_title">بوابة الأطباء</h3>
             
             <div class="auth-tabs">
-                <div id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')">دخول</div>
-                <div id="tabRegister" class="auth-tab" onclick="switchAuthTab('register')">حساب طبيب جديد</div>
+                <div id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')" data-i18n="login_tab">دخول</div>
+                <div id="tabRegister" class="auth-tab" onclick="switchAuthTab('register')" data-i18n="register_tab">حساب طبيب جديد</div>
             </div>
 
             <!-- نموذج الدخول -->
             <div id="loginSection">
                 <div class="input-group">
-                    <label>البريد الإلكتروني:</label>
+                    <label data-i18n="email_label">البريد الإلكتروني:</label>
                     <input type="email" id="loginEmail" placeholder="doctor@example.com" autocomplete="username">
                 </div>
                 <div class="input-group">
-                    <label>كلمة المرور:</label>
+                    <label data-i18n="password_label">كلمة المرور:</label>
                     <input type="password" id="loginPassword" placeholder="********" autocomplete="current-password">
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; text-align: right;">
                     <input type="checkbox" id="rememberMe" style="width: 18px; height: 18px; cursor: pointer;">
-                    <label for="rememberMe" style="margin: 0; font-size: 14px; color: var(--text-main); cursor: pointer;">تذكرني</label>
+                    <label for="rememberMe" style="margin: 0; font-size: 14px; color: var(--text-main); cursor: pointer;" data-i18n="remember_me">تذكرني</label>
                 </div>
-                <button class="btn-primary" onclick="loginDoctor()"><i class="fa-solid fa-right-to-bracket"></i> تسجيل الدخول</button>
-                <button class="btn-outline" onclick="closeDoctorModal()" style="margin-top:10px; border:none;">إلغاء</button>
+                <button class="btn-primary" onclick="loginDoctor()"><i class="fa-solid fa-right-to-bracket"></i> <span data-i18n="login_btn">تسجيل الدخول</span></button>
+                <button class="btn-outline" onclick="closeDoctorModal()" style="margin-top:10px; border:none;" data-i18n="cancel_btn">إلغاء</button>
             </div>
 
             <!-- نموذج التسجيل الجديد -->
             <div id="registerSection" class="hidden">
-                <div class="input-group"><label>البريد الإلكتروني:</label><input type="email" id="regEmail" placeholder="doctor@example.com"></div>
-                <div class="input-group"><label>كلمة المرور (6 أحرف على الأقل):</label><input type="password" id="regPassword" placeholder="********"></div>
+                <div class="input-group"><label data-i18n="email_label">البريد الإلكتروني:</label><input type="email" id="regEmail" placeholder="doctor@example.com"></div>
+                <div class="input-group"><label data-i18n="password_min_label">كلمة المرور (6 أحرف على الأقل):</label><input type="password" id="regPassword" placeholder="********"></div>
                 <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
-                <div class="input-group"><label>اسم الطبيب:</label><input type="text" id="docName" placeholder="مثال: د. أحمد"></div>
-                <div class="input-group"><label>التخصص:</label><input type="text" id="docSpecialty" placeholder="مثال: باطنية، أطفال..."></div>
-                <div class="input-group"><label>رقم الهاتف:</label><input type="tel" inputmode="numeric" id="docPhone" placeholder="777123456"></div>
-                <div class="input-group"><label>المدينة:</label><input type="text" id="docCity" placeholder="مثال: صنعاء"></div>
-                <div class="input-group"><label>الشارع / الحي:</label><input type="text" id="docStreet" placeholder="مثال: حدة - شارع تعز"></div>
-                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-main); font-size: 14px;">موقع العيادة (اضغط على الخريطة):</label>
+                <div class="input-group"><label data-i18n="doctor_name_label">اسم الطبيب:</label><input type="text" id="docName" placeholder="مثال: د. أحمد" data-i18n-placeholder="doc_name_ph"></div>
+                <div class="input-group"><label data-i18n="specialty_label">التخصص:</label><input type="text" id="docSpecialty" placeholder="مثال: باطنية، أطفال..." data-i18n-placeholder="specialty_ph"></div>
+                <div class="input-group"><label data-i18n="phone_label">رقم الهاتف:</label><input type="tel" inputmode="numeric" id="docPhone" placeholder="777123456"></div>
+                <div class="input-group"><label data-i18n="city_label">المدينة:</label><input type="text" id="docCity" placeholder="مثال: صنعاء" data-i18n-placeholder="city_ph"></div>
+                <div class="input-group"><label data-i18n="street_label">الشارع / الحي:</label><input type="text" id="docStreet" placeholder="مثال: حدة - شارع تعز" data-i18n-placeholder="street_ph"></div>
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-main); font-size: 14px;" data-i18n="map_location_label">موقع العيادة (اضغط على الخريطة):</label>
                 <div id="reg-map"></div>
                 <input type="hidden" id="docLat" value="">
                 <input type="hidden" id="docLng" value="">
-                <button class="btn-primary" onclick="registerAndSaveDoctor()"><i class="fa-solid fa-save"></i> إنشاء الحساب وحفظ العيادة</button>
-                <button class="btn-outline" onclick="closeDoctorModal()" style="margin-top:10px; border:none;">إلغاء</button>
+                <button class="btn-primary" onclick="registerAndSaveDoctor()"><i class="fa-solid fa-save"></i> <span data-i18n="create_account_btn">إنشاء الحساب وحفظ العيادة</span></button>
+                <button class="btn-outline" onclick="closeDoctorModal()" style="margin-top:10px; border:none;" data-i18n="cancel_btn">إلغاء</button>
             </div>
         </div>
     </div>
@@ -158,6 +161,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="translations.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
