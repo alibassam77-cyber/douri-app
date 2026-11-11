@@ -141,13 +141,21 @@
             <div id="registerSection" class="hidden">
                 <div class="input-group"><label data-i18n="email_label">البريد الإلكتروني:</label><input type="email" id="regEmail" placeholder="doctor@example.com"></div>
                 <div class="input-group"><label data-i18n="password_min_label">كلمة المرور (6 أحرف على الأقل):</label><input type="password" id="regPassword" placeholder="********"></div>
+                
+                <!-- كود التفعيل -->
                 <div class="input-group"><label data-i18n="activation_code_label">كود التفعيل (من الإدارة):</label><input type="text" id="regActivationCode" placeholder="أدخل الكود السري هنا" data-i18n-placeholder="activation_code_ph"></div>
+                
                 <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
                 <div class="input-group"><label data-i18n="doctor_name_label">اسم الطبيب:</label><input type="text" id="docName" placeholder="مثال: د. أحمد" data-i18n-placeholder="doc_name_ph"></div>
                 <div class="input-group"><label data-i18n="specialty_label">التخصص:</label><input type="text" id="docSpecialty" placeholder="مثال: باطنية، أطفال..." data-i18n-placeholder="specialty_ph"></div>
                 <div class="input-group"><label data-i18n="phone_label">رقم الهاتف:</label><input type="tel" inputmode="numeric" id="docPhone" placeholder="777123456"></div>
                 <div class="input-group"><label data-i18n="city_label">المدينة:</label><input type="text" id="docCity" placeholder="مثال: صنعاء" data-i18n-placeholder="city_ph"></div>
                 <div class="input-group"><label data-i18n="street_label">الشارع / الحي:</label><input type="text" id="docStreet" placeholder="مثال: حدة - شارع تعز" data-i18n-placeholder="street_ph"></div>
+                
+                <!-- وقت العمل الجديد -->
+                <div class="input-group"><label data-i18n="start_time_label">وقت فتح العيادة:</label><input type="time" id="docStartTime" value="08:00"></div>
+                <div class="input-group"><label data-i18n="end_time_label">وقت إغلاق العيادة:</label><input type="time" id="docEndTime" value="22:00"></div>
+
                 <label style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-main); font-size: 14px;" data-i18n="map_location_label">موقع العيادة (اضغط على الخريطة):</label>
                 <div id="reg-map"></div>
                 <input type="hidden" id="docLat" value="">
