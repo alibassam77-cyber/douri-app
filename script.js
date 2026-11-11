@@ -20,6 +20,12 @@ let modalDoctorName = null;
 let doctorMap = null;
 let doctorMarker = null;
 
+// دالة مساعدة للترجمة (تعتمد على المتغير currentLang من ملف translations.js)
+function t(key) {
+    const lang = typeof currentLang !== 'undefined' ? currentLang : 'ar';
+    return translations[lang] && translations[lang][key] ? translations[lang][key] : key;
+}
+
 // --- 1. الوضع الليلي ---
 function initTheme() {
     let savedTheme = localStorage.getItem('douri_theme');
@@ -77,7 +83,8 @@ function loadDoctors() {
         let citySelect = document.getElementById('cityFilter');
         if (citySelect) {
             let currentSelection = citySelect.value; 
-            citySelect.innerHTML = '<option value="">كل المدن</option>';
+            let lang = typeof currentLang !== 'undefined' ? currentLang : 'ar';
+            citySelect.innerHTML = `<option value="">${translations[lang].all_cities}</option>`;
             cities.forEach(city => {
                 citySelect.innerHTML += `<option value="${city}">${city}</option>`;
             });
@@ -94,7 +101,7 @@ function renderDoctors(doctorsToRender) {
     if (!list) return;
     list.innerHTML = '';
     if (doctorsToRender.length === 0) {
-        list.innerHTML = '<p style="text-align:center; color:var(--text-muted); margin-top:20px;">لا يوجد أطباء يطابقون بحثك.</p>';
+        list.innerHTML = `<p style="text-align:center; color:var(--text-muted); margin-top:20px;">${t('search_placeholder')}</p>`;
         return;
     }
     doctorsToRender.forEach(doc => {
@@ -108,11 +115,11 @@ function renderDoctors(doctorsToRender) {
         }
         let isClosed = doc.isOpen === false; 
         let badgeHTML = isClosed 
-            ? `<span class="badge red" style="background:var(--danger-light); color:var(--danger);"><i class="fa-solid fa-lock"></i> مغلق مؤقتاً</span>` 
-            : `<span class="badge green">متاح للحجز</span>`;
+            ? `<span class="badge red" style="background:var(--danger-light); color:var(--danger);"><i class="fa-solid fa-lock"></i> ${currentLang === 'ar' ? 'مغلق مؤقتاً' : 'Closed'}</span>` 
+            : `<span class="badge green">${currentLang === 'ar' ? 'متاح للحجز' : 'Available'}</span>`;
         let btnHTML = isClosed
-            ? `<button class="book-btn" style="background-color:var(--text-muted); cursor:not-allowed;" disabled><i class="fa-solid fa-ban"></i> الطبيب في استراحة</button>`
-            : `<button class="book-btn" onclick="openBookingModal('${doc.id}', '${doc.name}')"><i class="fa-solid fa-calendar-check"></i> احجز الآن</button>`;
+            ? `<button class="book-btn" style="background-color:var(--text-muted); cursor:not-allowed;" disabled><i class="fa-solid fa-ban"></i> ${currentLang === 'ar' ? 'الطبيب في استراحة' : 'Doctor on break'}</button>`
+            : `<button class="book-btn" onclick="openBookingModal('${doc.id}', '${doc.name}')"><i class="fa-solid fa-calendar-check"></i> ${currentLang === 'ar' ? 'احجز الآن' : 'Book Now'}</button>`;
 
         list.innerHTML += `
             <div class="clinic-card" style="${isClosed ? 'opacity: 0.7;' : ''}">
@@ -120,7 +127,7 @@ function renderDoctors(doctorsToRender) {
                     <h2>${doc.name}</h2>
                     <p class="doc-specialty">${doc.specialty}</p>
                     <p class="doc-address"><i class="fa-solid fa-location-dot"></i> ${addressText}</p>
-                    <a href="${mapLink}" target="_blank" class="map-btn"><i class="fa-solid fa-map-location-dot"></i> موقع العيادة</a>
+                    <a href="${mapLink}" target="_blank" class="map-btn"><i class="fa-solid fa-map-location-dot"></i> ${currentLang === 'ar' ? 'موقع العيادة' : 'Clinic Location'}</a>
                 </div>
                 <div class="clinic-status" style="margin-top: 15px;">${badgeHTML}</div>
                 ${btnHTML}
@@ -147,7 +154,7 @@ function filterDoctors() {
 function openBookingModal(doctorId, doctorName) {
     modalDoctorId = doctorId;
     modalDoctorName = doctorName;
-    document.getElementById('modalDoctorName').innerText = "عند: " + doctorName;
+    document.getElementById('modalDoctorName').innerText = (currentLang === 'ar' ? "عند: " : "At: ") + doctorName;
     document.getElementById('bookingName').value = '';
     document.getElementById('bookingPhone').value = '';
     document.getElementById('bookingModal').classList.remove('hidden');
@@ -169,12 +176,12 @@ function closeModal() {
 async function confirmBooking() {
     let name = document.getElementById('bookingName').value.trim();
     let phone = document.getElementById('bookingPhone').value.trim();
-    if (!name || !phone) return alert("يرجى إدخال الاسم ورقم الهاتف!");
+    if (!name || !phone) return alert(currentLang === 'ar' ? "يرجى إدخال الاسم ورقم الهاتف!" : "Please enter name and phone!");
     try {
         const docRef = db.collection("doctors").doc(modalDoctorId);
         const docSnap = await docRef.get();
         if (docSnap.exists) {
-            if (docSnap.data().isOpen === false) return alert("عذراً، العيادة مغلقة مؤقتاً.");
+            if (docSnap.data().isOpen === false) return alert(currentLang === 'ar' ? "عذراً، العيادة مغلقة مؤقتاً." : "Sorry, clinic is temporarily closed.");
             let currentTicket = (docSnap.data().lastTicket || 0) + 1;
             await docRef.update({ lastTicket: currentTicket });
             await db.collection("patients").doc(phone).set({
@@ -188,11 +195,11 @@ async function confirmBooking() {
             myBookings.push({ ticket: currentTicket, doctorId: modalDoctorId, doctorName: modalDoctorName, name: name, phone: phone, date: new Date().toISOString() });
             localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
             closeModal();
-            alert("تم الحجز بنجاح!\nرقم دورك: " + currentTicket);
+            alert((currentLang === 'ar' ? "تم الحجز بنجاح!\nرقم دورك: " : "Booked successfully!\nYour number: ") + currentTicket);
             updateBanner();
             showMyBookingsView();
         }
-    } catch (error) { console.error(error); alert("حدث خطأ."); }
+    } catch (error) { console.error(error); alert("Error."); }
 }
 
 // --- 5. إدارة الحجوزات (العرض والإلغاء) ---
@@ -201,7 +208,10 @@ function updateBanner() {
     let banner = document.getElementById('activeBookingBanner');
     let bannerText = document.getElementById('bannerText');
     if (banner && bannerText) {
-        if (myBookings.length > 0) { banner.classList.remove('hidden'); bannerText.innerText = `لديك ${myBookings.length} حجز نشط! اضغط هنا لعرضها`; } 
+        if (myBookings.length > 0) { 
+            banner.classList.remove('hidden'); 
+            bannerText.innerText = currentLang === 'ar' ? `لديك ${myBookings.length} حجز نشط! اضغط هنا لعرضها` : `You have ${myBookings.length} active booking(s)! Click here to view.`; 
+        } 
         else { banner.classList.add('hidden'); }
     }
 }
@@ -213,13 +223,13 @@ function showMyBookingsView() {
     let myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
     let list = document.getElementById('myBookingsList');
     list.innerHTML = '';
-    if (myBookings.length === 0) return list.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا يوجد لديك حجوزات حالياً.</p>';
+    if (myBookings.length === 0) return list.innerHTML = `<p style="text-align:center; color:var(--text-muted);">${currentLang === 'ar' ? 'لا يوجد لديك حجوزات حالياً.' : 'No active bookings.'}</p>`;
     myBookings.forEach((b, index) => {
         list.innerHTML += `
             <div class="clinic-card" style="border-right: 5px solid var(--primary);">
                 <h3 style="margin:0; font-size:16px; color:var(--text-main);">${b.doctorName}</h3>
-                <p class="muted" style="margin:5px 0;">رقم دورك: <b>${b.ticket}</b></p>
-                <button class="book-btn" style="padding:8px; font-size:14px;" onclick="openSpecificTicket(${index})"><i class="fa-solid fa-ticket"></i> عرض التذكرة</button>
+                <p class="muted" style="margin:5px 0;">${currentLang === 'ar' ? 'رقم دورك:' : 'Your Number:'} <b>${b.ticket}</b></p>
+                <button class="book-btn" style="padding:8px; font-size:14px;" onclick="openSpecificTicket(${index})"><i class="fa-solid fa-ticket"></i> ${currentLang === 'ar' ? 'عرض التذكرة' : 'View Ticket'}</button>
             </div>`;
     });
 }
@@ -232,9 +242,8 @@ function openSpecificTicket(index) {
     document.getElementById('ticket-view').classList.remove('hidden');
     document.getElementById('patientNameDisplay').innerText = b.name;
     document.getElementById('ticketNumber').innerText = b.ticket;
-    document.getElementById('doctorNameDisplay').innerText = "عند: " + b.doctorName;
+    document.getElementById('doctorNameDisplay').innerText = (currentLang === 'ar' ? "عند: " : "At: ") + b.doctorName;
 
-    // طلب إذن الإشعارات من المريض
     if ("Notification" in window) {
         if (Notification.permission !== "granted" && Notification.permission !== "denied") {
             Notification.requestPermission();
@@ -265,27 +274,26 @@ function openSpecificTicket(index) {
 
             let badge = document.querySelector('.status-badge');
 
-            // تحديث الحالة وإرسال الإشعارات
             if (peopleAhead === 0 && b.ticket == currentServing) {
-                badge.innerText = "حان دورك الآن!"; 
+                badge.innerText = currentLang === 'ar' ? "حان دورك الآن!" : "It's your turn!"; 
                 badge.style.backgroundColor = "var(--success-light)"; 
                 badge.style.color = "var(--success)";
                 
                 if (currentNotificationState !== 'turn' && Notification.permission === "granted") {
-                    new Notification("حان دورك الآن! 🎉", { body: "توجه إلى غرفة الطبيب " + b.doctorName });
+                    new Notification(currentLang === 'ar' ? "حان دورك الآن! 🎉" : "It's your turn! 🎉", { body: (currentLang === 'ar' ? "توجه إلى غرفة الطبيب " : "Proceed to Dr. ") + b.doctorName });
                     currentNotificationState = 'turn';
                 }
             } else if (peopleAhead === 1) {
-                badge.innerText = "بقي مريض واحد"; 
+                badge.innerText = currentLang === 'ar' ? "بقي مريض واحد" : "One patient left"; 
                 badge.style.backgroundColor = "var(--warning-light)"; 
                 badge.style.color = "var(--warning)";
                 
                 if (currentNotificationState !== 'near' && Notification.permission === "granted") {
-                    new Notification("اقترب دورك ⏳", { body: "بقي مريض واحد قبلك عند " + b.doctorName + ". يفضل التوجه الآن." });
+                    new Notification(currentLang === 'ar' ? "اقترب دورك ⏳" : "Your turn is approaching ⏳", { body: (currentLang === 'ar' ? "بقي مريض واحد قبلك عند " : "One patient ahead of you at ") + b.doctorName });
                     currentNotificationState = 'near';
                 }
             } else {
-                badge.innerText = "في الانتظار"; 
+                badge.innerText = currentLang === 'ar' ? "في الانتظار" : "Waiting"; 
                 badge.style.backgroundColor = "var(--warning-light)"; 
                 badge.style.color = "var(--warning)";
             }
@@ -295,7 +303,7 @@ function openSpecificTicket(index) {
 
 function cancelCurrentTicket() {
     if(!activeTicketToDisplay) return;
-    if(!confirm(`هل أنت متأكد من إلغاء حجزك عند ${activeTicketToDisplay.doctorName}؟`)) return;
+    if(!confirm(currentLang === 'ar' ? `هل أنت متأكد من إلغاء حجزك عند ${activeTicketToDisplay.doctorName}؟` : `Are you sure you want to cancel your booking at ${activeTicketToDisplay.doctorName}?`)) return;
     let myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
     let updatedBookings = myBookings.filter(b => !(b.doctorId === activeTicketToDisplay.doctorId && b.ticket === activeTicketToDisplay.ticket));
     localStorage.setItem('douri_bookings', JSON.stringify(updatedBookings));
@@ -359,10 +367,10 @@ function loginDoctor() {
     let remember = document.getElementById('rememberMe').checked;
     let btn = document.querySelector('#loginSection .btn-primary'); 
 
-    if (!email || !password) return alert("يرجى إدخال البريد الإلكتروني وكلمة المرور");
+    if (!email || !password) return alert(currentLang === 'ar' ? "يرجى إدخال البريد الإلكتروني وكلمة المرور" : "Please enter email and password");
 
     let originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الدخول...';
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${currentLang === 'ar' ? 'جاري الدخول...' : 'Logging in...'}`;
     btn.disabled = true;
 
     auth.signInWithEmailAndPassword(email, password)
@@ -374,7 +382,7 @@ function loginDoctor() {
         .catch((error) => {
             btn.innerHTML = originalText;
             btn.disabled = false;
-            alert("لم يتم الدخول. السبب:\n" + error.message);
+            alert((currentLang === 'ar' ? "لم يتم الدخول. السبب:\n" : "Login failed. Reason:\n") + error.message);
         });
 }
 
@@ -391,10 +399,10 @@ async function registerAndSaveDoctor() {
     let lng = document.getElementById('docLng').value;
 
     if (!email || !password || !name || !specialty || !city) {
-        return alert("يرجى تعبئة جميع الحقول الأساسية (الإيميل، كلمة المرور، الاسم، التخصص، المدينة)!");
+        return alert(currentLang === 'ar' ? "يرجى تعبئة جميع الحقول الأساسية!" : "Please fill all required fields!");
     }
-    if (password.length < 6) return alert("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
-    if (!lat || !lng) return alert("الرجاء تحديد موقع العيادة على الخريطة!");
+    if (password.length < 6) return alert(currentLang === 'ar' ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل" : "Password must be at least 6 characters");
+    if (!lat || !lng) return alert(currentLang === 'ar' ? "الرجاء تحديد موقع العيادة على الخريطة!" : "Please select clinic location on map!");
 
     try {
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
@@ -405,16 +413,17 @@ async function registerAndSaveDoctor() {
             location: { lat: Number(lat), lng: Number(lng) },
             serviceTime: 10, currentServing: 1, lastTicket: 0, isOpen: true, createdAt: new Date().toISOString()
         });
-        alert("تم إنشاء الحساب وحفظ العيادة بنجاح!");
+        alert(currentLang === 'ar' ? "تم إنشاء الحساب وحفظ العيادة بنجاح!" : "Account created and clinic saved successfully!");
         window.location.href = 'admin.html'; 
     } catch (error) {
         console.error("خطأ: ", error);
-        alert("حدث خطأ: " + error.message);
+        alert((currentLang === 'ar' ? "حدث خطأ: " : "Error: ") + error.message);
     }
 }
 
 // --- التشغيل عند فتح الصفحة ---
 window.onload = function() { 
+    if (typeof applyLanguage === 'function') applyLanguage();
     initTheme(); 
     loadDoctors(); 
     loadPatients(); 
