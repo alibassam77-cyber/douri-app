@@ -21,7 +21,7 @@ let modalDoctorId = null;
 let modalDoctorName = null;
 let doctorMap = null;
 let doctorMarker = null;
-let myBookingsListeners = []; // لمتابعة حالة الحجوزات
+let myBookingsListeners = []; 
 
 function t(key) {
     const lang = typeof currentLang !== 'undefined' ? currentLang : 'ar';
@@ -56,7 +56,54 @@ function toggleTheme() {
     }
 }
 
-// --- 2. تحميل البيانات ---
+// --- 2. حساب الوقت المتوقع بذكاء (بناءً على ساعات عمل العيادة) ---
+function getSmartETA(doctorData, peopleAhead) {
+    const now = new Date();
+    const startStr = doctorData.startTime || "08:00";
+    const endStr = doctorData.endTime || "22:00";
+    const serviceTime = doctorData.serviceTime || 10;
+
+    let [startH, startM] = startStr.split(':').map(Number);
+    let [endH, endM] = endStr.split(':').map(Number);
+
+    let nowM = now.getHours() * 60 + now.getMinutes();
+    let startM = startH * 60 + startM;
+    let endM = endH * 60 + endM;
+
+    let eta = new Date(now);
+
+    // إذا كان الوقت الحالي قبل فتح العيادة
+    if (nowM < startM) {
+        eta.setHours(startH, startM, 0, 0);
+    } 
+    // إذا كان الوقت الحالي بعد إغلاق العيادة
+    else if (nowM >= endM) {
+        eta.setDate(eta.getDate() + 1); // ننقله لليوم التالي
+        eta.setHours(startH, startM, 0, 0);
+    }
+
+    // إضافة وقت الانتظار (عدد المرضى × وقت الكشف)
+    eta.setMinutes(eta.getMinutes() + (peopleAhead * serviceTime));
+
+    // التحقق: هل تجاوزنا وقت الإغلاق بعد إضافة وقت الانتظار؟
+    let etaM = eta.getHours() * 60 + eta.getMinutes();
+    if (etaM >= endM && peopleAhead > 0) {
+        let overflow = etaM - endM;
+        eta.setDate(eta.getDate() + 1);
+        eta.setHours(startH, startM, 0, 0);
+        eta.setMinutes(eta.getMinutes() + overflow);
+    }
+
+    let timeStr = String(eta.getHours()).padStart(2, '0') + ":" + String(eta.getMinutes()).padStart(2, '0');
+    
+    // التحقق مما إذا كان الموعد في يوم مختلف (غداً)
+    if (eta.getDate() !== now.getDate()) {
+        return (currentLang === 'ar' ? "غداً " : "Tmrw ") + timeStr;
+    }
+    return timeStr;
+}
+
+// --- 3. تحميل البيانات ---
 function loadPatients() {
     db.collection("patients").onSnapshot((snapshot) => {
         patientDirectory = {};
@@ -96,7 +143,7 @@ function loadDoctors() {
     });
 }
 
-// --- 3. عرض الأطباء ---
+// --- 4. عرض الأطباء ---
 function renderDoctors(doctorsToRender) {
     const list = document.getElementById('doctorsList');
     if (!list) return;
@@ -153,7 +200,7 @@ function filterDoctors() {
     renderDoctors(filtered);
 }
 
-// --- 4. حجز المريض ---
+// --- 5. حجز المريض ---
 function openBookingModal(doctorId, doctorName) {
     modalDoctorId = doctorId;
     modalDoctorName = doctorName || (currentLang === 'ar' ? 'طبيب' : 'Doctor');
@@ -191,7 +238,6 @@ async function confirmBooking() {
                 name: name, phone: phone, lastVisit: firebase.firestore.FieldValue.serverTimestamp()
             });
             
-            // إضافة الحجز في Firebase وحفظ الـ ID الخاص به
             const bookingRef = await db.collection("bookings").add({
                 doctorId: modalDoctorId, 
                 doctorName: modalDoctorName, 
@@ -202,10 +248,9 @@ async function confirmBooking() {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
-            // حفظ الحجز في الهاتف مع الـ ID
             let myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
             myBookings.push({ 
-                firebaseId: bookingRef.id, // <-- مفتاح الحل هنا
+                firebaseId: bookingRef.id, 
                 ticket: currentTicket, 
                 doctorId: modalDoctorId, 
                 doctorName: modalDoctorName, 
@@ -218,13 +263,13 @@ async function confirmBooking() {
             closeModal();
             alert((currentLang === 'ar' ? "تم الحجز بنجاح!\nرقم دورك: " : "Booked successfully!\nYour number: ") + currentTicket);
             updateBanner();
-            listenToMyBookings(); // تشغيل المراقب للحجز الجديد
+            listenToMyBookings(); 
             showMyBookingsView();
         }
     } catch (error) { console.error(error); alert("Error."); }
 }
 
-// --- 5. إدارة الحجوزات ---
+// --- 6. إدارة الحجوزات ---
 function updateBanner() {
     let myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
     let banner = document.getElementById('activeBookingBanner');
@@ -257,9 +302,7 @@ function showMyBookingsView() {
     });
 }
 
-// دالة مراقبة الحجوزات (تتأكد إذا تم استدعاء المريض)
 function listenToMyBookings() {
-    // إيقاف المراقبات القديمة لتجنب التكرار
     myBookingsListeners.forEach(unsubscribe => unsubscribe());
     myBookingsListeners = [];
 
@@ -270,18 +313,15 @@ function listenToMyBookings() {
             const unsubscribe = db.collection("bookings").doc(b.firebaseId).onSnapshot((doc) => {
                 if (doc.exists) {
                     const status = doc.data().status;
-                    // إذا تم استدعاؤه (serving) أو انتهى (done) أو ألغي، نمسحه من الهاتف
                     if (status === 'serving' || status === 'done' || status === 'cancelled') {
                         let currentBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
                         let updated = currentBookings.filter(x => x.firebaseId !== b.firebaseId);
                         localStorage.setItem('douri_bookings', JSON.stringify(updated));
                         
                         updateBanner();
-                        // إذا كان المريض يرى قائمة الحجوزات، نحدثها
                         if (!document.getElementById('bookings-view').classList.contains('hidden')) {
                             showMyBookingsView();
                         }
-                        // إذا كان المريض يرى التذكرة، ننبهه ونرجعه
                         if (activeTicketToDisplay && activeTicketToDisplay.firebaseId === b.firebaseId && status === 'serving') {
                             alert(currentLang === 'ar' ? "حان دورك الآن! لقد قام الطبيب بندائك." : "It's your turn! The doctor has called you.");
                             goBackToSearch();
@@ -318,18 +358,23 @@ function openSpecificTicket(index) {
         if (doc.exists) {
             const data = doc.data();
             const currentServing = data.currentServing || 1;
-            const serviceTime = data.serviceTime || 10;
             
             let peopleAhead = b.ticket - currentServing - 1;
             if (peopleAhead < 0) peopleAhead = 0;
             
-            let waitTime = peopleAhead * serviceTime;
-            
             document.getElementById('peopleAhead').innerText = peopleAhead;
-            document.getElementById('waitTime').innerText = "~" + waitTime;
             
-            let now = new Date(); now.setMinutes(now.getMinutes() + waitTime);
-            document.getElementById('etaTime').innerText = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+            // استخدام الدالة الذكية لحساب الوقت المتوقع
+            const smartTime = getSmartETA(data, peopleAhead);
+            document.getElementById('etaTime').innerText = smartTime;
+            
+            // إخفاء "دقيقة انتظار" إذا كان الموعد غداً، لأنها ستكون مربكة
+            if(smartTime.includes('غداً') || smartTime.includes('Tmrw')) {
+                document.getElementById('waitTime').innerText = "-";
+            } else {
+                const serviceTime = data.serviceTime || 10;
+                document.getElementById('waitTime').innerText = "~" + (peopleAhead * serviceTime);
+            }
 
             let badge = document.querySelector('.status-badge');
 
@@ -364,7 +409,6 @@ function cancelCurrentTicket() {
     if(!activeTicketToDisplay) return;
     if(!confirm(currentLang === 'ar' ? `هل أنت متأكد من إلغاء حجزك؟` : `Are you sure you want to cancel?`)) return;
     
-    // إلغاء الحجز في السحابة أيضاً (اختياري، ليكون النظام دقيقاً)
     if(activeTicketToDisplay.firebaseId) {
         db.collection("bookings").doc(activeTicketToDisplay.firebaseId).update({ status: 'cancelled' });
     }
@@ -376,7 +420,7 @@ function cancelCurrentTicket() {
     if (currentListener) currentListener();
     activeTicketToDisplay = null;
     updateBanner(); 
-    listenToMyBookings(); // تحديث المراقبات
+    listenToMyBookings(); 
     showMyBookingsView();
 }
 
@@ -387,7 +431,7 @@ function goBackToSearch() {
     if (currentListener) currentListener(); 
 }
 
-// --- 6. بوابة الأطباء ---
+// --- 7. بوابة الأطباء ---
 function openDoctorModal() {
     document.getElementById('doctorModal').classList.remove('hidden');
     setTimeout(() => {
@@ -462,6 +506,8 @@ async function registerAndSaveDoctor() {
     let phone = document.getElementById('docPhone').value.trim();
     let city = document.getElementById('docCity').value.trim();
     let street = document.getElementById('docStreet').value.trim();
+    let startTime = document.getElementById('docStartTime').value; // قراءة وقت الفتح
+    let endTime = document.getElementById('docEndTime').value;     // قراءة وقت الإغلاق
     let lat = document.getElementById('docLat').value;
     let lng = document.getElementById('docLng').value;
 
@@ -480,10 +526,20 @@ async function registerAndSaveDoctor() {
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         await db.collection("doctors").add({
-            ownerUid: user.uid, email: user.email, name: name,
-            specialty: specialty, phone: phone, address: { city: city, street: street },
+            ownerUid: user.uid, 
+            email: user.email, 
+            name: name,
+            specialty: specialty, 
+            phone: phone, 
+            address: { city: city, street: street },
             location: { lat: Number(lat), lng: Number(lng) },
-            serviceTime: 10, currentServing: 1, lastTicket: 0, isOpen: true, createdAt: new Date().toISOString()
+            serviceTime: 10, 
+            startTime: startTime, // حفظ وقت الفتح
+            endTime: endTime,     // حفظ وقت الإغلاق
+            currentServing: 1, 
+            lastTicket: 0, 
+            isOpen: true, 
+            createdAt: new Date().toISOString()
         });
         alert(currentLang === 'ar' ? "تم إنشاء الحساب وحفظ العيادة بنجاح!" : "Account created and clinic saved successfully!");
         window.location.href = 'admin.html'; 
@@ -501,12 +557,11 @@ window.onload = function() {
     loadPatients(); 
     updateBanner(); 
     
-    // تنظيف التذاكر القديمة التي لا تحتوي على معرف Firebase (مثل التذكرة null القديمة)
     let oldBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
     let cleanBookings = oldBookings.filter(b => b.firebaseId); 
     localStorage.setItem('douri_bookings', JSON.stringify(cleanBookings));
 
-    listenToMyBookings(); // تشغيل المراقب عند فتح التطبيق
+    listenToMyBookings(); 
 
     let savedEmail = localStorage.getItem('douri_saved_email');
     if (savedEmail) {
