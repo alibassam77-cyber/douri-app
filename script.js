@@ -11,8 +11,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// 🔐 الكود السري لتسجيل الأطباء (يمكنك تغييره في أي وقت من هنا)
-const adminSecretCode = "DOCTOR2024";
+const adminSecretCode = "DOCTOR2024"; // الكود السري
 
 let allDoctors = []; 
 let patientDirectory = {}; 
@@ -22,6 +21,7 @@ let modalDoctorId = null;
 let modalDoctorName = null;
 let doctorMap = null;
 let doctorMarker = null;
+let myBookingsListeners = []; // لمتابعة حالة الحجوزات
 
 function t(key) {
     const lang = typeof currentLang !== 'undefined' ? currentLang : 'ar';
@@ -127,8 +127,8 @@ function renderDoctors(doctorsToRender) {
         list.innerHTML += `
             <div class="clinic-card" style="${isClosed ? 'opacity: 0.7;' : ''}">
                 <div class="clinic-info">
-                    <h2>${doc.name}</h2>
-                    <p class="doc-specialty">${doc.specialty}</p>
+                    <h2>${doc.name || (currentLang === 'ar' ? 'طبيب غير معروف' : 'Unknown Doctor')}</h2>
+                    <p class="doc-specialty">${doc.specialty || ''}</p>
                     <p class="doc-address"><i class="fa-solid fa-location-dot"></i> ${addressText}</p>
                     <a href="${mapLink}" target="_blank" class="map-btn"><i class="fa-solid fa-map-location-dot"></i> ${t('clinic_location')}</a>
                 </div>
@@ -147,7 +147,7 @@ function filterDoctors() {
     let textQuery = searchInput.value.toLowerCase();
     let filtered = allDoctors.filter(doc => {
         let matchesCity = selectedCity === "" || (doc.address && doc.address.city === selectedCity);
-        let matchesText = doc.name.toLowerCase().includes(textQuery) || doc.specialty.toLowerCase().includes(textQuery);
+        let matchesText = (doc.name || '').toLowerCase().includes(textQuery) || (doc.specialty || '').toLowerCase().includes(textQuery);
         return matchesCity && matchesText;
     });
     renderDoctors(filtered);
@@ -156,8 +156,8 @@ function filterDoctors() {
 // --- 4. حجز المريض ---
 function openBookingModal(doctorId, doctorName) {
     modalDoctorId = doctorId;
-    modalDoctorName = doctorName;
-    document.getElementById('modalDoctorName').innerText = t('at_doctor') + doctorName;
+    modalDoctorName = doctorName || (currentLang === 'ar' ? 'طبيب' : 'Doctor');
+    document.getElementById('modalDoctorName').innerText = t('at_doctor') + modalDoctorName;
     document.getElementById('bookingName').value = '';
     document.getElementById('bookingPhone').value = '';
     document.getElementById('bookingModal').classList.remove('hidden');
@@ -190,16 +190,35 @@ async function confirmBooking() {
             await db.collection("patients").doc(phone).set({
                 name: name, phone: phone, lastVisit: firebase.firestore.FieldValue.serverTimestamp()
             });
-            await db.collection("bookings").add({
-                doctorId: modalDoctorId, doctorName: modalDoctorName, patientName: name, patientPhone: phone,
-                ticketNumber: currentTicket, status: 'waiting', createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            
+            // إضافة الحجز في Firebase وحفظ الـ ID الخاص به
+            const bookingRef = await db.collection("bookings").add({
+                doctorId: modalDoctorId, 
+                doctorName: modalDoctorName, 
+                patientName: name, 
+                patientPhone: phone,
+                ticketNumber: currentTicket, 
+                status: 'waiting', 
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
+
+            // حفظ الحجز في الهاتف مع الـ ID
             let myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
-            myBookings.push({ ticket: currentTicket, doctorId: modalDoctorId, doctorName: modalDoctorName, name: name, phone: phone, date: new Date().toISOString() });
+            myBookings.push({ 
+                firebaseId: bookingRef.id, // <-- مفتاح الحل هنا
+                ticket: currentTicket, 
+                doctorId: modalDoctorId, 
+                doctorName: modalDoctorName, 
+                name: name, 
+                phone: phone, 
+                date: new Date().toISOString() 
+            });
             localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
+            
             closeModal();
             alert((currentLang === 'ar' ? "تم الحجز بنجاح!\nرقم دورك: " : "Booked successfully!\nYour number: ") + currentTicket);
             updateBanner();
+            listenToMyBookings(); // تشغيل المراقب للحجز الجديد
             showMyBookingsView();
         }
     } catch (error) { console.error(error); alert("Error."); }
@@ -227,6 +246,7 @@ function showMyBookingsView() {
     let list = document.getElementById('myBookingsList');
     list.innerHTML = '';
     if (myBookings.length === 0) return list.innerHTML = `<p style="text-align:center; color:var(--text-muted);">${t('no_bookings')}</p>`;
+    
     myBookings.forEach((b, index) => {
         list.innerHTML += `
             <div class="clinic-card" style="border-right: 5px solid var(--primary);">
@@ -234,6 +254,43 @@ function showMyBookingsView() {
                 <p class="muted" style="margin:5px 0;">${t('your_number')} <b>${b.ticket}</b></p>
                 <button class="book-btn" style="padding:8px; font-size:14px;" onclick="openSpecificTicket(${index})"><i class="fa-solid fa-ticket"></i> ${t('view_ticket')}</button>
             </div>`;
+    });
+}
+
+// دالة مراقبة الحجوزات (تتأكد إذا تم استدعاء المريض)
+function listenToMyBookings() {
+    // إيقاف المراقبات القديمة لتجنب التكرار
+    myBookingsListeners.forEach(unsubscribe => unsubscribe());
+    myBookingsListeners = [];
+
+    let myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
+    
+    myBookings.forEach((b) => {
+        if (b.firebaseId) {
+            const unsubscribe = db.collection("bookings").doc(b.firebaseId).onSnapshot((doc) => {
+                if (doc.exists) {
+                    const status = doc.data().status;
+                    // إذا تم استدعاؤه (serving) أو انتهى (done) أو ألغي، نمسحه من الهاتف
+                    if (status === 'serving' || status === 'done' || status === 'cancelled') {
+                        let currentBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
+                        let updated = currentBookings.filter(x => x.firebaseId !== b.firebaseId);
+                        localStorage.setItem('douri_bookings', JSON.stringify(updated));
+                        
+                        updateBanner();
+                        // إذا كان المريض يرى قائمة الحجوزات، نحدثها
+                        if (!document.getElementById('bookings-view').classList.contains('hidden')) {
+                            showMyBookingsView();
+                        }
+                        // إذا كان المريض يرى التذكرة، ننبهه ونرجعه
+                        if (activeTicketToDisplay && activeTicketToDisplay.firebaseId === b.firebaseId && status === 'serving') {
+                            alert(currentLang === 'ar' ? "حان دورك الآن! لقد قام الطبيب بندائك." : "It's your turn! The doctor has called you.");
+                            goBackToSearch();
+                        }
+                    }
+                }
+            });
+            myBookingsListeners.push(unsubscribe);
+        }
     });
 }
 
@@ -306,12 +363,21 @@ function openSpecificTicket(index) {
 function cancelCurrentTicket() {
     if(!activeTicketToDisplay) return;
     if(!confirm(currentLang === 'ar' ? `هل أنت متأكد من إلغاء حجزك؟` : `Are you sure you want to cancel?`)) return;
+    
+    // إلغاء الحجز في السحابة أيضاً (اختياري، ليكون النظام دقيقاً)
+    if(activeTicketToDisplay.firebaseId) {
+        db.collection("bookings").doc(activeTicketToDisplay.firebaseId).update({ status: 'cancelled' });
+    }
+
     let myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
     let updatedBookings = myBookings.filter(b => !(b.doctorId === activeTicketToDisplay.doctorId && b.ticket === activeTicketToDisplay.ticket));
     localStorage.setItem('douri_bookings', JSON.stringify(updatedBookings));
+    
     if (currentListener) currentListener();
     activeTicketToDisplay = null;
-    updateBanner(); showMyBookingsView();
+    updateBanner(); 
+    listenToMyBookings(); // تحديث المراقبات
+    showMyBookingsView();
 }
 
 function goBackToSearch() {
@@ -390,7 +456,7 @@ function loginDoctor() {
 async function registerAndSaveDoctor() {
     let email = document.getElementById('regEmail').value.trim();
     let password = document.getElementById('regPassword').value;
-    let activationCode = document.getElementById('regActivationCode').value.trim(); // قراءة الكود
+    let activationCode = document.getElementById('regActivationCode').value.trim(); 
     let name = document.getElementById('docName').value.trim();
     let specialty = document.getElementById('docSpecialty').value.trim();
     let phone = document.getElementById('docPhone').value.trim();
@@ -403,7 +469,6 @@ async function registerAndSaveDoctor() {
         return alert(currentLang === 'ar' ? "يرجى تعبئة جميع الحقول الأساسية بما فيها كود التفعيل!" : "Please fill all required fields including activation code!");
     }
     
-    // 🔐 التحقق من الكود السري
     if (activationCode !== adminSecretCode) {
         return alert(currentLang === 'ar' ? "كود التفعيل غير صحيح! يرجى التواصل مع إدارة التطبيق." : "Invalid activation code! Please contact app administration.");
     }
@@ -436,6 +501,13 @@ window.onload = function() {
     loadPatients(); 
     updateBanner(); 
     
+    // تنظيف التذاكر القديمة التي لا تحتوي على معرف Firebase (مثل التذكرة null القديمة)
+    let oldBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
+    let cleanBookings = oldBookings.filter(b => b.firebaseId); 
+    localStorage.setItem('douri_bookings', JSON.stringify(cleanBookings));
+
+    listenToMyBookings(); // تشغيل المراقب عند فتح التطبيق
+
     let savedEmail = localStorage.getItem('douri_saved_email');
     if (savedEmail) {
         let emailInput = document.getElementById('loginEmail');
