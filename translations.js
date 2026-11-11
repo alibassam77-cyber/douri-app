@@ -169,22 +169,11 @@ function applyLanguage() {
     if (citySelect && citySelect.options.length > 0) {
         citySelect.options[0].text = dict.all_cities;
     }
-
-    // إذا كنا في لوحة العيادة، نحدث النصوص الديناميكية
-    if(typeof updateClinicStatusUI === 'function') updateClinicStatusUI();
-    if(typeof listenToQueue === 'function' && selectedDoctorId) {
-        // إعادة تشغيل المستمع لتحديث الحالات
-        listenToQueue();
-    }
 }
 
 function toggleLanguage() {
     currentLang = currentLang === 'ar' ? 'en' : 'ar';
     localStorage.setItem('douri_lang', currentLang);
-    applyLanguage();
-    
-    // إعادة رسم الأطباء لترجمة البطاقات
-    if(typeof filterDoctors === 'function') {
-        filterDoctors();
-    }
+    // إعادة تحميل الصفحة فوراً لتطبيق اللغة الجديدة على كل العناصر الديناميكية
+    window.location.reload();
 }
