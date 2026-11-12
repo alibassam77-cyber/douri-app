@@ -11,7 +11,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const adminSecretCode = "DOCTOR2024"; // الكود السري
+const adminSecretCode = "DOCTOR2024"; 
 
 let allDoctors = []; 
 let patientDirectory = {}; 
@@ -56,51 +56,53 @@ function toggleTheme() {
     }
 }
 
-// --- 2. حساب الوقت المتوقع بذكاء (بناءً على ساعات عمل العيادة) ---
+// --- 2. حساب الوقت المتوقع بذكاء ---
 function getSmartETA(doctorData, peopleAhead) {
-    const now = new Date();
-    const startStr = doctorData.startTime || "08:00";
-    const endStr = doctorData.endTime || "22:00";
-    const serviceTime = doctorData.serviceTime || 10;
+    try {
+        const now = new Date();
+        const startStr = doctorData.startTime || "08:00";
+        const endStr = doctorData.endTime || "22:00";
+        const serviceTime = doctorData.serviceTime || 10;
 
-    let [startH, startM] = startStr.split(':').map(Number);
-    let [endH, endM] = endStr.split(':').map(Number);
+        let [startH, startM] = startStr.split(':').map(Number);
+        let [endH, endM] = endStr.split(':').map(Number);
 
-    let nowM = now.getHours() * 60 + now.getMinutes();
-    let startM = startH * 60 + startM;
-    let endM = endH * 60 + endM;
+        if (isNaN(startH) || isNaN(startM)) { startH = 8; startM = 0; }
+        if (isNaN(endH) || isNaN(endM)) { endH = 22; endM = 0; }
 
-    let eta = new Date(now);
+        let nowM = now.getHours() * 60 + now.getMinutes();
+        let startM = startH * 60 + startM;
+        let endM = endH * 60 + endM;
 
-    // إذا كان الوقت الحالي قبل فتح العيادة
-    if (nowM < startM) {
-        eta.setHours(startH, startM, 0, 0);
-    } 
-    // إذا كان الوقت الحالي بعد إغلاق العيادة
-    else if (nowM >= endM) {
-        eta.setDate(eta.getDate() + 1); // ننقله لليوم التالي
-        eta.setHours(startH, startM, 0, 0);
+        let eta = new Date(now);
+
+        if (nowM < startM) {
+            eta.setHours(startH, startM, 0, 0);
+        } else if (nowM >= endM) {
+            eta.setDate(eta.getDate() + 1); 
+            eta.setHours(startH, startM, 0, 0);
+        }
+
+        eta.setMinutes(eta.getMinutes() + (peopleAhead * serviceTime));
+
+        let etaM = eta.getHours() * 60 + eta.getMinutes();
+        if (etaM >= endM && peopleAhead > 0) {
+            let overflow = etaM - endM;
+            eta.setDate(eta.getDate() + 1);
+            eta.setHours(startH, startM, 0, 0);
+            eta.setMinutes(eta.getMinutes() + overflow);
+        }
+
+        let timeStr = String(eta.getHours()).padStart(2, '0') + ":" + String(eta.getMinutes()).padStart(2, '0');
+        
+        if (eta.getDate() !== now.getDate()) {
+            return (currentLang === 'ar' ? "غداً " : "Tmrw ") + timeStr;
+        }
+        return timeStr;
+    } catch (e) {
+        console.error("Error in ETA calculation", e);
+        return "---";
     }
-
-    // إضافة وقت الانتظار (عدد المرضى × وقت الكشف)
-    eta.setMinutes(eta.getMinutes() + (peopleAhead * serviceTime));
-
-    // التحقق: هل تجاوزنا وقت الإغلاق بعد إضافة وقت الانتظار؟
-    let etaM = eta.getHours() * 60 + eta.getMinutes();
-    if (etaM >= endM && peopleAhead > 0) {
-        let overflow = etaM - endM;
-        eta.setDate(eta.getDate() + 1);
-        eta.setHours(startH, startM, 0, 0);
-        eta.setMinutes(eta.getMinutes() + overflow);
-    }
-
-    let timeStr = String(eta.getHours()).padStart(2, '0') + ":" + String(eta.getMinutes()).padStart(2, '0');
-    
-    // التحقق مما إذا كان الموعد في يوم مختلف (غداً)
-    if (eta.getDate() !== now.getDate()) {
-        return (currentLang === 'ar' ? "غداً " : "Tmrw ") + timeStr;
-    }
-    return timeStr;
 }
 
 // --- 3. تحميل البيانات ---
@@ -115,11 +117,25 @@ function loadPatients() {
             patientDirectory[data.name] = data.phone;
             datalist.innerHTML += `<option value="${data.name}">`;
         });
+    }, (error) => {
+        console.error("Error loading patients:", error);
     });
 }
 
 function loadDoctors() {
+    const list = document.getElementById('doctorsList');
+    // نظام حماية: إذا لم يرد Firebase خلال 5 ثوانٍ، نظهر خطأ
+    let timeout = setTimeout(() => {
+        if (list.innerHTML.includes('skeleton-card')) {
+            list.innerHTML = `<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;">
+                <b>فشل الاتصال بقاعدة البيانات!</b><br>
+                يرجى التأكد من الإنترنت أو إيقاف الـ VPN والمحاولة مرة أخرى، ثم تحديث الصفحة.
+            </p>`;
+        }
+    }, 5000);
+
     db.collection("doctors").onSnapshot((snapshot) => {
+        clearTimeout(timeout); // إلغاء مؤقت الخطأ إذا نجح الاتصال
         allDoctors = [];
         let cities = new Set(); 
         snapshot.forEach((doc) => {
@@ -140,6 +156,12 @@ function loadDoctors() {
         }
         filterDoctors();
         updateBanner();
+    }, (error) => {
+        clearTimeout(timeout);
+        console.error("Error loading doctors:", error);
+        list.innerHTML = `<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;">
+            <b>خطأ في جلب الأطباء!</b><br>${error.message}
+        </p>`;
     });
 }
 
@@ -153,14 +175,15 @@ function renderDoctors(doctorsToRender) {
         return;
     }
     doctorsToRender.forEach(doc => {
-        let addressText = `${doc.address.city} - ${doc.address.street || ''}`;
+        let addressText = doc.address ? `${doc.address.city || ''} - ${doc.address.street || ''}` : '';
         let mapLink = "";
         if (doc.location && doc.location.lat && doc.location.lng) {
             mapLink = `https://www.google.com/maps/search/?api=1&query=${doc.location.lat},${doc.location.lng}`;
-        } else {
-            let fullAddressForMap = `${doc.address.city} ${doc.address.street || ''}`;
+        } else if(doc.address) {
+            let fullAddressForMap = `${doc.address.city || ''} ${doc.address.street || ''}`;
             mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddressForMap)}`;
         }
+        
         let isClosed = doc.isOpen === false; 
         
         let badgeHTML = isClosed 
@@ -266,7 +289,7 @@ async function confirmBooking() {
             listenToMyBookings(); 
             showMyBookingsView();
         }
-    } catch (error) { console.error(error); alert("Error."); }
+    } catch (error) { console.error(error); alert("Error: " + error.message); }
 }
 
 // --- 6. إدارة الحجوزات ---
@@ -328,7 +351,7 @@ function listenToMyBookings() {
                         }
                     }
                 }
-            });
+            }, (error) => { console.error("Listener error:", error); });
             myBookingsListeners.push(unsubscribe);
         }
     });
@@ -364,11 +387,9 @@ function openSpecificTicket(index) {
             
             document.getElementById('peopleAhead').innerText = peopleAhead;
             
-            // استخدام الدالة الذكية لحساب الوقت المتوقع
             const smartTime = getSmartETA(data, peopleAhead);
             document.getElementById('etaTime').innerText = smartTime;
             
-            // إخفاء "دقيقة انتظار" إذا كان الموعد غداً، لأنها ستكون مربكة
             if(smartTime.includes('غداً') || smartTime.includes('Tmrw')) {
                 document.getElementById('waitTime').innerText = "-";
             } else {
@@ -402,7 +423,7 @@ function openSpecificTicket(index) {
                 badge.style.color = "var(--warning)";
             }
         }
-    });
+    }, (error) => { console.error("Ticket listener error:", error); });
 }
 
 function cancelCurrentTicket() {
@@ -506,8 +527,8 @@ async function registerAndSaveDoctor() {
     let phone = document.getElementById('docPhone').value.trim();
     let city = document.getElementById('docCity').value.trim();
     let street = document.getElementById('docStreet').value.trim();
-    let startTime = document.getElementById('docStartTime').value; // قراءة وقت الفتح
-    let endTime = document.getElementById('docEndTime').value;     // قراءة وقت الإغلاق
+    let startTime = document.getElementById('docStartTime').value; 
+    let endTime = document.getElementById('docEndTime').value;     
     let lat = document.getElementById('docLat').value;
     let lng = document.getElementById('docLng').value;
 
@@ -534,8 +555,8 @@ async function registerAndSaveDoctor() {
             address: { city: city, street: street },
             location: { lat: Number(lat), lng: Number(lng) },
             serviceTime: 10, 
-            startTime: startTime, // حفظ وقت الفتح
-            endTime: endTime,     // حفظ وقت الإغلاق
+            startTime: startTime, 
+            endTime: endTime,     
             currentServing: 1, 
             lastTicket: 0, 
             isOpen: true, 
