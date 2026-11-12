@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title data-i18n="admin_title">لوحة العيادة - عيادة</title>
+    <title>لوحة العيادة - عيادة</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <style>
@@ -28,7 +28,7 @@
     <header class="top-header">
         <div class="header-content">
             <div>
-                <h1 data-i18n="admin_title">لوحة تحكم العيادة</h1>
+                <h1>لوحة تحكم العيادة</h1>
                 <p id="activeDoctorName" style="color: var(--primary-light); font-weight: bold; margin-top: 5px;">جاري التحميل...</p>
             </div>
             <button onclick="logoutDoctor()" class="logout-btn" title="تسجيل الخروج">
@@ -38,21 +38,20 @@
     </header>
     <div class="container">
         <div class="admin-card">
-            <p class="muted" data-i18n="current_patient">المريض الحالي (الذي عند الطبيب)</p>
+            <p class="muted">المريض الحالي (الذي عند الطبيب)</p>
             <div class="current-number" id="currentServingDisplay">-</div>
-            <button class="next-btn" onclick="callNextPatient()"><i class="fa-solid fa-bullhorn"></i> <span data-i18n="call_next">نادِ المريض التالي</span></button>
-            <button id="toggleClinicBtn" class="status-toggle-btn status-open" onclick="toggleClinicStatus()"><i class="fa-solid fa-lock"></i> <span data-i18n="close_clinic">إغلاق العيادة (استراحة)</span></button>
-            <button class="reset-btn" onclick="resetClinic()"><i class="fa-solid fa-trash"></i> <span data-i18n="reset_clinic">تصفير العيادة بالكامل</span></button>
+            <button class="next-btn" onclick="callNextPatient()"><i class="fa-solid fa-bullhorn"></i> نادِ المريض التالي</button>
+            <button id="toggleClinicBtn" class="status-toggle-btn status-open" onclick="toggleClinicStatus()"><i class="fa-solid fa-lock"></i> إغلاق العيادة (استراحة)</button>
+            <button class="reset-btn" onclick="resetClinic()"><i class="fa-solid fa-trash"></i> تصفير العيادة بالكامل</button>
         </div>
         <div class="admin-card queue-list">
-            <h3 style="margin-top:0; color:var(--primary); text-align:center;"><i class="fa-solid fa-users"></i> <span data-i18n="queue_title">طابور الانتظار</span></h3>
-            <div id="patientsQueue"><p style="text-align:center; color:var(--text-muted);" data-i18n="no_patients">لا يوجد مرضى في الانتظار حالياً.</p></div>
+            <h3 style="margin-top:0; color:var(--primary); text-align:center;"><i class="fa-solid fa-users"></i> طابور الانتظار</h3>
+            <div id="patientsQueue"><p style="text-align:center; color:var(--text-muted);">لا يوجد مرضى في الانتظار حالياً.</p></div>
         </div>
     </div>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="translations.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>
