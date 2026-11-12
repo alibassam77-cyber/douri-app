@@ -170,7 +170,12 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="translations.js?v=3"></script>
-<script src="script.js?v=3"></script>
+<script>
+    // فحص أولي: هل المتصفح يشغل الجافاسكريبت؟
+    alert("اختبار 1: المتصفح يستطيع تشغيل الجافاسكريبت!");
+</script>
+
+<script src="translations.js" onerror="alert('اختبار 2: فشل تحميل ملف الترجمة!')"></script>
+<script src="script.js" onerror="alert('اختبار 3: فشل تحميل ملف script.js!')"></script>
 </body>
 </html>
