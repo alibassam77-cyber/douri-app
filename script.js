@@ -1,3 +1,8 @@
+// كود تشخيصي لكشف الأخطاء
+window.onerror = function(message, source, lineno, colno, error) {
+    alert("حدث خطأ برمجي في السطر " + lineno + ":\n" + message);
+    return false;
+};
 const firebaseConfig = {
   apiKey: "AIzaSyBupRlote48_0GtaelL_a13uYUfFPhCWbE",
   authDomain: "douri-app-63918.firebaseapp.com",
