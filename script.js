@@ -96,7 +96,7 @@ function getSmartETA(doctorData, peopleAhead) {
         let timeStr = String(eta.getHours()).padStart(2, '0') + ":" + String(eta.getMinutes()).padStart(2, '0');
         
         if (eta.getDate() !== now.getDate()) {
-            return (currentLang === 'ar' ? "غداً " : "Tmrw ") + timeStr;
+            return t('tomorrow') + timeStr; // استخدام الترجمة هنا
         }
         return timeStr;
     } catch (e) {
@@ -124,18 +124,18 @@ function loadPatients() {
 
 function loadDoctors() {
     const list = document.getElementById('doctorsList');
-    // نظام حماية: إذا لم يرد Firebase خلال 5 ثوانٍ، نظهر خطأ
+    
+    // نظام حماية: إذا لم يرد Firebase خلال 5 ثوانٍ، نظهر خطأ مترجم
     let timeout = setTimeout(() => {
         if (list.innerHTML.includes('skeleton-card')) {
             list.innerHTML = `<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;">
-                <b>فشل الاتصال بقاعدة البيانات!</b><br>
-                يرجى التأكد من الإنترنت أو إيقاف الـ VPN والمحاولة مرة أخرى، ثم تحديث الصفحة.
+                <b>${t('connection_error')}</b>
             </p>`;
         }
     }, 5000);
 
     db.collection("doctors").onSnapshot((snapshot) => {
-        clearTimeout(timeout); // إلغاء مؤقت الخطأ إذا نجح الاتصال
+        clearTimeout(timeout); 
         allDoctors = [];
         let cities = new Set(); 
         snapshot.forEach((doc) => {
@@ -160,7 +160,7 @@ function loadDoctors() {
         clearTimeout(timeout);
         console.error("Error loading doctors:", error);
         list.innerHTML = `<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;">
-            <b>خطأ في جلب الأطباء!</b><br>${error.message}
+            <b>${t('doctors_fetch_error')}</b><br>${error.message}
         </p>`;
     });
 }
@@ -390,7 +390,7 @@ function openSpecificTicket(index) {
             const smartTime = getSmartETA(data, peopleAhead);
             document.getElementById('etaTime').innerText = smartTime;
             
-            if(smartTime.includes('غداً') || smartTime.includes('Tmrw')) {
+            if(smartTime.includes(t('tomorrow'))) {
                 document.getElementById('waitTime').innerText = "-";
             } else {
                 const serviceTime = data.serviceTime || 10;
