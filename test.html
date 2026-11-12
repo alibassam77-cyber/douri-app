@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>فحص الشبكة</title>
+</head>
+<body style="font-family: Arial; padding: 20px; text-align: center;">
+    <h2>جاري فحص الاتصال...</h2>
+    <div id="result" style="font-size: 20px; font-weight: bold; margin-top: 20px;"></div>
+
+    <script>
+        const res = document.getElementById('result');
+        res.innerText = "1. المتصفح يشغل الأكواد الأساسية... ";
+
+        // محاولة تحميل مكتبة Firebase بعد 2 ثانية
+        setTimeout(() => {
+            let script = document.createElement('script');
+            script.src = "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js";
+            
+            script.onload = function() {
+                res.style.color = "green";
+                res.innerText = "2. ممتاز! مكتبة Firebase وصلت بنجاح. الشبكة سليمة.";
+            };
+            
+            script.onerror = function() {
+                res.style.color = "red";
+                res.innerText = "2. فشل! الشبكة أو الـ VPN يمنع تحميل مكتبة Firebase.";
+            };
+            
+            document.head.appendChild(script);
+        }, 2000);
+    </script>
+</body>
+</html>
