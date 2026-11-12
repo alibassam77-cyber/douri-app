@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>فحص Firebase</title>
+</head>
+<body style="text-align: center; padding: 50px; font-family: Arial;">
+    <h2 id="status" style="color: orange;">جاري فحص الاتصال بمكتبة Firebase...</h2>
+    
+    <script>
+        let status = document.getElementById('status');
+        
+        // محاولة تحميل مكتبة Firebase بعد 1 ثانية
+        setTimeout(() => {
+            let script = document.createElement('script');
+            script.src = "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js";
+            
+            script.onload = function() {
+                status.style.color = "green";
+                status.innerText = "✅ ممتاز! مكتبة Firebase وصلت بنجاح. الشبكة سليمة تماماً.";
+            };
+            
+            script.onerror = function() {
+                status.style.color = "red";
+                status.innerText = "❌ فشل! الشبكة أو مزود الخدمة يمنع تحميل مكتبة Firebase من جوجل.";
+            };
+            
+            document.head.appendChild(script);
+        }, 1000);
+    </script>
+</body>
+</html>
