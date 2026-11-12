@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="app_title">عيادة | Clinic</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
             --primary: #0f766e; --primary-light: #ccfbf1; --bg-color: #f0f8f7;
@@ -184,13 +184,18 @@
         </div>
     </div>
 
-    <!-- مكتبات Firebase والخرائط (خارجية) -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- كود التشخيص -->
+    <script>
+        alert("اختبار 1: جاري تحميل التطبيق...");
+    </script>
 
-    <!-- كود الترجمة والدالة (داخلي) -->
+    <!-- مكتبات تم تغييرها إلى jsdelivr -->
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-app-compat.js" onerror="alert('فشل تحميل مكتبة Firebase الأساسية!')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- الترجمة -->
     <script>
         const translations = {
             ar: {
@@ -232,13 +237,21 @@
         }
     </script>
 
-    <!-- كود التطبيق الأساسي (داخلي) -->
+    <!-- التطبيق الأساسي -->
     <script>
+        alert("اختبار 2: جاري تحميل قاعدة البيانات...");
+        
         const firebaseConfig = {
             apiKey: "AIzaSyBupRlote48_0GtaelL_a13uYUfFPhCWbE", authDomain: "douri-app-63918.firebaseapp.com",
             projectId: "douri-app-63918", storageBucket: "douri-app-63918.firebasestorage.app",
             messagingSenderId: "653080780726", appId: "1:653080780726:web:4f2b3421b905e65af9ab17"
         };
+
+        if (typeof firebase === 'undefined') {
+            alert("خطأ فادح: مكتبة Firebase لم تصل! المشكلة في الـ VPN أو الإنترنت.");
+            throw new Error("Firebase not loaded");
+        }
+
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore(); const auth = firebase.auth();
         const adminSecretCode = "DOCTOR2024";
