@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة العيادة - دوري</title>
+    <title>لوحة العيادة - عيادة</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <style>
@@ -21,7 +21,6 @@
         .patient-info p { margin: 0; font-size: 13px; color: var(--text-muted); }
         .ticket-num { font-size: 24px; font-weight: bold; color: var(--primary); }
         .logout-btn { background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; display: flex; justify-content: center; align-items: center; text-decoration: none; }
-        .logout-btn:hover { background: rgba(255,255,255,0.4); }
     </style>
 </head>
 <body>
@@ -41,8 +40,8 @@
             <p class="muted">المريض الحالي (الذي عند الطبيب)</p>
             <div class="current-number" id="currentServingDisplay">-</div>
             <button class="next-btn" onclick="callNextPatient()"><i class="fa-solid fa-bullhorn"></i> نادِ المريض التالي</button>
-            <button id="toggleClinicBtn" class="status-toggle-btn status-open" onclick="toggleClinicStatus()"><i class="fa-solid fa-lock"></i> إغلاق العيادة (استراحة)</button>
-            <button class="reset-btn" onclick="resetClinic()"><i class="fa-solid fa-trash"></i> تصفير العيادة بالكامل</button>
+            <button id="toggleClinicBtn" class="status-toggle-btn status-open" onclick="toggleClinicStatus()"><i class="fa-solid fa-lock"></i> إغلاق العيادة</button>
+            <button class="reset-btn" onclick="resetClinic()"><i class="fa-solid fa-trash"></i> تصفير العيادة</button>
         </div>
         <div class="admin-card queue-list">
             <h3 style="margin-top:0; color:var(--primary); text-align:center;"><i class="fa-solid fa-users"></i> طابور الانتظار</h3>
