@@ -65,7 +65,12 @@ const translations = {
         queue_title: "طابور الانتظار",
         no_patients: "لا يوجد مرضى في الانتظار حالياً.",
         status_serving: "عند الطبيب الآن",
-        active_booking_msg: "لديك {n} حجز نشط! اضغط هنا لعرضها"
+        active_booking_msg: "لديك {n} حجز نشط! اضغط هنا لعرضها",
+        tomorrow: "غداً ",
+        connection_error: "فشل الاتصال بقاعدة البيانات! يرجى التأكد من الإنترنت أو إيقاف الـ VPN.",
+        doctors_fetch_error: "خطأ في جلب الأطباء!",
+        attendance: "حضور",
+        absent: "غياب"
     },
     en: {
         app_title: "Clinic",
@@ -133,7 +138,12 @@ const translations = {
         queue_title: "Waiting Queue",
         no_patients: "No patients in queue.",
         status_serving: "With Doctor",
-        active_booking_msg: "You have {n} active booking(s)! Click here to view."
+        active_booking_msg: "You have {n} active booking(s)! Click here to view.",
+        tomorrow: "Tmrw ",
+        connection_error: "Connection to database failed! Please check your internet or turn off VPN.",
+        doctors_fetch_error: "Error fetching doctors!",
+        attendance: "Present",
+        absent: "Absent"
     }
 };
 
@@ -142,7 +152,6 @@ let currentLang = localStorage.getItem('douri_lang') || 'ar';
 function applyLanguage() {
     const dict = translations[currentLang];
     
-    // تغيير اتجاه الصفحة
     if (currentLang === 'ar') {
         document.documentElement.setAttribute('dir', 'rtl');
         document.documentElement.setAttribute('lang', 'ar');
@@ -153,7 +162,6 @@ function applyLanguage() {
         if(document.getElementById('langToggleBtn')) document.getElementById('langToggleBtn').innerText = 'عربي';
     }
 
-    // ترجمة النصوص العادية
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (dict[key]) {
@@ -161,7 +169,6 @@ function applyLanguage() {
         }
     });
 
-    // ترجمة النصوص داخل الحقول (Placeholders)
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
         const key = el.getAttribute('data-i18n-placeholder');
         if (dict[key]) {
@@ -169,10 +176,8 @@ function applyLanguage() {
         }
     });
     
-    // تحديث عنوان الصفحة
     document.title = dict.app_title;
 
-    // تحديث القائمة المنسدلة للمدن
     let citySelect = document.getElementById('cityFilter');
     if (citySelect && citySelect.options.length > 0) {
         citySelect.options[0].text = dict.all_cities;
@@ -182,6 +187,5 @@ function applyLanguage() {
 function toggleLanguage() {
     currentLang = currentLang === 'ar' ? 'en' : 'ar';
     localStorage.setItem('douri_lang', currentLang);
-    // إعادة تحميل الصفحة فوراً لتطبيق اللغة الجديدة على كل العناصر الديناميكية
     window.location.reload();
 }
