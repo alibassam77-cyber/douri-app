@@ -8,8 +8,36 @@ var db = firebase.firestore();
 var auth = firebase.auth();
 
 var translations = {
-    ar: { app_title: "عيادة", doctors_btn: "الأطباء", all_cities: "كل المدن", search_placeholder: "اسم الطبيب أو التخصص...", no_results: "لا يوجد أطباء.", available: "متاح للحجز", closed_temp: "مغلق مؤقتاً", on_break: "استراحة", book_now: "احجز الآن", clinic_location: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", no_bookings: "لا يوجد حجوزات.", your_number: "رقم دورك:", view_ticket: "عرض التذكرة", back_to_search: "العودة للبحث", your_ticket_number: "رقم دورك", status_waiting: "في الانتظار", status_your_turn: "حان دورك!", status_one_left: "بقي مريض واحد", ahead_label: "أمامك", wait_time_label: "دقيقة", eta_label: "الوقت المتوقع", welcome_msg: "أهلاً", ticket_hint: "تتحدث تلقائياً.", back_to_bookings: "العودة", cancel_booking_btn: "إلغاء", confirm_booking_title: "تأكيد الحجز", full_name_label: "الاسم:", name_placeholder: "الاسم", phone_label: "الهاتف:", phone_placeholder: "77...", confirm_btn: "تأكيد", cancel_btn: "إلغاء", doctor_portal_title: "بوابة الأطباء", login_tab: "دخول", register_tab: "جديد", email_label: "الإيميل:", password_label: "المرور:", password_min_label: "كلمة المرور:", remember_me: "تذكرني", login_btn: "دخول", doctor_name_label: "الاسم:", doc_name_ph: "د. أحمد", specialty_label: "التخصص:", specialty_ph: "باطنية", city_label: "المدينة:", city_ph: "صنعاء", street_label: "الشارع:", street_ph: "حدة", start_time_label: "وقت الفتح:", end_time_label: "وقت الإغلاق:", service_time_label: "مدة الكشف (دقيقة):", create_account_btn: "حفظ", active_booking_msg: "لديك {n} حجز", tomorrow: "غداً " },
-    en: { app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", search_placeholder: "Doctor...", no_results: "No doctors.", available: "Available", closed_temp: "Closed", on_break: "Break", book_now: "Book Now", clinic_location: "Location", at_doctor: "At: ", my_bookings_title: "Bookings", no_bookings: "No bookings.", your_number: "Number:", view_ticket: "View", back_to_search: "Back", your_ticket_number: "Your Number", status_waiting: "Waiting", status_your_turn: "Your Turn!", status_one_left: "One left", ahead_label: "Ahead", wait_time_label: "Min", eta_label: "ETA", welcome_msg: "Welcome", ticket_hint: "Updates automatically.", back_to_bookings: "Back", cancel_booking_btn: "Cancel", confirm_booking_title: "Confirm", full_name_label: "Name:", name_placeholder: "Name", phone_label: "Phone:", phone_placeholder: "77...", confirm_btn: "Confirm", cancel_btn: "Cancel", doctor_portal_title: "Doctor Portal", login_tab: "Login", register_tab: "New", email_label: "Email:", password_label: "Pass:", password_min_label: "Pass (6):", remember_me: "Remember me", login_btn: "Login", doctor_name_label: "Name:", doc_name_ph: "Dr. A", specialty_label: "Specialty:", specialty_ph: "Internal", city_label: "City:", city_ph: "Sanaa", street_label: "Street:", street_ph: "Hadda", start_time_label: "Open:", end_time_label: "Close:", service_time_label: "Service (min):", create_account_btn: "Save", active_booking_msg: "You have {n} booking(s)", tomorrow: "Tmrw " }
+    ar: { 
+        app_title: "عيادة", doctors_btn: "الأطباء", all_cities: "كل المدن", search_placeholder: "اسم الطبيب أو التخصص...", 
+        no_results: "لا يوجد أطباء.", available: "متاح للحجز", closed_temp: "مغلق مؤقتاً", on_break: "استراحة", 
+        book_now: "احجز الآن", clinic_location: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", 
+        no_bookings: "لا يوجد حجوزات.", your_number: "رقم دورك:", view_ticket: "عرض التذكرة", back_to_search: "العودة للبحث", 
+        your_ticket_number: "رقم دورك", status_waiting: "في الانتظار", status_your_turn: "حان دورك!", status_one_left: "بقي مريض واحد", 
+        ahead_label: "أمامك", wait_time_label: "دقيقة", eta_label: "الوقت المتوقع", welcome_msg: "أهلاً", ticket_hint: "تتحدث تلقائياً.", 
+        back_to_bookings: "العودة", cancel_booking_btn: "إلغاء", confirm_booking_title: "تأكيد الحجز", full_name_label: "الاسم:", 
+        name_placeholder: "الاسم", phone_label: "الهاتف:", phone_placeholder: "77...", confirm_btn: "تأكيد", cancel_btn: "إلغاء", 
+        doctor_portal_title: "بوابة الأطباء", login_tab: "دخول", register_tab: "جديد", email_label: "الإيميل:", password_label: "المرور:", 
+        password_min_label: "كلمة المرور:", remember_me: "تذكرني", login_btn: "دخول", doctor_name_label: "الاسم:", doc_name_ph: "د. أحمد", 
+        specialty_label: "التخصص:", specialty_ph: "باطنية", city_label: "المدينة:", city_ph: "صنعاء", street_label: "الشارع:", street_ph: "حدة", 
+        start_time_label: "وقت الفتح:", end_time_label: "وقت الإغلاق:", service_time_label: "مدة الكشف (دقيقة):", create_account_btn: "حفظ", 
+        active_booking_msg: "لديك {n} حجز", tomorrow: "غداً ", hours_label: "ساعات العمل:"
+    },
+    en: { 
+        app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", search_placeholder: "Doctor...", 
+        no_results: "No doctors.", available: "Available", closed_temp: "Closed", on_break: "Break", 
+        book_now: "Book Now", clinic_location: "Location", at_doctor: "At: ", my_bookings_title: "Bookings", 
+        no_bookings: "No bookings.", your_number: "Number:", view_ticket: "View", back_to_search: "Back", 
+        your_ticket_number: "Your Number", status_waiting: "Waiting", status_your_turn: "Your Turn!", status_one_left: "One left", 
+        ahead_label: "Ahead", wait_time_label: "Min", eta_label: "ETA", welcome_msg: "Welcome", ticket_hint: "Updates automatically.", 
+        back_to_bookings: "Back", cancel_booking_btn: "Cancel", confirm_booking_title: "Confirm", full_name_label: "Name:", 
+        name_placeholder: "Name", phone_label: "Phone:", phone_placeholder: "77...", confirm_btn: "Confirm", cancel_btn: "Cancel", 
+        doctor_portal_title: "Doctor Portal", login_tab: "Login", register_tab: "New", email_label: "Email:", password_label: "Pass:", 
+        password_min_label: "Pass (6):", remember_me: "Remember me", login_btn: "Login", doctor_name_label: "Name:", doc_name_ph: "Dr. A", 
+        specialty_label: "Specialty:", specialty_ph: "Internal", city_label: "City:", city_ph: "Sanaa", street_label: "Street:", street_ph: "Hadda", 
+        start_time_label: "Open Time:", end_time_label: "Close Time:", service_time_label: "Service Time (min):", create_account_btn: "Save", 
+        active_booking_msg: "You have {n} booking(s)", tomorrow: "Tmrw ", hours_label: "Hours:"
+    }
 };
 
 var currentLang = localStorage.getItem('douri_lang') || 'ar';
@@ -35,6 +63,7 @@ function applyLanguage() {
 function toggleLanguage() { currentLang = currentLang === 'ar' ? 'en' : 'ar'; localStorage.setItem('douri_lang', currentLang); window.location.reload(); }
 function t(key) { return translations[currentLang] && translations[currentLang][key] ? translations[currentLang][key] : key; }
 
+// ... (باقي دوال التطبيق من loadDoctors, renderDoctors, getSmartETA, إلخ .. نفس الكود السابق تماماً) ...
 var allDoctors = [];
 var currentListener = null;
 var activeTicketToDisplay = null;
@@ -119,7 +148,7 @@ function loadDoctors() {
     var list = document.getElementById('doctorsList');
     var timeout = setTimeout(function() {
         if (list.innerHTML.indexOf('skeleton-card') > -1) {
-            list.innerHTML = '<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;"><b>فشل الاتصال بقاعدة البيانات!</b></p>';
+            list.innerHTML = '<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;"><b>' + (currentLang === 'ar' ? 'فشل الاتصال بقاعدة البيانات!' : 'Connection failed!') + '</b></p>';
         }
     }, 5000);
 
@@ -129,7 +158,7 @@ function loadDoctors() {
         var cities = {};
         snapshot.forEach(function(doc) {
             var data = doc.data();
-            var d = { id: doc.id, name: data.name, specialty: data.specialty, address: data.address, location: data.location, isOpen: data.isOpen, currentServing: data.currentServing, lastTicket: data.lastTicket, startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime };
+            var d = { id: doc.id, name: data.name, specialty: data.specialty, address: data.address, isOpen: data.isOpen, currentServing: data.currentServing, lastTicket: data.lastTicket, startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime };
             allDoctors.push(d);
             if (d.address && d.address.city) { cities[d.address.city] = true; }
         });
@@ -144,7 +173,7 @@ function loadDoctors() {
         updateBanner();
     }, function(error) {
         clearTimeout(timeout);
-        list.innerHTML = '<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;"><b>خطأ في جلب البيانات</b><br>' + error.message + '</p>';
+        list.innerHTML = '<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;"><b>' + (currentLang === 'ar' ? 'خطأ في جلب البيانات' : 'Fetch error') + '</b><br>' + error.message + '</p>';
     });
 }
 
@@ -170,7 +199,7 @@ function renderDoctors(doctorsToRender) {
             '<h2>' + doc.name + '</h2>' +
             '<p class="doc-specialty">' + doc.specialty + '</p>' +
             '<p class="doc-address">📍 ' + addressText + '</p>' +
-            '<p class="doc-address" style="font-size: 12px; color: var(--primary);">🕒 ' + start + ' - ' + end + '</p>' +
+            '<p class="doc-address" style="font-size: 12px; color: var(--primary);">🕒 ' + t('hours_label') + ' ' + start + ' - ' + end + '</p>' +
             '</div>' +
             '<div class="clinic-status" style="margin-top: 15px;">' + badgeHTML + '</div>' +
             btnHTML +
@@ -212,7 +241,7 @@ function closeModal() {
 function confirmBooking() {
     var name = document.getElementById('bookingName').value.trim();
     var phone = document.getElementById('bookingPhone').value.trim();
-    if (!name || !phone) return alert("يرجى إدخال البيانات!");
+    if (!name || !phone) return alert(currentLang === 'ar' ? "يرجى إدخال البيانات!" : "Please enter data!");
     
     var docRef = db.collection("doctors").doc(modalDoctorId);
     docRef.get().then(function(docSnap) {
@@ -295,7 +324,7 @@ function openSpecificTicket(id) {
         
         if (!currentB || currentB.status === 'cancelled') {
             clearInterval(timerInterval);
-            alert("تم إلغاء الحجز.");
+            alert(currentLang === 'ar' ? "تم إلغاء الحجز." : "Booking cancelled.");
             goBackToSearch();
             return;
         }
@@ -328,7 +357,7 @@ function openSpecificTicket(id) {
 
 function cancelCurrentTicket() {
     if(!activeTicketToDisplay) return;
-    if(!confirm("إلغاء الحجز؟")) return;
+    if(!confirm(currentLang === 'ar' ? "إلغاء الحجز؟" : "Cancel booking?")) return;
     
     db.collection("bookings").doc(activeTicketToDisplay.firebaseId).update({ status: 'cancelled' });
     
@@ -394,8 +423,8 @@ function switchAuthTab(tab) {
 function loginDoctor() {
     var email = document.getElementById('loginEmail').value.trim();
     var password = document.getElementById('loginPassword').value;
-    if (!email || !password) return alert("أدخل البيانات");
-    auth.signInWithEmailAndPassword(email, password).then(function() { window.location.href = 'admin.html'; }).catch(function(e) { alert("خطأ: " + e.message); });
+    if (!email || !password) return alert(currentLang === 'ar' ? "أدخل البيانات" : "Enter data");
+    auth.signInWithEmailAndPassword(email, password).then(function() { window.location.href = 'admin.html'; }).catch(function(e) { alert("Error: " + e.message); });
 }
 
 function registerAndSaveDoctor() {
@@ -410,15 +439,15 @@ function registerAndSaveDoctor() {
     var endTime = document.getElementById('docEndTime').value;
     var serviceTime = document.getElementById('docServiceTime').value;
 
-    if (!email || !password || !name || !specialty || !city) return alert("أكمل البيانات!");
-    if (password.length < 6) return alert("كلمة المرور قصيرة");
+    if (!email || !password || !name || !specialty || !city) return alert(currentLang === 'ar' ? "أكمل البيانات!" : "Complete data!");
+    if (password.length < 6) return alert(currentLang === 'ar' ? "كلمة المرور قصيرة" : "Password short");
 
     auth.createUserWithEmailAndPassword(email, password).then(function(userCredential) {
         var user = userCredential.user;
         db.collection("doctors").add({ ownerUid: user.uid, email: user.email, name: name, specialty: specialty, phone: phone, address: { city: city, street: street }, serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, currentServing: 0, lastTicket: 0, isOpen: true, createdAt: new Date().toISOString() }).then(function() {
-            alert("تم الحفظ!"); window.location.href = 'admin.html';
+            alert(currentLang === 'ar' ? "تم الحفظ!" : "Saved!"); window.location.href = 'admin.html';
         });
-    }).catch(function(error) { alert("خطأ: " + error.message); });
+    }).catch(function(error) { alert("Error: " + error.message); });
 }
 
 window.onload = function() {
