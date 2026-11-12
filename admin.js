@@ -1,38 +1,30 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyBupRlote48_0GtaelL_a13uYUfFPhCWbE",
-  authDomain: "douri-app-63918.firebaseapp.com",
-  projectId: "douri-app-63918",
-  storageBucket: "douri-app-63918.firebasestorage.app",
-  messagingSenderId: "653080780726",
-  appId: "1:653080780726:web:4f2b3421b905e65af9ab17"
+var firebaseConfig = {
+    apiKey: "AIzaSyBupRlote48_0GtaelL_a13uYUfFPhCWbE", authDomain: "douri-app-63918.firebaseapp.com",
+    projectId: "douri-app-63918", storageBucket: "douri-app-63918.firebasestorage.app",
+    messagingSenderId: "653080780726", appId: "1:653080780726:web:4f2b3421b905e65af9ab17"
 };
-
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
+var db = firebase.firestore();
+var auth = firebase.auth();
 
-let selectedDoctorId = null;
-let currentDoctorData = null;
-let currentIsOpen = true;
+var selectedDoctorId = null;
+var currentDoctorData = null;
+var currentIsOpen = true;
 
-// التحقق من تسجيل الدخول
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        initAdminPanel(user.uid);
-    } else {
-        window.location.href = 'index.html';
-    }
+auth.onAuthStateChanged(function(user) {
+    if (user) { initAdminPanel(user.uid); }
+    else { window.location.href = 'index.html'; }
 });
 
 function initAdminPanel(uid) {
-    db.collection("doctors").where("ownerUid", "==", uid).limit(1).onSnapshot((snapshot) => {
+    db.collection("doctors").where("ownerUid", "==", uid).limit(1).onSnapshot(function(snapshot) {
         if (!snapshot.empty) {
-            const doc = snapshot.docs[0];
+            var doc = snapshot.docs[0];
             selectedDoctorId = doc.id;
             currentDoctorData = doc.data();
             currentIsOpen = currentDoctorData.isOpen !== false;
 
-            document.getElementById('activeDoctorName').innerText = currentDoctorData.name + " (" + currentDoctorData.specialty + ")";
+            document.getElementById('activeDoctorName').innerText = currentDoctorData.name + " (" + currentDoctorData.specialty + ") | " + (currentDoctorData.startTime || '09:00') + " - " + (currentDoctorData.endTime || '17:00');
             updateClinicStatusUI();
             listenToQueue();
         } else {
@@ -43,97 +35,96 @@ function initAdminPanel(uid) {
 }
 
 function updateClinicStatusUI() {
-    let btn = document.getElementById('toggleClinicBtn');
-    if (currentIsOpen) {
-        btn.className = 'status-toggle-btn status-open';
-        btn.innerHTML = '<i class="fa-solid fa-lock"></i> إغلاق العيادة (استراحة)';
-    } else {
-        btn.className = 'status-toggle-btn status-closed';
-        btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> فتح العيادة للاستقبال';
-    }
+    var btn = document.getElementById('toggleClinicBtn');
+    if (currentIsOpen) { btn.className = 'status-toggle-btn status-open'; btn.innerHTML = '<i class="fa-solid fa-lock"></i> إغلاق العيادة'; }
+    else { btn.className = 'status-toggle-btn status-closed'; btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> فتح العيادة'; }
 }
 
-async function toggleClinicStatus() {
+function toggleClinicStatus() {
     if (!selectedDoctorId) return;
-    try {
-        currentIsOpen = !currentIsOpen;
-        await db.collection("doctors").doc(selectedDoctorId).update({ isOpen: currentIsOpen });
-        updateClinicStatusUI();
-    } catch (error) { console.error(error); }
+    currentIsOpen = !currentIsOpen;
+    db.collection("doctors").doc(selectedDoctorId).update({ isOpen: currentIsOpen }).then(function() { updateClinicStatusUI(); });
 }
 
 function listenToQueue() {
-    db.collection("bookings").where("doctorId", "==", selectedDoctorId).onSnapshot((snapshot) => {
-        let patients = [];
-        snapshot.forEach(doc => patients.push({ id: doc.id, ...doc.data() }));
-        patients.sort((a, b) => a.ticketNumber - b.ticketNumber);
+    db.collection("bookings").where("doctorId", "==", selectedDoctorId).onSnapshot(function(snapshot) {
+        var patients = [];
+        snapshot.forEach(function(doc) { patients.push({ id: doc.id, data: doc.data() }); });
+        patients.sort(function(a, b) { return a.data.ticketNumber - b.data.ticketNumber; });
         renderQueue(patients);
     });
 }
 
 function renderQueue(patients) {
-    let queueDiv = document.getElementById('patientsQueue');
+    var queueDiv = document.getElementById('patientsQueue');
     queueDiv.innerHTML = '';
-    let servingPatient = patients.find(p => p.status === 'serving');
-    document.getElementById('currentServingDisplay').innerText = servingPatient ? servingPatient.ticketNumber : '-';
-    let activePatients = patients.filter(p => p.status === 'waiting' || p.status === 'serving');
+    var servingPatient = null;
+    for (var i = 0; i < patients.length; i++) { if (patients[i].data.status === 'serving') servingPatient = patients[i]; }
+    
+    document.getElementById('currentServingDisplay').innerText = servingPatient ? servingPatient.data.ticketNumber : '-';
+    
+    var activePatients = [];
+    for (var j = 0; j < patients.length; j++) { if (patients[j].data.status === 'waiting' || patients[j].data.status === 'serving') activePatients.push(patients[j]); }
     
     if (activePatients.length === 0) {
         queueDiv.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا يوجد مرضى في الانتظار حالياً.</p>';
         return;
     }
-    activePatients.forEach(p => {
-        let statusClass = p.status === 'serving' ? 'serving' : '';
-        let statusText = p.status === 'serving' ? 'عند الطبيب الآن' : 'في الانتظار';
-        queueDiv.innerHTML += `
-            <div class="queue-item ${statusClass}">
-                <div class="patient-info"><h4>${p.patientName}</h4><p><i class="fa-solid fa-phone"></i> ${p.patientPhone} - <span style="color:var(--primary); font-weight:bold;">${statusText}</span></p></div>
-                <div class="ticket-num">${p.ticketNumber}</div>
-            </div>`;
+    
+    for (var k = 0; k < activePatients.length; k++) {
+        var p = activePatients[k];
+        var isServing = p.data.status === 'serving';
+        var statusClass = isServing ? 'serving' : '';
+        var statusText = isServing ? 'عند الطبيب الآن' : 'في الانتظار';
+        
+        queueDiv.innerHTML += '<div class="queue-item ' + statusClass + '">' +
+            '<div class="patient-info">' +
+            '<h4>' + p.data.patientName + '</h4>' +
+            '<p><i class="fa-solid fa-phone"></i> ' + p.data.patientPhone + ' - <span style="color:var(--primary); font-weight:bold;">' + statusText + '</span></p>' +
+            '</div>' +
+            '<div class="ticket-num">' + p.data.ticketNumber + '</div>' +
+            '</div>';
+    }
+}
+
+function callNextPatient() {
+    if (!selectedDoctorId) return;
+    if (!currentIsOpen) { if(!confirm("العيادة مغلقة حالياً. هل تريد فتحها؟")) return; toggleClinicStatus(); }
+    
+    db.collection("bookings").where("doctorId", "==", selectedDoctorId).where("status", "in", ["waiting", "serving"]).get().then(function(snapshot) {
+        var patients = [];
+        snapshot.forEach(function(doc) { patients.push({ id: doc.id, data: doc.data() }); });
+        patients.sort(function(a, b) { return a.data.ticketNumber - b.data.ticketNumber; });
+        
+        if (patients.length === 0) return alert("لا يوجد مرضى في الانتظار!");
+        
+        var currentServing = null;
+        for (var i = 0; i < patients.length; i++) { if (patients[i].data.status === 'serving') currentServing = patients[i]; }
+        if (currentServing) db.collection("bookings").doc(currentServing.id).update({ status: 'done' });
+        
+        var nextPatient = null;
+        for (var j = 0; j < patients.length; j++) { if (patients[j].data.status === 'waiting') { nextPatient = patients[j]; break; } }
+        
+        if (nextPatient) {
+            db.collection("bookings").doc(nextPatient.id).update({ status: 'serving' });
+            db.collection("doctors").doc(selectedDoctorId).update({ currentServing: nextPatient.data.ticketNumber });
+        } else {
+            db.collection("doctors").doc(selectedDoctorId).update({ currentServing: 0 });
+        }
     });
 }
 
-async function callNextPatient() {
-    if (!selectedDoctorId) return;
-    if (!currentIsOpen) {
-        if(!confirm("العيادة مغلقة حالياً. هل تريد فتحها؟")) return;
-        toggleClinicStatus();
-    }
-    try {
-        let snapshot = await db.collection("bookings").where("doctorId", "==", selectedDoctorId).where("status", "in", ["waiting", "serving"]).get();
-        let patients = [];
-        snapshot.forEach(doc => patients.push({ id: doc.id, ...doc.data() }));
-        patients.sort((a, b) => a.ticketNumber - b.ticketNumber);
-        if (patients.length === 0) return alert("لا يوجد مرضى في الانتظار!");
-
-        let currentServing = patients.find(p => p.status === 'serving');
-        if (currentServing) await db.collection("bookings").doc(currentServing.id).update({ status: 'done' });
-
-        let nextPatient = patients.find(p => p.status === 'waiting');
-        if (nextPatient) {
-            await db.collection("bookings").doc(nextPatient.id).update({ status: 'serving' });
-            await db.collection("doctors").doc(selectedDoctorId).update({ currentServing: nextPatient.ticketNumber });
-        } else {
-            await db.collection("doctors").doc(selectedDoctorId).update({ currentServing: 0 });
-        }
-    } catch (error) { console.error(error); }
-}
-
-async function resetClinic() {
+function resetClinic() {
     if (!selectedDoctorId) return;
     if(!confirm("هل أنت متأكد من مسح كل الحجوزات والبدء من جديد؟")) return;
-    try {
-        await db.collection("doctors").doc(selectedDoctorId).update({ lastTicket: 0, currentServing: 0 });
-        let snapshot = await db.collection("bookings").where("doctorId", "==", selectedDoctorId).where("status", "in", ["waiting", "serving"]).get();
-        let batch = db.batch();
-        snapshot.forEach(doc => batch.update(doc.ref, { status: 'cancelled' }));
-        await batch.commit();
-        alert("تم التصفير.");
-    } catch (error) { console.error(error); }
-}
-
-function logoutDoctor() {
-    auth.signOut().then(() => {
-        window.location.href = 'index.html';
+    
+    db.collection("doctors").doc(selectedDoctorId).update({ lastTicket: 0, currentServing: 0 }).then(function() {
+        db.collection("bookings").where("doctorId", "==", selectedDoctorId).where("status", "in", ["waiting", "serving"]).get().then(function(snapshot) {
+            var batch = db.batch();
+            snapshot.forEach(function(doc) { batch.update(doc.ref, { status: 'cancelled' }); });
+            batch.commit().then(function() { alert("تم التصفير."); });
+        });
     });
 }
+
+function logoutDoctor() { auth.signOut().then(function() { window.location.href = 'index.html'; }); }
