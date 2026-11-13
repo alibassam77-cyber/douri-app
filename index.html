@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="app_title">عيادة | Clinic</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -97,7 +98,6 @@
                 <div class="input-group"><label data-i18n="email_label">البريد الإلكتروني:</label><input type="email" id="regEmail"></div>
                 <div class="input-group"><label data-i18n="password_min_label">كلمة المرور (6 أحرف على الأقل):</label><input type="password" id="regPassword"></div>
                 
-                <!-- كود التفعيل الجديد -->
                 <div class="input-group"><label data-i18n="activation_code_label">كود التفعيل (من الإدارة):</label><input type="text" id="regActivationCode" placeholder="أدخل الكود السري هنا" data-i18n-placeholder="activation_code_ph"></div>
                 
                 <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
@@ -107,9 +107,15 @@
                 <div class="input-group"><label data-i18n="city_label">المدينة:</label><input type="text" id="docCity"></div>
                 <div class="input-group"><label data-i18n="street_label">الشارع:</label><input type="text" id="docStreet"></div>
                 
-                <!-- العلامة المميزة الجديدة -->
                 <div class="input-group"><label data-i18n="landmark_label">علامة مميزة (مقابل/بجوار):</label><input type="text" id="docLandmark" placeholder="مثال: مقابل مستشفى..." data-i18n-placeholder="landmark_ph"></div>
                 
+                <!-- الخريطة -->
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-main); font-size: 14px;" data-i18n="map_label">حدد موقع العيادة على الخريطة:</label>
+                <p class="map-hint"><i class="fa-solid fa-hand-pointer"></i> <span data-i18n="map_hint">اضغط على المكان الصحيح في الخريطة لتحديد الموقع</span></p>
+                <div id="reg-map"></div>
+                <input type="hidden" id="docLat" value="">
+                <input type="hidden" id="docLng" value="">
+
                 <div class="input-group"><label data-i18n="start_time_label">وقت فتح العيادة:</label><input type="time" id="docStartTime" value="09:00"></div>
                 <div class="input-group"><label data-i18n="end_time_label">وقت إغلاق العيادة:</label><input type="time" id="docEndTime" value="17:00"></div>
                 <div class="input-group"><label data-i18n="service_time_label">مدة الكشف للمريض (بالدقائق):</label><input type="number" id="docServiceTime" value="10" min="1"></div>
@@ -123,6 +129,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="translations.js"></script>
     <script src="script.js"></script>
 </body>
