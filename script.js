@@ -16,9 +16,8 @@ var modalWorkingDays = [];
 var timerInterval = null;
 var doctorMap = null;
 var doctorMarker = null;
-var extraClinics = []; // مصفوفة لتخزين العيادات الإضافية أثناء التسجيل
+var extraClinics = []; 
 
-// دالة مساعدة لمعرفة اليوم
 function getTodayString() {
     var today = new Date();
     var yyyy = today.getFullYear();
@@ -27,12 +26,10 @@ function getTodayString() {
     return yyyy + '-' + mm + '-' + dd;
 }
 
-// دالة لحفظ الصفحة الحالية
 function saveViewState(view) {
     localStorage.setItem('douri_view_state', view);
 }
 
-// دالة لاستعادة الصفحة الحالية
 function restoreViewState() {
     var state = localStorage.getItem('douri_view_state');
     if (state === 'bookings') {
@@ -42,7 +39,6 @@ function restoreViewState() {
     }
 }
 
-// Theme & Translate (لا تغيير)
 function initTheme() {
     var savedTheme = localStorage.getItem('douri_theme');
     var themeBtn = document.getElementById('themeToggle');
@@ -57,7 +53,6 @@ function toggleTheme() {
     else { document.documentElement.setAttribute('data-theme', 'dark'); localStorage.setItem('douri_theme', 'dark'); themeBtn.innerHTML = '<i class="fa-solid fa-sun"></i>'; }
 }
 
-// getSmartETA (لا تغيير)
 function getSmartETA(doctorData, peopleAhead, bookingDateStr) {
     try {
         var serviceTime = Number(doctorData.serviceTime) || 10;
@@ -100,7 +95,6 @@ function getSmartETA(doctorData, peopleAhead, bookingDateStr) {
     } catch (e) { return "---"; }
 }
 
-// Load Doctors & Cities
 function loadDoctors() {
     var list = document.getElementById('doctorsList');
     var timeout = setTimeout(function() {
@@ -130,7 +124,6 @@ function loadDoctors() {
         
         allDoctors = Object.values(groupedDoctors);
         
-        // تعبئة قائمة الـ Datalist
         var datalist = document.getElementById('citiesList');
         if (datalist) {
             datalist.innerHTML = '';
@@ -145,7 +138,6 @@ function loadDoctors() {
     });
 }
 
-// renderDoctors (لا تغيير)
 function renderDoctors(doctorsToRender) {
     var list = document.getElementById('doctorsList');
     list.innerHTML = '';
@@ -188,7 +180,6 @@ function renderDoctors(doctorsToRender) {
     }
 }
 
-// Filter Doctors (تحديث للبحث بالمدينة النصي)
 function filterDoctors() {
     var cityFilter = document.getElementById('cityFilter');
     var searchInput = document.getElementById('searchInput');
@@ -218,7 +209,6 @@ function filterDoctors() {
     renderDoctors(filtered);
 }
 
-// Clinic Selection Modal (لا تغيير)
 function openClinicSelectionModal(encodedData) {
     var data = JSON.parse(decodeURIComponent(encodedData));
     var listDiv = document.getElementById('clinicSelectionList');
@@ -238,7 +228,6 @@ function openClinicSelectionModal(encodedData) {
     document.getElementById('clinicSelectionModal').classList.remove('hidden');
 }
 
-// Booking, Bookings View, Ticket View, Cancel, Listen, Login (لا تغيير جوهري)
 function selectClinicToBook(clinicId, doctorName, clinicName) {
     closeClinicSelectionModal();
     openBookingModal(clinicId, doctorName, clinicName);
@@ -278,22 +267,66 @@ function confirmBooking() {
     else { for (var i = 0; i < modalWorkingDays.length; i++) { if (Number(modalWorkingDays[i]) === selectedDay) { isWorkingDay = true; break; } } }
     if (!isWorkingDay) return alert(t('invalid_working_day'));
     
-    var dayDocId = modalDoctorId + "_" + bookingDate;
-    var docDayRef = db.collection("doctor_days").doc(dayDocId);
-    
-    docDayRef.get().then(function(daySnap) {
-        var lastTicket = 1;
-        if (daySnap.exists) { lastTicket = (daySnap.data().lastTicket || 0) + 1; }
-        docDayRef.set({ doctorId: modalDoctorId, date: bookingDate, lastTicket: lastTicket, currentServing: daySnap.exists ? (daySnap.data().currentServing || 1) : 1 }, { merge: true }).then(function() {
-            db.collection("bookings").add({ doctorId: modalDoctorId, doctorName: modalDoctorName, patientName: name, patientPhone: phone, bookingDate: bookingDate, ticketNumber: lastTicket, status: 'waiting', createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(bookingRef) {
-                var myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
-                myBookings.push({ firebaseId: bookingRef.id, ticket: lastTicket, doctorId: modalDoctorId, doctorName: modalDoctorName, name: name, phone: phone, bookingDate: bookingDate, status: 'waiting', date: new Date().toISOString() });
-                localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
-                closeModal(); alert("تم الحجز! رقم دورك: " + lastTicket);
-                updateBanner(); listenToMyBookings(); showMyBookingsView();
+    // 🟢 تعديل الحجز لإضافة الرقم التسلسلي ورقم الدور اليومي
+    var docRef = db.collection("doctors").doc(modalDoctorId);
+    docRef.get().then(function(docSnap) {
+        if (docSnap.exists) {
+            var currentGlobalSerial = docSnap.data().globalSerial || 0;
+            var nextGlobalSerial = currentGlobalSerial + 1;
+            
+            // تحديث العداد التسلسلي في وثيقة الطبيب
+            docRef.update({ globalSerial: nextGlobalSerial }).then(function() {
+                
+                var dayDocId = modalDoctorId + "_" + bookingDate;
+                var docDayRef = db.collection("doctor_days").doc(dayDocId);
+                
+                docDayRef.get().then(function(daySnap) {
+                    var nextDailyTicket = 1; 
+                    if (daySnap.exists) {
+                        nextDailyTicket = (daySnap.data().lastTicket || 0) + 1;
+                    }
+                    
+                    docDayRef.set({ 
+                        doctorId: modalDoctorId, 
+                        date: bookingDate, 
+                        lastTicket: nextDailyTicket, 
+                        currentServing: daySnap.exists ? (daySnap.data().currentServing || 1) : 1 
+                    }, { merge: true }).then(function() {
+                        
+                        db.collection("bookings").add({ 
+                            doctorId: modalDoctorId, 
+                            doctorName: modalDoctorName, 
+                            patientName: name, 
+                            patientPhone: phone, 
+                            bookingDate: bookingDate,
+                            ticketNumber: nextDailyTicket, 
+                            serialNumber: nextGlobalSerial, // حفظ الرقم التسلسلي
+                            status: 'waiting', 
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp() 
+                        }).then(function(bookingRef) {
+                            var myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
+                            myBookings.push({ 
+                                firebaseId: bookingRef.id, 
+                                ticket: nextDailyTicket, 
+                                serial: nextGlobalSerial,
+                                doctorId: modalDoctorId, 
+                                doctorName: modalDoctorName, 
+                                name: name, 
+                                phone: phone, 
+                                bookingDate: bookingDate, 
+                                status: 'waiting', 
+                                date: new Date().toISOString() 
+                            });
+                            localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
+                            closeModal(); 
+                            alert("تم الحجز! رقم دورك: " + nextDailyTicket + "\nالرقم التسلسلي: " + nextGlobalSerial);
+                            updateBanner(); listenToMyBookings(); showMyBookingsView();
+                        });
+                    });
+                });
             });
-        });
-    });
+        }
+    }).catch(function(err) { alert("Error: " + err.message); });
 }
 
 function updateBanner() {
@@ -394,7 +427,6 @@ function listenToMyBookings() {
     }
 }
 
-// --- Doctor Registration with Multiple Clinics ---
 function openDoctorModal() { document.getElementById('doctorModal').classList.remove('hidden'); }
 function closeDoctorModal() { document.getElementById('doctorModal').classList.add('hidden'); }
 
@@ -446,7 +478,6 @@ function addAnotherClinicField() {
     extraClinics.push(data);
     alert("تم حفظ العيادة في القائمة، يمكنك الآن تعبئة بيانات العيادة الجديدة.");
     
-    // مسح الحقول لإضافة عيادة جديدة
     document.getElementById('docClinicName').value = '';
     document.getElementById('docCity').value = '';
     document.getElementById('docStreet').value = '';
@@ -480,6 +511,7 @@ function registerAndSaveDoctor() {
                 ownerUid: user.uid, email: user.email, name: name, specialty: specialty, phone: phone, 
                 clinicName: c.clinicName, address: c.address, location: c.location,
                 serviceTime: c.serviceTime, startTime: c.startTime, endTime: c.endTime, workingDays: c.workingDays,
+                globalSerial: 0, // 🟢 بداية العداد التسلسلي من الصفر
                 createdAt: new Date().toISOString() 
             });
             promises.push(p);
