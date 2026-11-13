@@ -69,6 +69,16 @@
         </div>
     </div>
 
+    <!-- نافذة اختيار العيادة للحجز (جديدة) -->
+    <div id="clinicSelectionModal" class="hidden modal-overlay">
+        <div class="modal-content">
+            <h3 class="view-title" data-i18n="select_clinic_to_book">اختر مكان الحجز:</h3>
+            <div id="clinicSelectionList" style="margin-bottom: 20px;"></div>
+            <button class="btn-outline" onclick="closeClinicSelectionModal()" style="margin-top:10px; border:none;">إلغاء</button>
+        </div>
+    </div>
+
+    <!-- نافذة الحجز -->
     <div id="bookingModal" class="hidden modal-overlay">
         <div class="modal-content">
             <h3 class="view-title" data-i18n="confirm_booking_title">تأكيد الحجز</h3>
@@ -92,6 +102,7 @@
         </div>
     </div>
 
+    <!-- نافذة دخول الطبيب -->
     <div id="doctorModal" class="hidden modal-overlay">
         <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
             <h3 class="view-title" style="margin-bottom: 10px;" data-i18n="doctor_portal_title">بوابة الأطباء</h3>
