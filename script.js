@@ -13,7 +13,7 @@ var allDoctors = [];
 var activeTicketToDisplay = null;
 var modalDoctorId = null;
 var modalDoctorName = null;
-var modalWorkingDays = []; // لحفظ أيام عمل العيادة المختارة
+var modalWorkingDays = []; 
 var timerInterval = null;
 var doctorMap = null;
 var doctorMarker = null;
@@ -169,7 +169,6 @@ function renderDoctors(doctorsToRender) {
             mapBtnHTML = '<a href="' + mapLink + '" target="_blank" class="map-btn"><i class="fa-solid fa-map-location-dot"></i> ' + t('view_map') + '</a>';
         }
 
-        // إذا كان هناك أكثر من عيادة لنفس الطبيب، نعرض اسم العيادة بجانب اسمه
         list.innerHTML += '<div class="clinic-card" style="' + (isClosed ? 'opacity: 0.7;' : '') + '">' +
             '<div class="clinic-info">' +
             '<h2>' + doc.name + '</h2>' +
@@ -205,7 +204,6 @@ function openBookingModal(doctorId, doctorName, clinicName) {
     modalDoctorId = doctorId;
     modalDoctorName = doctorName;
     
-    // جلب أيام عمل هذه العيادة من مصفوفة الأطباء
     modalWorkingDays = [];
     for (var i = 0; i < allDoctors.length; i++) {
         if (allDoctors[i].id === doctorId) {
@@ -240,11 +238,9 @@ function confirmBooking() {
     
     if (!name || !phone || !bookingDate) return alert(currentLang === 'ar' ? "يرجى إدخال البيانات والتاريخ!" : "Please enter data and date!");
     
-    // التحقق من يوم العمل
-    var selectedDay = new Date(bookingDate).getDay(); // 0=Sun, 6=Sat
+    var selectedDay = new Date(bookingDate).getDay();
     var isWorkingDay = false;
     
-    // إذا لم يتم تحديد أي أيام، نعتبر كل الأيام تعمل
     if (modalWorkingDays.length === 0) {
         isWorkingDay = true;
     } else {
@@ -292,6 +288,7 @@ function confirmBooking() {
                     name: name, 
                     phone: phone, 
                     bookingDate: bookingDate,
+                    status: 'waiting', // <--- هذا هو السطر الذي كان ناقصاً
                     date: new Date().toISOString() 
                 });
                 localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
@@ -517,7 +514,6 @@ function registerAndSaveDoctor() {
     var lat = document.getElementById('docLat').value;
     var lng = document.getElementById('docLng').value;
 
-    // جمع أيام العمل
     var workingDays = [];
     for (var i = 0; i <= 6; i++) {
         var cb = document.getElementById('day_' + i);
@@ -551,4 +547,5 @@ window.onload = function() {
     initTheme();
     loadDoctors();
     listenToMyBookings();
+    updateBanner(); // للتأكد من ظهور الشريط الأخضر عند تحديث الصفحة
 };
