@@ -7,6 +7,9 @@ firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 var auth = firebase.auth();
 
+// الكود السري لتسجيل الأطباء (يمكنك تغييره من هنا)
+var ADMIN_SECRET_CODE = "DOCTOR2024";
+
 var allDoctors = [];
 var currentListener = null;
 var activeTicketToDisplay = null;
@@ -133,7 +136,11 @@ function renderDoctors(doctorsToRender) {
         var isClosed = doc.isOpen === false;
         var badgeHTML = isClosed ? '<span class="badge red">' + t('closed_temp') + '</span>' : '<span class="badge green">' + t('available') + '</span>';
         var btnHTML = isClosed ? '<button class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button class="book-btn" onclick="openBookingModal(\'' + doc.id + '\', \'' + doc.name + '\')">' + t('book_now') + '</button>';
-        var addressText = doc.address ? doc.address.city + ' - ' + (doc.address.street || '') : '';
+        
+        // إضافة العلامة المميزة للعنوان
+        var landmarkText = (doc.address && doc.address.landmark) ? ' (' + doc.address.landmark + ')' : '';
+        var addressText = doc.address ? doc.address.city + ' - ' + (doc.address.street || '') + landmarkText : '';
+        
         var start = doc.startTime || '09:00';
         var end = doc.endTime || '17:00';
 
@@ -373,21 +380,34 @@ function loginDoctor() {
 function registerAndSaveDoctor() {
     var email = document.getElementById('regEmail').value.trim();
     var password = document.getElementById('regPassword').value;
+    var activationCode = document.getElementById('regActivationCode').value.trim();
     var name = document.getElementById('docName').value.trim();
     var specialty = document.getElementById('docSpecialty').value.trim();
     var phone = document.getElementById('docPhone').value.trim();
     var city = document.getElementById('docCity').value.trim();
     var street = document.getElementById('docStreet').value.trim();
+    var landmark = document.getElementById('docLandmark').value.trim();
     var startTime = document.getElementById('docStartTime').value;
     var endTime = document.getElementById('docEndTime').value;
     var serviceTime = document.getElementById('docServiceTime').value;
 
-    if (!email || !password || !name || !specialty || !city) return alert(currentLang === 'ar' ? "أكمل البيانات!" : "Complete data!");
+    if (!email || !password || !name || !specialty || !city || !activationCode) return alert(currentLang === 'ar' ? "أكمل البيانات!" : "Complete data!");
+    
+    // التحقق من كود التفعيل
+    if (activationCode !== ADMIN_SECRET_CODE) {
+        return alert(t('invalid_code'));
+    }
+
     if (password.length < 6) return alert(currentLang === 'ar' ? "كلمة المرور قصيرة" : "Password short");
 
     auth.createUserWithEmailAndPassword(email, password).then(function(userCredential) {
         var user = userCredential.user;
-        db.collection("doctors").add({ ownerUid: user.uid, email: user.email, name: name, specialty: specialty, phone: phone, address: { city: city, street: street }, serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, currentServing: 0, lastTicket: 0, isOpen: true, createdAt: new Date().toISOString() }).then(function() {
+        db.collection("doctors").add({ 
+            ownerUid: user.uid, email: user.email, name: name, specialty: specialty, phone: phone, 
+            address: { city: city, street: street, landmark: landmark }, // حفظ العلامة المميزة
+            serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, 
+            currentServing: 0, lastTicket: 0, isOpen: true, createdAt: new Date().toISOString() 
+        }).then(function() {
             alert(currentLang === 'ar' ? "تم الحفظ!" : "Saved!"); window.location.href = 'admin.html';
         });
     }).catch(function(error) { alert("Error: " + error.message); });
