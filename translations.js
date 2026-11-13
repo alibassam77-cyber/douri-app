@@ -22,11 +22,14 @@ var translations = {
         active_booking_msg: "لديك {n} حجز نشط! اضغط هنا لعرضها", tomorrow: "غداً ", hours_label: "ساعات العمل:",
         booking_date_label: "تاريخ الحجز:", appointment_date: "تاريخ الموعد:",
         admin_title: "لوحة تحكم العيادة", current_patient: "المريض الحالي (الذي عند الطبيب)", call_next: "نادِ المريض التالي", 
-        close_clinic: "إغلاق العيادة (استراحة)", open_clinic: "فتح العيادة للاستقبال", reset_clinic: "تصفير العيادة بالكامل", 
+        close_clinic: "إغلاق العيادة (استراحة)", open_clinic: "فتح العيادة للاستقبال", 
         queue_title: "طابور الانتظار", no_patients: "لا يوجد مرضى في الانتظار حالياً.", status_serving: "عند الطبيب الآن", 
         status_waiting_admin: "في الانتظار", admin_date_label: "اختر اليوم لعرض مواعيده:",
         add_clinic_btn: "إضافة عيادة جديدة", select_clinic_label: "العيادة الحالية:", invalid_working_day: "الطبيب لا يعمل في هذه العيادة في هذا اليوم!",
-        days_label: "أيام العمل:", edit_clinic_btn: "تعديل العيادة", save_changes_btn: "حفظ التعديلات", clinic_details_label: "تفاصيل العيادة"
+        days_label: "أيام العمل:", edit_clinic_btn: "تعديل العيادة", save_changes_btn: "حفظ التعديلات", 
+        
+        serial_label: "الرقم التسلسلي:", /* <-- إضافة جديدة */
+        next_btn: "التالي" 
     },
     en: { 
         app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", search_placeholder: "Doctor name or specialty...", 
@@ -51,11 +54,14 @@ var translations = {
         active_booking_msg: "You have {n} active booking(s)! Click here to view.", tomorrow: "Tmrw ", hours_label: "Hours:",
         booking_date_label: "Booking Date:", appointment_date: "Appointment Date:",
         admin_title: "Clinic Dashboard", current_patient: "Current Patient (with Doctor)", call_next: "Call Next Patient", 
-        close_clinic: "Close Clinic (Break)", open_clinic: "Open Clinic", reset_clinic: "Reset Clinic", 
+        close_clinic: "Close Clinic (Break)", open_clinic: "Open Clinic", 
         queue_title: "Waiting Queue", no_patients: "No patients in queue.", status_serving: "With Doctor", 
         status_waiting_admin: "Waiting", admin_date_label: "Select a day to view appointments:",
         add_clinic_btn: "Add New Clinic", select_clinic_label: "Current Clinic:", invalid_working_day: "Doctor does not work at this clinic on this day!",
-        days_label: "Working Days:", edit_clinic_btn: "Edit Clinic", save_changes_btn: "Save Changes", clinic_details_label: "Clinic Details"
+        days_label: "Working Days:", edit_clinic_btn: "Edit Clinic", save_changes_btn: "Save Changes",
+        
+        serial_label: "Serial No:", /* <-- إضافة جديدة */
+        next_btn: "Next"
     }
 };
 
