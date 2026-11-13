@@ -13,6 +13,7 @@ var allDoctors = [];
 var activeTicketToDisplay = null;
 var modalDoctorId = null;
 var modalDoctorName = null;
+var modalWorkingDays = []; // لحفظ أيام عمل العيادة المختارة
 var timerInterval = null;
 var doctorMap = null;
 var doctorMarker = null;
@@ -92,7 +93,6 @@ function getSmartETA(doctorData, peopleAhead, bookingDateStr) {
             }
             return timeStr;
         } else {
-            // حساب الوقت ليوم مستقبلي (ليس اليوم)
             var totalMins = startMins + (people * serviceTime);
             var hh2 = Math.floor(totalMins / 60);
             var mm2 = totalMins % 60;
@@ -118,7 +118,13 @@ function loadDoctors() {
         var cities = {};
         snapshot.forEach(function(doc) {
             var data = doc.data();
-            var d = { id: doc.id, name: data.name, specialty: data.specialty, address: data.address, location: data.location, isOpen: data.isOpen, startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime };
+            var d = { 
+                id: doc.id, name: data.name, specialty: data.specialty, 
+                clinicName: data.clinicName || 'عيادة', 
+                address: data.address, location: data.location, isOpen: data.isOpen, 
+                startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime,
+                workingDays: data.workingDays || []
+            };
             allDoctors.push(d);
             if (d.address && d.address.city) { cities[d.address.city] = true; }
         });
@@ -149,7 +155,7 @@ function renderDoctors(doctorsToRender) {
         var doc = doctorsToRender[i];
         var isClosed = doc.isOpen === false;
         var badgeHTML = isClosed ? '<span class="badge red">' + t('closed_temp') + '</span>' : '<span class="badge green">' + t('available') + '</span>';
-        var btnHTML = isClosed ? '<button class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button class="book-btn" onclick="openBookingModal(\'' + doc.id + '\', \'' + doc.name + '\')">' + t('book_now') + '</button>';
+        var btnHTML = isClosed ? '<button class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button class="book-btn" onclick="openBookingModal(\'' + doc.id + '\', \'' + doc.name + '\', \'' + doc.clinicName + '\')">' + t('book_now') + '</button>';
         
         var landmarkText = (doc.address && doc.address.landmark) ? ' (' + doc.address.landmark + ')' : '';
         var addressText = doc.address ? doc.address.city + ' - ' + (doc.address.street || '') + landmarkText : '';
@@ -163,9 +169,11 @@ function renderDoctors(doctorsToRender) {
             mapBtnHTML = '<a href="' + mapLink + '" target="_blank" class="map-btn"><i class="fa-solid fa-map-location-dot"></i> ' + t('view_map') + '</a>';
         }
 
+        // إذا كان هناك أكثر من عيادة لنفس الطبيب، نعرض اسم العيادة بجانب اسمه
         list.innerHTML += '<div class="clinic-card" style="' + (isClosed ? 'opacity: 0.7;' : '') + '">' +
             '<div class="clinic-info">' +
             '<h2>' + doc.name + '</h2>' +
+            '<p class="doc-specialty" style="color:var(--warning);">🏥 ' + doc.clinicName + '</p>' +
             '<p class="doc-specialty">' + doc.specialty + '</p>' +
             '<p class="doc-address">📍 ' + addressText + '</p>' +
             '<p class="doc-address" style="font-size: 12px; color: var(--primary);">🕒 ' + t('hours_label') + ' ' + start + ' - ' + end + '</p>' +
@@ -193,14 +201,23 @@ function filterDoctors() {
     renderDoctors(filtered);
 }
 
-function openBookingModal(doctorId, doctorName) {
+function openBookingModal(doctorId, doctorName, clinicName) {
     modalDoctorId = doctorId;
     modalDoctorName = doctorName;
-    document.getElementById('modalDoctorName').innerText = t('at_doctor') + doctorName;
+    
+    // جلب أيام عمل هذه العيادة من مصفوفة الأطباء
+    modalWorkingDays = [];
+    for (var i = 0; i < allDoctors.length; i++) {
+        if (allDoctors[i].id === doctorId) {
+            modalWorkingDays = allDoctors[i].workingDays || [];
+            break;
+        }
+    }
+    
+    document.getElementById('modalDoctorName').innerText = t('at_doctor') + doctorName + ' (' + clinicName + ')';
     document.getElementById('bookingName').value = '';
     document.getElementById('bookingPhone').value = '';
     
-    // ضبط التاريخ الافتراضي إلى اليوم
     var today = new Date();
     var yyyy = today.getFullYear();
     var mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -223,7 +240,23 @@ function confirmBooking() {
     
     if (!name || !phone || !bookingDate) return alert(currentLang === 'ar' ? "يرجى إدخال البيانات والتاريخ!" : "Please enter data and date!");
     
-    // الوصول إلى عداد اليوم المحدد
+    // التحقق من يوم العمل
+    var selectedDay = new Date(bookingDate).getDay(); // 0=Sun, 6=Sat
+    var isWorkingDay = false;
+    
+    // إذا لم يتم تحديد أي أيام، نعتبر كل الأيام تعمل
+    if (modalWorkingDays.length === 0) {
+        isWorkingDay = true;
+    } else {
+        for (var i = 0; i < modalWorkingDays.length; i++) {
+            if (Number(modalWorkingDays[i]) === selectedDay) { isWorkingDay = true; break; }
+        }
+    }
+    
+    if (!isWorkingDay) {
+        return alert(t('invalid_working_day'));
+    }
+    
     var dayDocId = modalDoctorId + "_" + bookingDate;
     var docDayRef = db.collection("doctor_days").doc(dayDocId);
     
@@ -233,7 +266,6 @@ function confirmBooking() {
             lastTicket = (daySnap.data().lastTicket || 0) + 1;
         }
         
-        // تحديث العداد في اليوم المحدد
         docDayRef.set({ 
             doctorId: modalDoctorId, 
             date: bookingDate, 
@@ -241,7 +273,6 @@ function confirmBooking() {
             currentServing: daySnap.exists ? (daySnap.data().currentServing || 1) : 1 
         }, { merge: true }).then(function() {
             
-            // إضافة الحجز
             db.collection("bookings").add({ 
                 doctorId: modalDoctorId, 
                 doctorName: modalDoctorName, 
@@ -345,8 +376,6 @@ function openSpecificTicket(id) {
         db.collection("doctor_days").doc(dayDocId).get().then(function(daySnap) {
             if (daySnap.exists) {
                 var dayData = daySnap.data();
-                
-                // جلب بيانات الطبيب لحساب الوقت
                 db.collection("doctors").doc(b.doctorId).get().then(function(docSnap) {
                     if (docSnap.exists) {
                         var docData = docSnap.data();
@@ -356,12 +385,7 @@ function openSpecificTicket(id) {
                         document.getElementById('peopleAhead').innerText = peopleAhead;
                         var smartTime = getSmartETA(docData, peopleAhead, b.bookingDate);
                         document.getElementById('etaTime').innerText = smartTime;
-
-                        if(b.bookingDate !== getTodayString()) { 
-                            document.getElementById('waitTime').innerText = "~" + (peopleAhead * docData.serviceTime); 
-                        } else {
-                            document.getElementById('waitTime').innerText = "~" + (peopleAhead * docData.serviceTime);
-                        }
+                        document.getElementById('waitTime').innerText = "~" + (peopleAhead * docData.serviceTime);
 
                         var badge = document.getElementById('ticketStatus');
                         if (peopleAhead === 0 && b.ticket == dayData.currentServing) {
@@ -438,6 +462,7 @@ function listenToMyBookings() {
 
 function openDoctorModal() { document.getElementById('doctorModal').classList.remove('hidden'); }
 function closeDoctorModal() { document.getElementById('doctorModal').classList.add('hidden'); }
+
 function switchAuthTab(tab) {
     if (tab === 'login') { 
         document.getElementById('tabLogin').classList.add('active'); 
@@ -482,6 +507,7 @@ function registerAndSaveDoctor() {
     var name = document.getElementById('docName').value.trim();
     var specialty = document.getElementById('docSpecialty').value.trim();
     var phone = document.getElementById('docPhone').value.trim();
+    var clinicName = document.getElementById('docClinicName').value.trim();
     var city = document.getElementById('docCity').value.trim();
     var street = document.getElementById('docStreet').value.trim();
     var landmark = document.getElementById('docLandmark').value.trim();
@@ -491,18 +517,28 @@ function registerAndSaveDoctor() {
     var lat = document.getElementById('docLat').value;
     var lng = document.getElementById('docLng').value;
 
-    if (!email || !password || !name || !specialty || !city || !activationCode) return alert(currentLang === 'ar' ? "أكمل البيانات!" : "Complete data!");
+    // جمع أيام العمل
+    var workingDays = [];
+    for (var i = 0; i <= 6; i++) {
+        var cb = document.getElementById('day_' + i);
+        if (cb && cb.checked) workingDays.push(i);
+    }
+
+    if (!email || !password || !name || !specialty || !city || !activationCode || !clinicName) return alert(currentLang === 'ar' ? "أكمل البيانات!" : "Complete data!");
     if (activationCode !== ADMIN_SECRET_CODE) return alert(t('invalid_code'));
     if (password.length < 6) return alert(currentLang === 'ar' ? "كلمة المرور قصيرة" : "Password short");
     if (!lat || !lng) return alert(currentLang === 'ar' ? "الرجاء تحديد موقع العيادة على الخريطة!" : "Please select location on map!");
+    if (workingDays.length === 0) return alert(currentLang === 'ar' ? "الرجاء تحديد يوم عمل واحد على الأقل!" : "Please select at least one working day!");
 
     auth.createUserWithEmailAndPassword(email, password).then(function(userCredential) {
         var user = userCredential.user;
         db.collection("doctors").add({ 
             ownerUid: user.uid, email: user.email, name: name, specialty: specialty, phone: phone, 
+            clinicName: clinicName,
             address: { city: city, street: street, landmark: landmark }, 
             location: { lat: Number(lat), lng: Number(lng) },
             serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, 
+            workingDays: workingDays,
             createdAt: new Date().toISOString() 
         }).then(function() {
             alert(currentLang === 'ar' ? "تم الحفظ!" : "Saved!"); window.location.href = 'admin.html';
