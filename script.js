@@ -10,13 +10,10 @@ var auth = firebase.auth();
 var ADMIN_SECRET_CODE = "DOCTOR2024";
 
 var allDoctors = [];
-var currentListener = null;
 var activeTicketToDisplay = null;
 var modalDoctorId = null;
 var modalDoctorName = null;
 var timerInterval = null;
-
-// متغيرات الخريطة
 var doctorMap = null;
 var doctorMarker = null;
 
@@ -34,62 +31,76 @@ function toggleTheme() {
     else { document.documentElement.setAttribute('data-theme', 'dark'); localStorage.setItem('douri_theme', 'dark'); themeBtn.innerHTML = '<i class="fa-solid fa-sun"></i>'; }
 }
 
-function getSmartETA(doctorData, peopleAhead) {
+function getTodayString() {
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+}
+
+function getSmartETA(doctorData, peopleAhead, bookingDateStr) {
     try {
-        var now = new Date();
-        var startStr = doctorData.startTime || "09:00";
-        var endStr = doctorData.endTime || "17:00";
         var serviceTime = Number(doctorData.serviceTime) || 10;
         var people = Number(peopleAhead) || 0;
-
+        var startStr = doctorData.startTime || "09:00";
+        
         var startParts = startStr.split(':');
         var startH = parseInt(startParts[0], 10);
         var startM = parseInt(startParts[1], 10);
-        
-        var endParts = endStr.split(':');
-        var endH = parseInt(endParts[0], 10);
-        var endM = parseInt(endParts[1], 10);
-
         if (isNaN(startH)) startH = 9; if (isNaN(startM)) startM = 0;
-        if (isNaN(endH)) endH = 17; if (isNaN(endM)) endM = 0;
 
-        var nowM = now.getHours() * 60 + now.getMinutes();
-        var startMins = startH * 60 + startM;
-        var endMins = endH * 60 + endM;
+        var todayStr = getTodayString();
 
-        var eta = new Date(now.getTime());
+        if (bookingDateStr === todayStr) {
+            var now = new Date();
+            var endStr = doctorData.endTime || "17:00";
+            var endParts = endStr.split(':');
+            var endH = parseInt(endParts[0], 10);
+            var endM = parseInt(endParts[1], 10);
+            if (isNaN(endH)) endH = 17; if (isNaN(endM)) endM = 0;
 
-        if (nowM < startMins) {
-            eta.setHours(startH, startM, 0, 0);
-        } else if (nowM >= endMins) {
-            eta.setDate(eta.getDate() + 1);
-            eta.setHours(startH, startM, 0, 0);
+            var nowM = now.getHours() * 60 + now.getMinutes();
+            var startMins = startH * 60 + startM;
+            var endMins = endH * 60 + endM;
+
+            var eta = new Date(now.getTime());
+
+            if (nowM < startMins) {
+                eta.setHours(startH, startM, 0, 0);
+            } else if (nowM >= endMins) {
+                eta.setDate(eta.getDate() + 1);
+                eta.setHours(startH, startM, 0, 0);
+            }
+
+            eta.setMinutes(eta.getMinutes() + (people * serviceTime));
+
+            var etaMins = eta.getHours() * 60 + eta.getMinutes();
+            if (etaMins >= endMins && people > 0) {
+                var overflow = etaMins - endMins;
+                eta.setDate(eta.getDate() + 1);
+                eta.setHours(startH, startM, 0, 0);
+                eta.setMinutes(eta.getMinutes() + overflow);
+            }
+
+            var hh = eta.getHours();
+            var mm = eta.getMinutes();
+            var timeStr = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+
+            if (eta.getDate() !== now.getDate()) {
+                return t('tomorrow') + timeStr;
+            }
+            return timeStr;
+        } else {
+            // حساب الوقت ليوم مستقبلي (ليس اليوم)
+            var totalMins = startMins + (people * serviceTime);
+            var hh2 = Math.floor(totalMins / 60);
+            var mm2 = totalMins % 60;
+            var timeStr2 = (hh2 < 10 ? "0" : "") + hh2 + ":" + (mm2 < 10 ? "0" : "") + mm2;
+            return bookingDateStr + " | " + timeStr2;
         }
-
-        eta.setMinutes(eta.getMinutes() + (people * serviceTime));
-
-        var etaMins = eta.getHours() * 60 + eta.getMinutes();
-        if (etaMins >= endMins && people > 0) {
-            var overflow = etaMins - endMins;
-            eta.setDate(eta.getDate() + 1);
-            eta.setHours(startH, startM, 0, 0);
-            eta.setMinutes(eta.getMinutes() + overflow);
-        }
-
-        var hh = eta.getHours();
-        var mm = eta.getMinutes();
-        var timeStr = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
-
-        if (eta.getDate() !== now.getDate()) {
-            return t('tomorrow') + timeStr;
-        }
-        return timeStr;
     } catch (e) {
-        var fallbackNow = new Date();
-        fallbackNow.setMinutes(fallbackNow.getMinutes() + (peopleAhead * 10));
-        var fh = fallbackNow.getHours();
-        var fm = fallbackNow.getMinutes();
-        return (fh < 10 ? "0" : "") + fh + ":" + (fm < 10 ? "0" : "") + fm;
+        return "---";
     }
 }
 
@@ -107,7 +118,7 @@ function loadDoctors() {
         var cities = {};
         snapshot.forEach(function(doc) {
             var data = doc.data();
-            var d = { id: doc.id, name: data.name, specialty: data.specialty, address: data.address, location: data.location, isOpen: data.isOpen, currentServing: data.currentServing, lastTicket: data.lastTicket, startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime };
+            var d = { id: doc.id, name: data.name, specialty: data.specialty, address: data.address, location: data.location, isOpen: data.isOpen, startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime };
             allDoctors.push(d);
             if (d.address && d.address.city) { cities[d.address.city] = true; }
         });
@@ -146,7 +157,6 @@ function renderDoctors(doctorsToRender) {
         var start = doc.startTime || '09:00';
         var end = doc.endTime || '17:00';
 
-        // زر الخريطة
         var mapBtnHTML = '';
         if (doc.location && doc.location.lat && doc.location.lng) {
             var mapLink = 'https://www.google.com/maps/search/?api=1&query=' + doc.location.lat + ',' + doc.location.lng;
@@ -189,6 +199,14 @@ function openBookingModal(doctorId, doctorName) {
     document.getElementById('modalDoctorName').innerText = t('at_doctor') + doctorName;
     document.getElementById('bookingName').value = '';
     document.getElementById('bookingPhone').value = '';
+    
+    // ضبط التاريخ الافتراضي إلى اليوم
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('bookingDate').value = yyyy + '-' + mm + '-' + dd;
+    
     document.getElementById('bookingModal').classList.remove('hidden');
 }
 
@@ -201,27 +219,59 @@ function closeModal() {
 function confirmBooking() {
     var name = document.getElementById('bookingName').value.trim();
     var phone = document.getElementById('bookingPhone').value.trim();
-    if (!name || !phone) return alert(currentLang === 'ar' ? "يرجى إدخال البيانات!" : "Please enter data!");
+    var bookingDate = document.getElementById('bookingDate').value;
     
-    var docRef = db.collection("doctors").doc(modalDoctorId);
-    docRef.get().then(function(docSnap) {
-        if (docSnap.exists) {
-            if (docSnap.data().isOpen === false) return alert(t('closed_temp'));
-            var currentTicket = (docSnap.data().lastTicket || 0) + 1;
-            docRef.update({ lastTicket: currentTicket }).then(function() {
-                db.collection("patients").doc(phone).set({ name: name, phone: phone, lastVisit: firebase.firestore.FieldValue.serverTimestamp() });
-                db.collection("bookings").add({ doctorId: modalDoctorId, doctorName: modalDoctorName, patientName: name, patientPhone: phone, ticketNumber: currentTicket, status: 'waiting', createdAt: firebase.firestore.FieldValue.serverTimestamp() }).then(function(bookingRef) {
-                    var myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
-                    myBookings.push({ firebaseId: bookingRef.id, ticket: currentTicket, doctorId: modalDoctorId, doctorName: modalDoctorName, name: name, phone: phone, date: new Date().toISOString() });
-                    localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
-                    closeModal();
-                    alert((currentLang === 'ar' ? "تم الحجز! رقم دورك: " : "Booked! Your number: ") + currentTicket);
-                    updateBanner();
-                    listenToMyBookings();
-                    showMyBookingsView();
-                });
-            });
+    if (!name || !phone || !bookingDate) return alert(currentLang === 'ar' ? "يرجى إدخال البيانات والتاريخ!" : "Please enter data and date!");
+    
+    // الوصول إلى عداد اليوم المحدد
+    var dayDocId = modalDoctorId + "_" + bookingDate;
+    var docDayRef = db.collection("doctor_days").doc(dayDocId);
+    
+    docDayRef.get().then(function(daySnap) {
+        var lastTicket = 1;
+        if (daySnap.exists) {
+            lastTicket = (daySnap.data().lastTicket || 0) + 1;
         }
+        
+        // تحديث العداد في اليوم المحدد
+        docDayRef.set({ 
+            doctorId: modalDoctorId, 
+            date: bookingDate, 
+            lastTicket: lastTicket, 
+            currentServing: daySnap.exists ? (daySnap.data().currentServing || 1) : 1 
+        }, { merge: true }).then(function() {
+            
+            // إضافة الحجز
+            db.collection("bookings").add({ 
+                doctorId: modalDoctorId, 
+                doctorName: modalDoctorName, 
+                patientName: name, 
+                patientPhone: phone, 
+                bookingDate: bookingDate,
+                ticketNumber: lastTicket, 
+                status: 'waiting', 
+                createdAt: firebase.firestore.FieldValue.serverTimestamp() 
+            }).then(function(bookingRef) {
+                var myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
+                myBookings.push({ 
+                    firebaseId: bookingRef.id, 
+                    ticket: lastTicket, 
+                    doctorId: modalDoctorId, 
+                    doctorName: modalDoctorName, 
+                    name: name, 
+                    phone: phone, 
+                    bookingDate: bookingDate,
+                    date: new Date().toISOString() 
+                });
+                localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
+                
+                closeModal();
+                alert((currentLang === 'ar' ? "تم الحجز! رقم دورك: " : "Booked! Your number: ") + lastTicket);
+                updateBanner();
+                listenToMyBookings();
+                showMyBookingsView();
+            });
+        });
     }).catch(function(err) { alert("Error: " + err.message); });
 }
 
@@ -256,6 +306,7 @@ function showMyBookingsView() {
         var b = active[j];
         list.innerHTML += '<div class="clinic-card" style="border-right: 5px solid var(--primary);">' +
             '<h3 style="margin:0; font-size:16px;">' + b.doctorName + '</h3>' +
+            '<p class="muted" style="margin:5px 0;">' + t('appointment_date') + ' <b style="color:var(--primary);">' + b.bookingDate + '</b></p>' +
             '<p class="muted" style="margin:5px 0;">' + t('your_number') + ' <b>' + b.ticket + '</b></p>' +
             '<button class="book-btn" style="padding:8px; font-size:14px;" onclick="openSpecificTicket(\'' + b.firebaseId + '\')">' + t('view_ticket') + '</button>' +
             '</div>';
@@ -275,6 +326,7 @@ function openSpecificTicket(id) {
     document.getElementById('patientNameDisplay').innerText = b.name;
     document.getElementById('ticketNumber').innerText = b.ticket;
     document.getElementById('doctorNameDisplay').innerText = t('at_doctor') + b.doctorName;
+    document.getElementById('appointmentDateDisplay').innerText = t('appointment_date') + ' ' + b.bookingDate;
     
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(function() {
@@ -289,27 +341,38 @@ function openSpecificTicket(id) {
             return;
         }
         
-        db.collection("doctors").doc(b.doctorId).get().then(function(doc) {
-            if (doc.exists) {
-                var docData = doc.data();
-                var peopleAhead = b.ticket - docData.currentServing - 1;
-                if (peopleAhead < 0) peopleAhead = 0;
+        var dayDocId = b.doctorId + "_" + b.bookingDate;
+        db.collection("doctor_days").doc(dayDocId).get().then(function(daySnap) {
+            if (daySnap.exists) {
+                var dayData = daySnap.data();
                 
-                document.getElementById('peopleAhead').innerText = peopleAhead;
-                var smartTime = getSmartETA(docData, peopleAhead);
-                document.getElementById('etaTime').innerText = smartTime;
+                // جلب بيانات الطبيب لحساب الوقت
+                db.collection("doctors").doc(b.doctorId).get().then(function(docSnap) {
+                    if (docSnap.exists) {
+                        var docData = docSnap.data();
+                        var peopleAhead = b.ticket - dayData.currentServing - 1;
+                        if (peopleAhead < 0) peopleAhead = 0;
+                        
+                        document.getElementById('peopleAhead').innerText = peopleAhead;
+                        var smartTime = getSmartETA(docData, peopleAhead, b.bookingDate);
+                        document.getElementById('etaTime').innerText = smartTime;
 
-                if(smartTime.indexOf(t('tomorrow')) > -1) { document.getElementById('waitTime').innerText = "-"; }
-                else { document.getElementById('waitTime').innerText = "~" + (peopleAhead * docData.serviceTime); }
+                        if(b.bookingDate !== getTodayString()) { 
+                            document.getElementById('waitTime').innerText = "~" + (peopleAhead * docData.serviceTime); 
+                        } else {
+                            document.getElementById('waitTime').innerText = "~" + (peopleAhead * docData.serviceTime);
+                        }
 
-                var badge = document.getElementById('ticketStatus');
-                if (peopleAhead === 0 && b.ticket == docData.currentServing) {
-                    badge.innerText = t('status_your_turn'); badge.style.backgroundColor = "var(--success-light)"; badge.style.color = "var(--success)";
-                } else if (peopleAhead === 1) {
-                    badge.innerText = t('status_one_left'); badge.style.backgroundColor = "var(--warning-light)"; badge.style.color = "var(--warning)";
-                } else {
-                    badge.innerText = t('status_waiting'); badge.style.backgroundColor = "var(--warning-light)"; badge.style.color = "var(--warning)";
-                }
+                        var badge = document.getElementById('ticketStatus');
+                        if (peopleAhead === 0 && b.ticket == dayData.currentServing) {
+                            badge.innerText = t('status_your_turn'); badge.style.backgroundColor = "var(--success-light)"; badge.style.color = "var(--success)";
+                        } else if (peopleAhead === 1) {
+                            badge.innerText = t('status_one_left'); badge.style.backgroundColor = "var(--warning-light)"; badge.style.color = "var(--warning)";
+                        } else {
+                            badge.innerText = t('status_waiting'); badge.style.backgroundColor = "var(--warning-light)"; badge.style.color = "var(--warning)";
+                        }
+                    }
+                });
             }
         });
     }, 3000);
@@ -375,7 +438,6 @@ function listenToMyBookings() {
 
 function openDoctorModal() { document.getElementById('doctorModal').classList.remove('hidden'); }
 function closeDoctorModal() { document.getElementById('doctorModal').classList.add('hidden'); }
-
 function switchAuthTab(tab) {
     if (tab === 'login') { 
         document.getElementById('tabLogin').classList.add('active'); 
@@ -387,23 +449,17 @@ function switchAuthTab(tab) {
         document.getElementById('tabLogin').classList.remove('active'); 
         document.getElementById('registerSection').classList.remove('hidden'); 
         document.getElementById('loginSection').classList.add('hidden'); 
-        setTimeout(initDoctorMap, 300); // تهيئة الخريطة بعد ظهور القسم
+        setTimeout(initDoctorMap, 300);
     }
 }
 
-// تهيئة الخريطة
 function initDoctorMap() {
     if (!document.getElementById('reg-map')) return;
-    if (doctorMap) {
-        doctorMap.invalidateSize();
-        return;
-    }
-    var defaultLat = 15.3694; // صنعاء
+    if (doctorMap) { doctorMap.invalidateSize(); return; }
+    var defaultLat = 15.3694;
     var defaultLng = 44.1910;
-    
     doctorMap = L.map('reg-map').setView([defaultLat, defaultLng], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(doctorMap);
-    
     doctorMap.on('click', function(e) {
         document.getElementById('docLat').value = e.latlng.lat;
         document.getElementById('docLng').value = e.latlng.lng;
@@ -445,9 +501,9 @@ function registerAndSaveDoctor() {
         db.collection("doctors").add({ 
             ownerUid: user.uid, email: user.email, name: name, specialty: specialty, phone: phone, 
             address: { city: city, street: street, landmark: landmark }, 
-            location: { lat: Number(lat), lng: Number(lng) }, // حفظ الإحداثيات
+            location: { lat: Number(lat), lng: Number(lng) },
             serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, 
-            currentServing: 0, lastTicket: 0, isOpen: true, createdAt: new Date().toISOString() 
+            createdAt: new Date().toISOString() 
         }).then(function() {
             alert(currentLang === 'ar' ? "تم الحفظ!" : "Saved!"); window.location.href = 'admin.html';
         });
