@@ -288,7 +288,7 @@ function confirmBooking() {
                     name: name, 
                     phone: phone, 
                     bookingDate: bookingDate,
-                    status: 'waiting', // <--- هذا هو السطر الذي كان ناقصاً
+                    status: 'waiting', // <-- تم إضافة هذه الحالة
                     date: new Date().toISOString() 
                 });
                 localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
@@ -321,14 +321,24 @@ function showMyBookingsView() {
     document.getElementById('main-view').classList.add('hidden');
     document.getElementById('ticket-view').classList.add('hidden');
     document.getElementById('bookings-view').classList.remove('hidden');
+    
     var myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
     var active = [];
     for (var i = 0; i < myBookings.length; i++) {
         if (myBookings[i].status === 'waiting' || myBookings[i].status === 'serving') active.push(myBookings[i]);
     }
+    
     var list = document.getElementById('myBookingsList');
     list.innerHTML = '';
-    if (active.length === 0) { list.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t('no_bookings') + '</p>'; return; }
+    
+    if (active.length === 0) { 
+        // 🟢 كود التشخيص
+        list.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t('no_bookings') + '</p>' +
+                         '<div style="margin-top:20px; padding:10px; background:#fee2e2; border-radius:8px; font-size:12px; color:#991b1b; word-break:break-all;">' +
+                         '<b>تشخيص الذاكرة:</b><br>' + JSON.stringify(myBookings) + 
+                         '</div>';
+        return; 
+    }
     
     for (var j = 0; j < active.length; j++) {
         var b = active[j];
@@ -547,5 +557,5 @@ window.onload = function() {
     initTheme();
     loadDoctors();
     listenToMyBookings();
-    updateBanner(); // للتأكد من ظهور الشريط الأخضر عند تحديث الصفحة
+    updateBanner();
 };
