@@ -39,6 +39,12 @@
         </div>
     </header>
     <div class="container">
+        <!-- تقويم الطبيب -->
+        <div class="admin-card" style="margin-bottom: 20px;">
+            <label style="font-weight: bold; margin-bottom: 5px; display: block;" data-i18n="admin_date_label">اختر اليوم لعرض مواعيده:</label>
+            <input type="date" id="adminDate" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; text-align: center; font-family: inherit;" onchange="changeAdminDate()">
+        </div>
+
         <div class="admin-card">
             <p class="muted" data-i18n="current_patient">المريض الحالي (الذي عند الطبيب)</p>
             <div class="current-number" id="currentServingDisplay">-</div>
