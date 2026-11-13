@@ -52,7 +52,6 @@
                 <div class="big-number" id="ticketNumber">1</div>
                 <div class="status-badge" id="ticketStatus" data-i18n="status_waiting">في الانتظار</div>
                 
-                <!-- تاريخ الموعد -->
                 <p class="muted" id="appointmentDateDisplay" style="font-weight:bold; color:var(--primary); margin-top: 10px;"></p>
 
                 <div class="stats-row">
@@ -117,13 +116,25 @@
                 <div class="input-group"><label data-i18n="doctor_name_label">اسم الطبيب:</label><input type="text" id="docName"></div>
                 <div class="input-group"><label data-i18n="specialty_label">التخصص:</label><input type="text" id="docSpecialty"></div>
                 <div class="input-group"><label data-i18n="phone_label">رقم الهاتف:</label><input type="tel" id="docPhone"></div>
+                
+                <div class="input-group"><label data-i18n="clinic_name_label">اسم العيادة/المستشفى:</label><input type="text" id="docClinicName" placeholder="مثال: مستشفى الثورة" data-i18n-placeholder="clinic_name_ph"></div>
                 <div class="input-group"><label data-i18n="city_label">المدينة:</label><input type="text" id="docCity"></div>
                 <div class="input-group"><label data-i18n="street_label">الشارع:</label><input type="text" id="docStreet"></div>
-                
                 <div class="input-group"><label data-i18n="landmark_label">علامة مميزة:</label><input type="text" id="docLandmark" placeholder="مثال: مقابل مستشفى..." data-i18n-placeholder="landmark_ph"></div>
                 
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-main); font-size: 14px;" data-i18n="working_days_label">أيام العمل:</label>
+                <div class="days-grid" id="reg-days-grid">
+                    <input type="checkbox" id="day_0" class="day-checkbox" value="0"><label for="day_0" class="day-label" data-i18n="day_sun">الأحد</label>
+                    <input type="checkbox" id="day_1" class="day-checkbox" value="1"><label for="day_1" class="day-label" data-i18n="day_mon">الاثنين</label>
+                    <input type="checkbox" id="day_2" class="day-checkbox" value="2"><label for="day_2" class="day-label" data-i18n="day_tue">الثلاثاء</label>
+                    <input type="checkbox" id="day_3" class="day-checkbox" value="3"><label for="day_3" class="day-label" data-i18n="day_wed">الأربعاء</label>
+                    <input type="checkbox" id="day_4" class="day-checkbox" value="4"><label for="day_4" class="day-label" data-i18n="day_thu">الخميس</label>
+                    <input type="checkbox" id="day_5" class="day-checkbox" value="5"><label for="day_5" class="day-label" data-i18n="day_fri">الجمعة</label>
+                    <input type="checkbox" id="day_6" class="day-checkbox" value="6"><label for="day_6" class="day-label" data-i18n="day_sat">السبت</label>
+                </div>
+
                 <label style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-main); font-size: 14px;" data-i18n="map_label">حدد موقع العيادة على الخريطة:</label>
-                <p class="map-hint"><i class="fa-solid fa-hand-pointer"></i> <span data-i18n="map_hint">اضغط على المكان الصحيح في الخريطة لتحديد الموقع</span></p>
+                <p class="map-hint"><i class="fa-solid fa-hand-pointer"></i> <span data-i18n="map_hint">اضغط على المكان الصحيح في الخريطة</span></p>
                 <div id="reg-map"></div>
                 <input type="hidden" id="docLat" value="">
                 <input type="hidden" id="docLng" value="">
