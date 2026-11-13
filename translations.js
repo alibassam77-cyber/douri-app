@@ -2,7 +2,7 @@ var translations = {
     ar: { 
         app_title: "عيادة", doctors_btn: "الأطباء", all_cities: "كل المدن", search_placeholder: "اسم الطبيب أو التخصص...", 
         no_results: "لا يوجد أطباء.", available: "متاح للحجز", closed_temp: "مغلق مؤقتاً", on_break: "استراحة", 
-        book_now: "احجز الآن", clinic_location: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", 
+        book_now: "احجز الآن", clinic_location: "موقع العيادة", view_map: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", 
         no_bookings: "لا يوجد حجوزات.", your_number: "رقم دورك:", view_ticket: "عرض التذكرة", back_to_search: "العودة للبحث", 
         your_ticket_number: "رقم دورك", status_waiting: "في الانتظار", status_your_turn: "حان دورك!", status_one_left: "بقي مريض واحد", 
         ahead_label: "أمامك", wait_time_label: "دقيقة", eta_label: "الوقت المتوقع", welcome_msg: "أهلاً", ticket_hint: "شاشة التذكرة تتحدث تلقائياً.", 
@@ -13,6 +13,7 @@ var translations = {
         specialty_label: "التخصص:", specialty_ph: "مثال: باطنية", city_label: "المدينة:", city_ph: "مثال: صنعاء", street_label: "الشارع:", street_ph: "مثال: حدة", 
         landmark_label: "علامة مميزة (مقابل/بجوار):", landmark_ph: "مثال: مقابل مستشفى...", 
         activation_code_label: "كود التفعيل (من الإدارة):", activation_code_ph: "أدخل الكود السري هنا", invalid_code: "كود التفعيل غير صحيح! تواصل مع الإدارة.",
+        map_label: "حدد موقع العيادة على الخريطة (اضغط على الخريطة):", map_hint: "اضغط على المكان الصحيح في الخريطة لتحديد الموقع",
         start_time_label: "وقت فتح العيادة:", end_time_label: "وقت إغلاق العيادة:", service_time_label: "مدة الكشف للمريض (بالدقائق):", create_account_btn: "إنشاء الحساب وحفظ العيادة", 
         active_booking_msg: "لديك {n} حجز نشط! اضغط هنا لعرضها", tomorrow: "غداً ", hours_label: "ساعات العمل:",
         admin_title: "لوحة تحكم العيادة", current_patient: "المريض الحالي (الذي عند الطبيب)", call_next: "نادِ المريض التالي", 
@@ -23,7 +24,7 @@ var translations = {
     en: { 
         app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", search_placeholder: "Doctor name or specialty...", 
         no_results: "No doctors.", available: "Available", closed_temp: "Closed", on_break: "Break", 
-        book_now: "Book Now", clinic_location: "Location", at_doctor: "At: ", my_bookings_title: "Bookings", 
+        book_now: "Book Now", clinic_location: "Location", view_map: "Clinic Location", at_doctor: "At: ", my_bookings_title: "Bookings", 
         no_bookings: "No bookings.", your_number: "Number:", view_ticket: "View", back_to_search: "Back", 
         your_ticket_number: "Your Number", status_waiting: "Waiting", status_your_turn: "Your Turn!", status_one_left: "One left", 
         ahead_label: "Ahead", wait_time_label: "Min", eta_label: "ETA", welcome_msg: "Welcome", ticket_hint: "Ticket updates automatically.", 
@@ -34,6 +35,7 @@ var translations = {
         specialty_label: "Specialty:", specialty_ph: "Example: Internal", city_label: "City:", city_ph: "Example: Sanaa", street_label: "Street:", street_ph: "Example: Hadda", 
         landmark_label: "Landmark (Opposite/Near):", landmark_ph: "Example: Opposite hospital...", 
         activation_code_label: "Activation Code:", activation_code_ph: "Enter secret code", invalid_code: "Invalid activation code! Contact admin.",
+        map_label: "Select Clinic Location on Map (Click on map):", map_hint: "Click on the map to set the location",
         start_time_label: "Opening Time:", end_time_label: "Closing Time:", service_time_label: "Service Time (min):", create_account_btn: "Create Account & Save Clinic", 
         active_booking_msg: "You have {n} active booking(s)! Click here to view.", tomorrow: "Tmrw ", hours_label: "Hours:",
         admin_title: "Clinic Dashboard", current_patient: "Current Patient (with Doctor)", call_next: "Call Next Patient", 
