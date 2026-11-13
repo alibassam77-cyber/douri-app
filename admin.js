@@ -10,11 +10,36 @@ var auth = firebase.auth();
 var selectedDoctorId = null;
 var currentDoctorData = null;
 var currentIsOpen = true;
+var currentAdminDate = ""; // التاريخ المختار في لوحة التحكم
+var queueListener = null;
+
+function getTodayString() {
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = String(today.getMonth() + 1).padStart(2, '0');
+    var dd = String(today.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+}
 
 auth.onAuthStateChanged(function(user) {
-    if (user) { applyLanguage(); initAdminPanel(user.uid); }
+    if (user) { 
+        applyLanguage(); 
+        initAdminPanel(user.uid); 
+        
+        // ضبط التاريخ الافتراضي في التقويم لليوم
+        currentAdminDate = getTodayString();
+        document.getElementById('adminDate').value = currentAdminDate;
+    }
     else { window.location.href = 'index.html'; }
 });
+
+function changeAdminDate() {
+    currentAdminDate = document.getElementById('adminDate').value;
+    if (currentAdminDate) {
+        listenToQueue();
+        listenToDayCounters();
+    }
+}
 
 function initAdminPanel(uid) {
     db.collection("doctors").where("ownerUid", "==", uid).limit(1).onSnapshot(function(snapshot) {
@@ -29,7 +54,15 @@ function initAdminPanel(uid) {
             document.getElementById('activeDoctorName').innerText = currentDoctorData.name + " (" + currentDoctorData.specialty + ") | " + start + " - " + end;
             
             updateClinicStatusUI();
+            
+            // إذا كان التاريخ محدد مسبقاً
+            if (!currentAdminDate) {
+                currentAdminDate = getTodayString();
+                document.getElementById('adminDate').value = currentAdminDate;
+            }
+            
             listenToQueue();
+            listenToDayCounters();
         } else {
             document.getElementById('activeDoctorName').innerText = currentLang === 'ar' ? "لم تقم بتسجيل عيادة بعد" : "Clinic not registered yet";
             document.getElementById('patientsQueue').innerHTML = '<p style="text-align:center; color:var(--primary);">' + (currentLang === 'ar' ? 'يرجى الخروج وتسجيل عيادة جديدة.' : 'Please logout and register a clinic.') + '</p>';
@@ -49,25 +82,45 @@ function toggleClinicStatus() {
     db.collection("doctors").doc(selectedDoctorId).update({ isOpen: currentIsOpen }).then(function() { updateClinicStatusUI(); });
 }
 
-function listenToQueue() {
-    db.collection("bookings").where("doctorId", "==", selectedDoctorId).onSnapshot(function(snapshot) {
-        var patients = [];
-        snapshot.forEach(function(doc) { patients.push({ id: doc.id, data: doc.data() }); });
-        patients.sort(function(a, b) { return a.data.ticketNumber - b.data.ticketNumber; });
-        renderQueue(patients);
+var dayCounterListener = null;
+function listenToDayCounters() {
+    if (!selectedDoctorId || !currentAdminDate) return;
+    
+    if (dayCounterListener) dayCounterListener();
+    
+    var dayDocId = selectedDoctorId + "_" + currentAdminDate;
+    dayCounterListener = db.collection("doctor_days").doc(dayDocId).onSnapshot(function(doc) {
+        if (doc.exists) {
+            document.getElementById('currentServingDisplay').innerText = doc.data().currentServing || '-';
+        } else {
+            document.getElementById('currentServingDisplay').innerText = '-';
+        }
     });
+}
+
+function listenToQueue() {
+    if (!selectedDoctorId || !currentAdminDate) return;
+    if (queueListener) queueListener();
+    
+    queueListener = db.collection("bookings")
+        .where("doctorId", "==", selectedDoctorId)
+        .where("bookingDate", "==", currentAdminDate)
+        .onSnapshot(function(snapshot) {
+            var patients = [];
+            snapshot.forEach(function(doc) { patients.push({ id: doc.id, data: doc.data() }); });
+            patients.sort(function(a, b) { return a.data.ticketNumber - b.data.ticketNumber; });
+            renderQueue(patients);
+        });
 }
 
 function renderQueue(patients) {
     var queueDiv = document.getElementById('patientsQueue');
     queueDiv.innerHTML = '';
-    var servingPatient = null;
-    for (var i = 0; i < patients.length; i++) { if (patients[i].data.status === 'serving') servingPatient = patients[i]; }
-    
-    document.getElementById('currentServingDisplay').innerText = servingPatient ? servingPatient.data.ticketNumber : '-';
     
     var activePatients = [];
-    for (var j = 0; j < patients.length; j++) { if (patients[j].data.status === 'waiting' || patients[j].data.status === 'serving') activePatients.push(patients[j]); }
+    for (var j = 0; j < patients.length; j++) { 
+        if (patients[j].data.status === 'waiting' || patients[j].data.status === 'serving') activePatients.push(patients[j]); 
+    }
     
     if (activePatients.length === 0) {
         queueDiv.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t('no_patients') + '</p>';
@@ -91,38 +144,62 @@ function renderQueue(patients) {
 }
 
 function callNextPatient() {
-    if (!selectedDoctorId) return;
+    if (!selectedDoctorId || !currentAdminDate) return;
     if (!currentIsOpen) { if(!confirm(currentLang === 'ar' ? "العيادة مغلقة حالياً. هل تريد فتحها؟" : "Clinic is closed. Open?")) return; toggleClinicStatus(); }
     
-    db.collection("bookings").where("doctorId", "==", selectedDoctorId).where("status", "in", ["waiting", "serving"]).get().then(function(snapshot) {
-        var patients = [];
-        snapshot.forEach(function(doc) { patients.push({ id: doc.id, data: doc.data() }); });
-        patients.sort(function(a, b) { return a.data.ticketNumber - b.data.ticketNumber; });
+    var dayDocId = selectedDoctorId + "_" + currentAdminDate;
+    var dayRef = db.collection("doctor_days").doc(dayDocId);
+    
+    dayRef.get().then(function(daySnap) {
+        var currentServing = daySnap.exists ? (daySnap.data().currentServing || 0) : 0;
+        var lastTicket = daySnap.exists ? (daySnap.data().lastTicket || 0) : 0;
         
-        if (patients.length === 0) return alert(t('no_patients'));
-        
-        var currentServing = null;
-        for (var i = 0; i < patients.length; i++) { if (patients[i].data.status === 'serving') currentServing = patients[i]; }
-        if (currentServing) db.collection("bookings").doc(currentServing.id).update({ status: 'done' });
-        
-        var nextPatient = null;
-        for (var j = 0; j < patients.length; j++) { if (patients[j].data.status === 'waiting') { nextPatient = patients[j]; break; } }
-        
-        if (nextPatient) {
-            db.collection("bookings").doc(nextPatient.id).update({ status: 'serving' });
-            db.collection("doctors").doc(selectedDoctorId).update({ currentServing: nextPatient.data.ticketNumber });
-        } else {
-            db.collection("doctors").doc(selectedDoctorId).update({ currentServing: 0 });
+        if (lastTicket === 0 || currentServing >= lastTicket) {
+            return alert(t('no_patients'));
         }
+        
+        var nextServing = currentServing + 1;
+        
+        dayRef.update({ currentServing: nextServing }).then(function() {
+            // تحديث حالة المريض الحالي إلى serving
+            db.collection("bookings")
+                .where("doctorId", "==", selectedDoctorId)
+                .where("bookingDate", "==", currentAdminDate)
+                .where("ticketNumber", "==", nextServing)
+                .get().then(function(snapshot) {
+                    snapshot.forEach(function(doc) {
+                        db.collection("bookings").doc(doc.id).update({ status: 'serving' });
+                    });
+                });
+                
+            // تحديث حالة المريض السابق إلى done
+            if (currentServing > 0) {
+                db.collection("bookings")
+                .where("doctorId", "==", selectedDoctorId)
+                .where("bookingDate", "==", currentAdminDate)
+                .where("ticketNumber", "==", currentServing)
+                .get().then(function(snapshot) {
+                    snapshot.forEach(function(doc) {
+                        db.collection("bookings").doc(doc.id).update({ status: 'done' });
+                    });
+                });
+            }
+        });
     });
 }
 
 function resetClinic() {
-    if (!selectedDoctorId) return;
-    if(!confirm(currentLang === 'ar' ? "هل أنت متأكد من مسح كل الحجوزات والبدء من جديد؟" : "Are you sure you want to reset all?")) return;
+    if (!selectedDoctorId || !currentAdminDate) return;
+    if(!confirm(currentLang === 'ar' ? "هل أنت متأكد من مسح كل حجوزات هذا اليوم والبدء من جديد؟" : "Are you sure you want to reset today's bookings?")) return;
     
-    db.collection("doctors").doc(selectedDoctorId).update({ lastTicket: 0, currentServing: 0 }).then(function() {
-        db.collection("bookings").where("doctorId", "==", selectedDoctorId).where("status", "in", ["waiting", "serving"]).get().then(function(snapshot) {
+    var dayDocId = selectedDoctorId + "_" + currentAdminDate;
+    var dayRef = db.collection("doctor_days").doc(dayDocId);
+    
+    dayRef.set({ lastTicket: 0, currentServing: 0 }, { merge: true }).then(function() {
+        db.collection("bookings")
+        .where("doctorId", "==", selectedDoctorId)
+        .where("bookingDate", "==", currentAdminDate)
+        .where("status", "in", ["waiting", "serving"]).get().then(function(snapshot) {
             var batch = db.batch();
             snapshot.forEach(function(doc) { batch.update(doc.ref, { status: 'cancelled' }); });
             batch.commit().then(function() { alert(currentLang === 'ar' ? "تم التصفير." : "Reset done."); });
