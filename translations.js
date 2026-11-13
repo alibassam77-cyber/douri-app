@@ -2,7 +2,8 @@ var translations = {
     ar: { 
         app_title: "عيادة", doctors_btn: "الأطباء", all_cities: "كل المدن", search_placeholder: "اسم الطبيب أو التخصص...", 
         no_results: "لا يوجد أطباء.", available: "متاح للحجز", closed_temp: "مغلق مؤقتاً", on_break: "استراحة", 
-        book_now: "احجز الآن", clinic_location: "موقع العيادة", view_map: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", 
+        book_now: "احجز الآن", choose_clinic_btn: "اختر العيادة للحجز", select_clinic_to_book: "اختر مكان الحجز:", 
+        clinic_location: "موقع العيادة", view_map: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", 
         no_bookings: "لا يوجد حجوزات.", your_number: "رقم دورك:", view_ticket: "عرض التذكرة", back_to_search: "العودة للبحث", 
         your_ticket_number: "رقم دورك", status_waiting: "في الانتظار", status_your_turn: "حان دورك!", status_one_left: "بقي مريض واحد", 
         ahead_label: "أمامك", wait_time_label: "دقيقة", eta_label: "الوقت المتوقع", welcome_msg: "أهلاً", ticket_hint: "شاشة التذكرة تتحدث تلقائياً.", 
@@ -25,12 +26,13 @@ var translations = {
         queue_title: "طابور الانتظار", no_patients: "لا يوجد مرضى في الانتظار حالياً.", status_serving: "عند الطبيب الآن", 
         status_waiting_admin: "في الانتظار", admin_date_label: "اختر اليوم لعرض مواعيده:",
         add_clinic_btn: "إضافة عيادة جديدة", select_clinic_label: "العيادة الحالية:", invalid_working_day: "الطبيب لا يعمل في هذه العيادة في هذا اليوم!",
-        days_label: "أيام العمل:"
+        days_label: "أيام العمل:", edit_clinic_btn: "تعديل العيادة", save_changes_btn: "حفظ التعديلات", clinic_details_label: "تفاصيل العيادة"
     },
     en: { 
         app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", search_placeholder: "Doctor name or specialty...", 
         no_results: "No doctors.", available: "Available", closed_temp: "Closed", on_break: "Break", 
-        book_now: "Book Now", clinic_location: "Location", view_map: "Clinic Location", at_doctor: "At: ", my_bookings_title: "Bookings", 
+        book_now: "Book Now", choose_clinic_btn: "Choose Clinic to Book", select_clinic_to_book: "Select booking location:", 
+        clinic_location: "Location", view_map: "Clinic Location", at_doctor: "At: ", my_bookings_title: "Bookings", 
         no_bookings: "No bookings.", your_number: "Number:", view_ticket: "View", back_to_search: "Back", 
         your_ticket_number: "Your Number", status_waiting: "Waiting", status_your_turn: "Your Turn!", status_one_left: "One left", 
         ahead_label: "Ahead", wait_time_label: "Min", eta_label: "ETA", welcome_msg: "Welcome", ticket_hint: "Ticket updates automatically.", 
@@ -53,7 +55,7 @@ var translations = {
         queue_title: "Waiting Queue", no_patients: "No patients in queue.", status_serving: "With Doctor", 
         status_waiting_admin: "Waiting", admin_date_label: "Select a day to view appointments:",
         add_clinic_btn: "Add New Clinic", select_clinic_label: "Current Clinic:", invalid_working_day: "Doctor does not work at this clinic on this day!",
-        days_label: "Working Days:"
+        days_label: "Working Days:", edit_clinic_btn: "Edit Clinic", save_changes_btn: "Save Changes", clinic_details_label: "Clinic Details"
     }
 };
 
