@@ -7,38 +7,6 @@ firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 var auth = firebase.auth();
 
-var translations = {
-    ar: { 
-        admin_title: "لوحة تحكم العيادة", current_patient: "المريض الحالي (الذي عند الطبيب)", call_next: "نادِ المريض التالي", 
-        close_clinic: "إغلاق العيادة", open_clinic: "فتح العيادة", reset_clinic: "تصفير العيادة", 
-        queue_title: "طابور الانتظار", no_patients: "لا يوجد مرضى في الانتظار حالياً.", status_serving: "عند الطبيب الآن", 
-        status_waiting_admin: "في الانتظار", hours_label: "ساعات العمل:"
-    },
-    en: { 
-        admin_title: "Clinic Dashboard", current_patient: "Current Patient (with Doctor)", call_next: "Call Next Patient", 
-        close_clinic: "Close Clinic", open_clinic: "Open Clinic", reset_clinic: "Reset Clinic", 
-        queue_title: "Waiting Queue", no_patients: "No patients in queue.", status_serving: "With Doctor", 
-        status_waiting_admin: "Waiting", hours_label: "Hours:"
-    }
-};
-
-var currentLang = localStorage.getItem('douri_lang') || 'ar';
-
-function applyLanguage() {
-    var dict = translations[currentLang];
-    if (currentLang === 'ar') { document.documentElement.setAttribute('dir', 'rtl'); if(document.getElementById('langToggleBtn')) document.getElementById('langToggleBtn').innerText = 'EN'; }
-    else { document.documentElement.setAttribute('dir', 'ltr'); if(document.getElementById('langToggleBtn')) document.getElementById('langToggleBtn').innerText = 'عربي'; }
-    
-    var elements = document.querySelectorAll('[data-i18n]');
-    for (var i = 0; i < elements.length; i++) {
-        var key = elements[i].getAttribute('data-i18n');
-        if (dict[key]) elements[i].innerText = dict[key];
-    }
-    document.title = dict.admin_title;
-}
-function toggleLanguage() { currentLang = currentLang === 'ar' ? 'en' : 'ar'; localStorage.setItem('douri_lang', currentLang); window.location.reload(); }
-function t(key) { return translations[currentLang] && translations[currentLang][key] ? translations[currentLang][key] : key; }
-
 var selectedDoctorId = null;
 var currentDoctorData = null;
 var currentIsOpen = true;
