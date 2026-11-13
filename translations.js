@@ -12,15 +12,20 @@ var translations = {
         password_min_label: "كلمة المرور (6 أحرف على الأقل):", remember_me: "تذكرني", login_btn: "تسجيل الدخول", doctor_name_label: "اسم الطبيب:", doc_name_ph: "مثال: د. أحمد", 
         specialty_label: "التخصص:", specialty_ph: "مثال: باطنية", city_label: "المدينة:", city_ph: "مثال: صنعاء", street_label: "الشارع:", street_ph: "مثال: حدة", 
         landmark_label: "علامة مميزة (مقابل/بجوار):", landmark_ph: "مثال: مقابل مستشفى...", 
+        clinic_name_label: "اسم العيادة أو المستشفى:", clinic_name_ph: "مثال: مستشفى الثورة", 
+        working_days_label: "أيام العمل:", 
+        day_sun: "الأحد", day_mon: "الاثنين", day_tue: "الثلاثاء", day_wed: "الأربعاء", day_thu: "الخميس", day_fri: "الجمعة", day_sat: "السبت",
         activation_code_label: "كود التفعيل (من الإدارة):", activation_code_ph: "أدخل الكود السري هنا", invalid_code: "كود التفعيل غير صحيح! تواصل مع الإدارة.",
         map_label: "حدد موقع العيادة على الخريطة (اضغط على الخريطة):", map_hint: "اضغط على المكان الصحيح في الخريطة لتحديد الموقع",
         start_time_label: "وقت فتح العيادة:", end_time_label: "وقت إغلاق العيادة:", service_time_label: "مدة الكشف للمريض (بالدقائق):", create_account_btn: "إنشاء الحساب وحفظ العيادة", 
         active_booking_msg: "لديك {n} حجز نشط! اضغط هنا لعرضها", tomorrow: "غداً ", hours_label: "ساعات العمل:",
-        booking_date_label: "تاريخ الحجز (اليوم أو يوم آخر):", appointment_date: "تاريخ الموعد:",
+        booking_date_label: "تاريخ الحجز:", appointment_date: "تاريخ الموعد:",
         admin_title: "لوحة تحكم العيادة", current_patient: "المريض الحالي (الذي عند الطبيب)", call_next: "نادِ المريض التالي", 
         close_clinic: "إغلاق العيادة (استراحة)", open_clinic: "فتح العيادة للاستقبال", reset_clinic: "تصفير العيادة بالكامل", 
         queue_title: "طابور الانتظار", no_patients: "لا يوجد مرضى في الانتظار حالياً.", status_serving: "عند الطبيب الآن", 
-        status_waiting_admin: "في الانتظار", admin_date_label: "اختر اليوم لعرض مواعيده:"
+        status_waiting_admin: "في الانتظار", admin_date_label: "اختر اليوم لعرض مواعيده:",
+        add_clinic_btn: "إضافة عيادة جديدة", select_clinic_label: "العيادة الحالية:", invalid_working_day: "الطبيب لا يعمل في هذه العيادة في هذا اليوم!",
+        days_label: "أيام العمل:"
     },
     en: { 
         app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", search_placeholder: "Doctor name or specialty...", 
@@ -35,15 +40,20 @@ var translations = {
         password_min_label: "Password (min 6 chars):", remember_me: "Remember me", login_btn: "Login", doctor_name_label: "Doctor Name:", doc_name_ph: "Example: Dr. Ahmed", 
         specialty_label: "Specialty:", specialty_ph: "Example: Internal", city_label: "City:", city_ph: "Example: Sanaa", street_label: "Street:", street_ph: "Example: Hadda", 
         landmark_label: "Landmark (Opposite/Near):", landmark_ph: "Example: Opposite hospital...", 
+        clinic_name_label: "Clinic/Hospital Name:", clinic_name_ph: "Example: Al-Thawra Hospital",
+        working_days_label: "Working Days:",
+        day_sun: "Sunday", day_mon: "Monday", day_tue: "Tuesday", day_wed: "Wednesday", day_thu: "Thursday", day_fri: "Friday", day_sat: "Saturday",
         activation_code_label: "Activation Code:", activation_code_ph: "Enter secret code", invalid_code: "Invalid activation code! Contact admin.",
         map_label: "Select Clinic Location on Map (Click on map):", map_hint: "Click on the map to set the location",
         start_time_label: "Opening Time:", end_time_label: "Closing Time:", service_time_label: "Service Time (min):", create_account_btn: "Create Account & Save Clinic", 
         active_booking_msg: "You have {n} active booking(s)! Click here to view.", tomorrow: "Tmrw ", hours_label: "Hours:",
-        booking_date_label: "Booking Date (Today or another day):", appointment_date: "Appointment Date:",
+        booking_date_label: "Booking Date:", appointment_date: "Appointment Date:",
         admin_title: "Clinic Dashboard", current_patient: "Current Patient (with Doctor)", call_next: "Call Next Patient", 
         close_clinic: "Close Clinic (Break)", open_clinic: "Open Clinic", reset_clinic: "Reset Clinic", 
         queue_title: "Waiting Queue", no_patients: "No patients in queue.", status_serving: "With Doctor", 
-        status_waiting_admin: "Waiting", admin_date_label: "Select a day to view appointments:"
+        status_waiting_admin: "Waiting", admin_date_label: "Select a day to view appointments:",
+        add_clinic_btn: "Add New Clinic", select_clinic_label: "Current Clinic:", invalid_working_day: "Doctor does not work at this clinic on this day!",
+        days_label: "Working Days:"
     }
 };
 
