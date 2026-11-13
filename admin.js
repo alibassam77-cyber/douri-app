@@ -7,7 +7,7 @@ firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 var auth = firebase.auth();
 
-var myClinics = []; // قائمة العيادات التي يمتلكها الطبيب
+var myClinics = [];
 var selectedClinicId = null;
 var currentDoctorData = null;
 var currentIsOpen = true;
@@ -16,6 +16,8 @@ var queueListener = null;
 var dayCounterListener = null;
 var addMap = null;
 var addMarker = null;
+var editMap = null;
+var editMarker = null;
 
 function getTodayString() {
     var today = new Date();
@@ -29,11 +31,9 @@ auth.onAuthStateChanged(function(user) {
     if (user) { 
         applyLanguage(); 
         
-        // ضبط التاريخ الافتراضي
         currentAdminDate = getTodayString();
         document.getElementById('adminDate').value = currentAdminDate;
         
-        // جلب عيادات الطبيب
         db.collection("doctors").where("ownerUid", "==", user.uid).onSnapshot(function(snapshot) {
             myClinics = [];
             snapshot.forEach(function(doc) {
@@ -43,11 +43,10 @@ auth.onAuthStateChanged(function(user) {
             
             if (myClinics.length > 0) {
                 populateClinicSelector();
-                // إذا لم يتم اختيار عيادة، نختار الأولى
-                if (!selectedClinicId) {
+                if (!selectedClinicId || !myClinics.some(function(c){ return c.id === selectedClinicId; })) {
                     selectedClinicId = myClinics[0].id;
-                    document.getElementById('clinicSelector').value = selectedClinicId;
                 }
+                document.getElementById('clinicSelector').value = selectedClinicId;
                 initAdminPanel();
             } else {
                 document.getElementById('activeDoctorName').innerText = currentLang === 'ar' ? "لم تقم بتسجيل عيادة بعد" : "Clinic not registered yet";
@@ -83,7 +82,6 @@ function changeAdminDate() {
 function initAdminPanel() {
     if (!selectedClinicId) return;
     
-    // جلب بيانات العيادة المختارة
     for (var i = 0; i < myClinics.length; i++) {
         if (myClinics[i].id === selectedClinicId) {
             currentDoctorData = myClinics[i].data;
@@ -115,7 +113,6 @@ function toggleClinicStatus() {
     currentIsOpen = !currentIsOpen;
     db.collection("doctors").doc(selectedClinicId).update({ isOpen: currentIsOpen }).then(function() { 
         updateClinicStatusUI(); 
-        // تحديث البيانات في الذاكرة المحلية
         for (var i = 0; i < myClinics.length; i++) {
             if (myClinics[i].id === selectedClinicId) {
                 myClinics[i].data.isOpen = currentIsOpen;
@@ -253,10 +250,7 @@ function openAddClinicModal() {
     document.getElementById('addClinicModal').classList.remove('hidden');
     setTimeout(initAddMap, 300);
 }
-
-function closeAddClinicModal() {
-    document.getElementById('addClinicModal').classList.add('hidden');
-}
+function closeAddClinicModal() { document.getElementById('addClinicModal').classList.add('hidden'); }
 
 function initAddMap() {
     if (!document.getElementById('add-map')) return;
@@ -310,7 +304,95 @@ function saveNewClinic() {
     }).then(function() {
         alert(currentLang === 'ar' ? "تمت إضافة العيادة!" : "Clinic added!");
         closeAddClinicModal();
-        // سيتم تحديث القائمة تلقائياً بفضل onSnapshot
+    }).catch(function(err) {
+        alert("Error: " + err.message);
+    });
+}
+
+// --- تعديل العيادة ---
+function openEditClinicModal() {
+    if (!currentDoctorData) return;
+    
+    document.getElementById('editClinicName').value = currentDoctorData.clinicName || '';
+    document.getElementById('editCity').value = (currentDoctorData.address && currentDoctorData.address.city) ? currentDoctorData.address.city : '';
+    document.getElementById('editStreet').value = (currentDoctorData.address && currentDoctorData.address.street) ? currentDoctorData.address.street : '';
+    document.getElementById('editLandmark').value = (currentDoctorData.address && currentDoctorData.address.landmark) ? currentDoctorData.address.landmark : '';
+    document.getElementById('editStartTime').value = currentDoctorData.startTime || '09:00';
+    document.getElementById('editEndTime').value = currentDoctorData.endTime || '17:00';
+    document.getElementById('editServiceTime').value = currentDoctorData.serviceTime || 10;
+    document.getElementById('editLat').value = (currentDoctorData.location && currentDoctorData.location.lat) ? currentDoctorData.location.lat : '';
+    document.getElementById('editLng').value = (currentDoctorData.location && currentDoctorData.location.lng) ? currentDoctorData.location.lng : '';
+    
+    var workingDays = currentDoctorData.workingDays || [];
+    for (var i = 0; i <= 6; i++) {
+        var cb = document.getElementById('edit_day_' + i);
+        if (cb) cb.checked = workingDays.indexOf(i) > -1;
+    }
+    
+    document.getElementById('editClinicModal').classList.remove('hidden');
+    setTimeout(initEditMap, 300);
+}
+
+function closeEditClinicModal() { document.getElementById('editClinicModal').classList.add('hidden'); }
+
+function initEditMap() {
+    if (!document.getElementById('edit-map')) return;
+    
+    var lat = Number(document.getElementById('editLat').value) || 15.3694;
+    var lng = Number(document.getElementById('editLng').value) || 44.1910;
+    
+    if (!editMap) {
+        editMap = L.map('edit-map').setView([lat, lng], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(editMap);
+        
+        editMap.on('click', function(e) {
+            document.getElementById('editLat').value = e.latlng.lat;
+            document.getElementById('editLng').value = e.latlng.lng;
+            if (editMarker) editMarker.setLatLng(e.latlng);
+            else editMarker = L.marker(e.latlng).addTo(editMap);
+        });
+    } else {
+        editMap.setView([lat, lng], 13);
+        editMap.invalidateSize();
+    }
+    
+    // إضافة/تحديث الدبوس
+    if (document.getElementById('editLat').value) {
+        var latlng = L.latLng(lat, lng);
+        if (editMarker) editMarker.setLatLng(latlng);
+        else editMarker = L.marker(latlng).addTo(editMap);
+    }
+}
+
+function saveEditClinic() {
+    var clinicName = document.getElementById('editClinicName').value.trim();
+    var city = document.getElementById('editCity').value.trim();
+    var street = document.getElementById('editStreet').value.trim();
+    var landmark = document.getElementById('editLandmark').value.trim();
+    var startTime = document.getElementById('editStartTime').value;
+    var endTime = document.getElementById('editEndTime').value;
+    var serviceTime = document.getElementById('editServiceTime').value;
+    var lat = document.getElementById('editLat').value;
+    var lng = document.getElementById('editLng').value;
+    
+    var workingDays = [];
+    for (var i = 0; i <= 6; i++) {
+        var cb = document.getElementById('edit_day_' + i);
+        if (cb && cb.checked) workingDays.push(i);
+    }
+
+    if (!clinicName || !city || !lat || !lng) return alert(currentLang === 'ar' ? "أكمل البيانات وحدد الموقع!" : "Complete data and select location!");
+    if (workingDays.length === 0) return alert(currentLang === 'ar' ? "حدد يوم عمل واحد على الأقل!" : "Select at least one working day!");
+
+    db.collection("doctors").doc(selectedClinicId).update({ 
+        clinicName: clinicName,
+        address: { city: city, street: street, landmark: landmark }, 
+        location: { lat: Number(lat), lng: Number(lng) },
+        serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, 
+        workingDays: workingDays
+    }).then(function() {
+        alert(currentLang === 'ar' ? "تم حفظ التعديلات!" : "Changes saved!");
+        closeEditClinicModal();
     }).catch(function(err) {
         alert("Error: " + err.message);
     });
