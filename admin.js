@@ -30,15 +30,14 @@ auth.onAuthStateChanged(function(user) {
         currentAdminDate = getTodayString();
         document.getElementById('adminDate').value = currentAdminDate;
         
-        // جلب جميع العيادات الخاصة بهذا الطبيب
         db.collection("doctors").where("ownerUid", "==", user.uid).onSnapshot(function(snapshot) {
             myClinics = [];
             snapshot.forEach(function(doc) { myClinics.push({ id: doc.id, data: doc.data() }); });
             
             if (myClinics.length > 0) {
-                populateClinicDropdown(); // تعبئة القائمة المنسدلة
-                autoSelectClinic();        // اختيار العيادة تلقائياً بناءً على الوقت
-                initAdminPanel();          // تحديث الواجهة
+                populateClinicDropdown();
+                autoSelectClinic();
+                initAdminPanel();
             } else {
                 document.getElementById('activeDoctorName').innerText = "لم تقم بتسجيل عيادة بعد";
                 document.getElementById('patientsQueue').innerHTML = '<p style="text-align:center; color:var(--primary);">يرجى الخروج وتسجيل عيادة جديدة.</p>';
@@ -47,7 +46,6 @@ auth.onAuthStateChanged(function(user) {
     } else { window.location.href = 'index.html'; }
 });
 
-// تعبئة القائمة المنسدلة بالعيادات
 function populateClinicDropdown() {
     var select = document.getElementById('clinicSelector');
     select.innerHTML = '';
@@ -57,7 +55,6 @@ function populateClinicDropdown() {
     }
 }
 
-// اختيار العيادة تلقائياً بناءً على الوقت واليوم
 function autoSelectClinic() {
     var now = new Date();
     var todayDay = now.getDay(); 
@@ -68,25 +65,17 @@ function autoSelectClinic() {
         var c = myClinics[i].data;
         var worksToday = c.workingDays && c.workingDays.indexOf(todayDay) > -1;
         var inTime = currentTimeStr >= (c.startTime || '00:00') && currentTimeStr <= (c.endTime || '23:59');
-        
-        if (worksToday && inTime) {
-            bestClinic = myClinics[i];
-            break; 
-        }
+        if (worksToday && inTime) { bestClinic = myClinics[i]; break; }
     }
     selectedClinicId = bestClinic.id;
-    
-    // تحديث القائمة المنسدلة لتطابق الاختيار التلقائي
     document.getElementById('clinicSelector').value = selectedClinicId;
 }
 
-// عند تغيير العيادة يدوياً من القائمة
 function changeClinic() {
     selectedClinicId = document.getElementById('clinicSelector').value;
     initAdminPanel();
 }
 
-// عند تغيير التاريخ
 function changeAdminDate() {
     currentAdminDate = document.getElementById('adminDate').value;
     if (currentAdminDate && selectedClinicId) {
@@ -103,8 +92,6 @@ function initAdminPanel() {
     if (!currentDoctorData) return;
     
     currentIsOpen = currentDoctorData.isOpen !== false;
-    
-    // عرض اسم الطبيب والتخصص فقط في الأعلى (بدون اسم العيادة)
     document.getElementById('activeDoctorName').innerText = currentDoctorData.name + " (" + currentDoctorData.specialty + ")";
     
     updateClinicStatusUI(); 
@@ -167,13 +154,15 @@ function renderQueue(patients) {
         }
     }
     
-    // 🟢 1. عرض اسم ورقم المريض الحالي
+    // 🟢 عرض اسم ورقم المريض الحالي والرقم التسلسلي
     if (servingPatient) {
         document.getElementById('currentServingDisplay').innerText = servingPatient.data.ticketNumber;
         document.getElementById('currentServingName').innerText = servingPatient.data.patientName;
+        document.getElementById('currentServingSerial').innerText = t('serial_label') + " " + (servingPatient.data.serialNumber || '-');
     } else {
         document.getElementById('currentServingDisplay').innerText = '-';
         document.getElementById('currentServingName').innerText = '-';
+        document.getElementById('currentServingSerial').innerText = '';
     }
     
     if (activePatients.length === 0) {
@@ -189,7 +178,7 @@ function renderQueue(patients) {
         
         queueDiv.innerHTML += '<div class="queue-item ' + statusClass + '">' +
             '<div class="patient-info">' +
-            '<h4>' + p.data.patientName + '</h4>' +
+            '<h4>' + p.data.patientName + ' <span style="font-size:12px; color:var(--text-muted);">(' + t('serial_label') + ' ' + (p.data.serialNumber || '-') + ')</span></h4>' +
             '<p><i class="fa-solid fa-phone"></i> ' + p.data.patientPhone + ' - <span style="color:var(--primary); font-weight:bold;">' + statusText + '</span></p>' +
             '</div>' +
             '<div class="ticket-num">' + p.data.ticketNumber + '</div>' +
@@ -200,7 +189,6 @@ function renderQueue(patients) {
 function callNextPatient() {
     if (!selectedClinicId || !currentAdminDate) return;
     
-    // 🟢 3. منع نداء المرضى قبل يومهم
     if (currentAdminDate > getTodayString()) {
         return alert("لا يمكنك نداء المرضى قبل يومهم! يمكنك تصفح القائمة فقط.");
     }
@@ -242,25 +230,6 @@ function callNextPatient() {
                     });
                 });
             }
-        });
-    });
-}
-
-function resetClinic() {
-    if (!selectedClinicId || !currentAdminDate) return;
-    if(!confirm("هل أنت متأكد من مسح كل حجوزات هذا اليوم والبدء من جديد؟")) return;
-    
-    var dayDocId = selectedClinicId + "_" + currentAdminDate;
-    var dayRef = db.collection("doctor_days").doc(dayDocId);
-    
-    dayRef.set({ lastTicket: 0, currentServing: 0 }, { merge: true }).then(function() {
-        db.collection("bookings")
-        .where("doctorId", "==", selectedClinicId)
-        .where("bookingDate", "==", currentAdminDate)
-        .where("status", "in", ["waiting", "serving"]).get().then(function(snapshot) {
-            var batch = db.batch();
-            snapshot.forEach(function(doc) { batch.update(doc.ref, { status: 'cancelled' }); });
-            batch.commit().then(function() { alert("تم التصفير."); });
         });
     });
 }
@@ -312,7 +281,9 @@ function saveNewClinic() {
     db.collection("doctors").add({ 
         ownerUid: auth.currentUser.uid, email: auth.currentUser.email, name: currentDoctorData.name, specialty: currentDoctorData.specialty, phone: currentDoctorData.phone, 
         clinicName: clinicName, address: { city: city, street: street, landmark: landmark }, location: { lat: Number(lat), lng: Number(lng) },
-        serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, workingDays: workingDays, createdAt: new Date().toISOString() 
+        serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, workingDays: workingDays, 
+        globalSerial: 0, // 🟢 بداية العداد التسلسلي من الصفر
+        createdAt: new Date().toISOString() 
     }).then(function() {
         alert("تمت إضافة العيادة!"); closeAddClinicModal();
     });
