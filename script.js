@@ -7,63 +7,6 @@ firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 var auth = firebase.auth();
 
-var translations = {
-    ar: { 
-        app_title: "عيادة", doctors_btn: "الأطباء", all_cities: "كل المدن", search_placeholder: "اسم الطبيب أو التخصص...", 
-        no_results: "لا يوجد أطباء.", available: "متاح للحجز", closed_temp: "مغلق مؤقتاً", on_break: "استراحة", 
-        book_now: "احجز الآن", clinic_location: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", 
-        no_bookings: "لا يوجد حجوزات.", your_number: "رقم دورك:", view_ticket: "عرض التذكرة", back_to_search: "العودة للبحث", 
-        your_ticket_number: "رقم دورك", status_waiting: "في الانتظار", status_your_turn: "حان دورك!", status_one_left: "بقي مريض واحد", 
-        ahead_label: "أمامك", wait_time_label: "دقيقة", eta_label: "الوقت المتوقع", welcome_msg: "أهلاً", ticket_hint: "تتحدث تلقائياً.", 
-        back_to_bookings: "العودة", cancel_booking_btn: "إلغاء", confirm_booking_title: "تأكيد الحجز", full_name_label: "الاسم:", 
-        name_placeholder: "الاسم", phone_label: "الهاتف:", phone_placeholder: "77...", confirm_btn: "تأكيد", cancel_btn: "إلغاء", 
-        doctor_portal_title: "بوابة الأطباء", login_tab: "دخول", register_tab: "جديد", email_label: "الإيميل:", password_label: "المرور:", 
-        password_min_label: "كلمة المرور:", remember_me: "تذكرني", login_btn: "دخول", doctor_name_label: "الاسم:", doc_name_ph: "د. أحمد", 
-        specialty_label: "التخصص:", specialty_ph: "باطنية", city_label: "المدينة:", city_ph: "صنعاء", street_label: "الشارع:", street_ph: "حدة", 
-        start_time_label: "وقت الفتح:", end_time_label: "وقت الإغلاق:", service_time_label: "مدة الكشف (دقيقة):", create_account_btn: "حفظ", 
-        active_booking_msg: "لديك {n} حجز", tomorrow: "غداً ", hours_label: "ساعات العمل:"
-    },
-    en: { 
-        app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", search_placeholder: "Doctor...", 
-        no_results: "No doctors.", available: "Available", closed_temp: "Closed", on_break: "Break", 
-        book_now: "Book Now", clinic_location: "Location", at_doctor: "At: ", my_bookings_title: "Bookings", 
-        no_bookings: "No bookings.", your_number: "Number:", view_ticket: "View", back_to_search: "Back", 
-        your_ticket_number: "Your Number", status_waiting: "Waiting", status_your_turn: "Your Turn!", status_one_left: "One left", 
-        ahead_label: "Ahead", wait_time_label: "Min", eta_label: "ETA", welcome_msg: "Welcome", ticket_hint: "Updates automatically.", 
-        back_to_bookings: "Back", cancel_booking_btn: "Cancel", confirm_booking_title: "Confirm", full_name_label: "Name:", 
-        name_placeholder: "Name", phone_label: "Phone:", phone_placeholder: "77...", confirm_btn: "Confirm", cancel_btn: "Cancel", 
-        doctor_portal_title: "Doctor Portal", login_tab: "Login", register_tab: "New", email_label: "Email:", password_label: "Pass:", 
-        password_min_label: "Pass (6):", remember_me: "Remember me", login_btn: "Login", doctor_name_label: "Name:", doc_name_ph: "Dr. A", 
-        specialty_label: "Specialty:", specialty_ph: "Internal", city_label: "City:", city_ph: "Sanaa", street_label: "Street:", street_ph: "Hadda", 
-        start_time_label: "Open Time:", end_time_label: "Close Time:", service_time_label: "Service Time (min):", create_account_btn: "Save", 
-        active_booking_msg: "You have {n} booking(s)", tomorrow: "Tmrw ", hours_label: "Hours:"
-    }
-};
-
-var currentLang = localStorage.getItem('douri_lang') || 'ar';
-
-function applyLanguage() {
-    var dict = translations[currentLang];
-    if (currentLang === 'ar') { document.documentElement.setAttribute('dir', 'rtl'); if(document.getElementById('langToggleBtn')) document.getElementById('langToggleBtn').innerText = 'EN'; }
-    else { document.documentElement.setAttribute('dir', 'ltr'); if(document.getElementById('langToggleBtn')) document.getElementById('langToggleBtn').innerText = 'عربي'; }
-    
-    var elements = document.querySelectorAll('[data-i18n]');
-    for (var i = 0; i < elements.length; i++) {
-        var key = elements[i].getAttribute('data-i18n');
-        if (dict[key]) elements[i].innerText = dict[key];
-    }
-    var placeholders = document.querySelectorAll('[data-i18n-placeholder]');
-    for (var j = 0; j < placeholders.length; j++) {
-        var pKey = placeholders[j].getAttribute('data-i18n-placeholder');
-        if (dict[pKey]) placeholders[j].setAttribute('placeholder', dict[pKey]);
-    }
-    document.title = dict.app_title;
-}
-
-function toggleLanguage() { currentLang = currentLang === 'ar' ? 'en' : 'ar'; localStorage.setItem('douri_lang', currentLang); window.location.reload(); }
-function t(key) { return translations[currentLang] && translations[currentLang][key] ? translations[currentLang][key] : key; }
-
-// ... (باقي دوال التطبيق من loadDoctors, renderDoctors, getSmartETA, إلخ .. نفس الكود السابق تماماً) ...
 var allDoctors = [];
 var currentListener = null;
 var activeTicketToDisplay = null;
