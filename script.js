@@ -9,7 +9,7 @@ var auth = firebase.auth();
 
 var ADMIN_SECRET_CODE = "DOCTOR2024";
 
-var allDoctors = [];
+var allDoctors = []; // ستُخزن هنا كبيانات مجمعة (كل طبيب بمصفوفة عياداته)
 var activeTicketToDisplay = null;
 var modalDoctorId = null;
 var modalDoctorName = null;
@@ -114,25 +114,47 @@ function loadDoctors() {
 
     db.collection("doctors").onSnapshot(function(snapshot) {
         clearTimeout(timeout);
-        allDoctors = [];
-        var cities = {};
+        var groupedDoctors = {};
+        
         snapshot.forEach(function(doc) {
             var data = doc.data();
-            var d = { 
-                id: doc.id, name: data.name, specialty: data.specialty, 
-                clinicName: data.clinicName || 'عيادة', 
-                address: data.address, location: data.location, isOpen: data.isOpen, 
-                startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime,
+            var ownerKey = data.ownerUid || data.email || data.name; // مفتاح التجميع
+            
+            if (!groupedDoctors[ownerKey]) {
+                groupedDoctors[ownerKey] = {
+                    name: data.name,
+                    specialty: data.specialty,
+                    clinics: []
+                };
+            }
+            groupedDoctors[ownerKey].clinics.push({
+                id: doc.id,
+                clinicName: data.clinicName || 'عيادة',
+                address: data.address,
+                location: data.location,
+                isOpen: data.isOpen,
+                startTime: data.startTime,
+                endTime: data.endTime,
+                serviceTime: data.serviceTime,
                 workingDays: data.workingDays || []
-            };
-            allDoctors.push(d);
-            if (d.address && d.address.city) { cities[d.address.city] = true; }
+            });
         });
+        
+        allDoctors = Object.values(groupedDoctors);
+        
+        // تعبئة قائمة المدن
+        var cities = {};
+        for (var i = 0; i < allDoctors.length; i++) {
+            for (var j = 0; j < allDoctors[i].clinics.length; j++) {
+                var c = allDoctors[i].clinics[j];
+                if (c.address && c.address.city) { cities[c.address.city] = true; }
+            }
+        }
         
         var citySelect = document.getElementById('cityFilter');
         var currentSelection = citySelect.value;
         citySelect.innerHTML = '<option value="">' + t('all_cities') + '</option>';
-        for (var c in cities) { citySelect.innerHTML += '<option value="' + c + '">' + c + '</option>'; }
+        for (var city in cities) { citySelect.innerHTML += '<option value="' + city + '">' + city + '</option>'; }
         if (currentSelection) citySelect.value = currentSelection;
 
         filterDoctors();
@@ -152,35 +174,51 @@ function renderDoctors(doctorsToRender) {
     }
     
     for (var i = 0; i < doctorsToRender.length; i++) {
-        var doc = doctorsToRender[i];
-        var isClosed = doc.isOpen === false;
-        var badgeHTML = isClosed ? '<span class="badge red">' + t('closed_temp') + '</span>' : '<span class="badge green">' + t('available') + '</span>';
-        var btnHTML = isClosed ? '<button class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button class="book-btn" onclick="openBookingModal(\'' + doc.id + '\', \'' + doc.name + '\', \'' + doc.clinicName + '\')">' + t('book_now') + '</button>';
+        var docGroup = doctorsToRender[i];
+        var clinics = docGroup.clinics;
         
-        var landmarkText = (doc.address && doc.address.landmark) ? ' (' + doc.address.landmark + ')' : '';
-        var addressText = doc.address ? doc.address.city + ' - ' + (doc.address.street || '') + landmarkText : '';
-        
-        var start = doc.startTime || '09:00';
-        var end = doc.endTime || '17:00';
+        // إذا كان للطبيب عيادة واحدة فقط، نظهر زر الحجز المباشر
+        if (clinics.length === 1) {
+            var doc = clinics[0];
+            var isClosed = doc.isOpen === false;
+            var badgeHTML = isClosed ? '<span class="badge red">' + t('closed_temp') + '</span>' : '<span class="badge green">' + t('available') + '</span>';
+            var btnHTML = isClosed ? '<button class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button class="book-btn" onclick="openBookingModal(\'' + doc.id + '\', \'' + docGroup.name + '\', \'' + doc.clinicName + '\')">' + t('book_now') + '</button>';
+            
+            var landmarkText = (doc.address && doc.address.landmark) ? ' (' + doc.address.landmark + ')' : '';
+            var addressText = doc.address ? doc.address.city + ' - ' + (doc.address.street || '') + landmarkText : '';
+            var start = doc.startTime || '09:00';
+            var end = doc.endTime || '17:00';
+            
+            var mapBtnHTML = '';
+            if (doc.location && doc.location.lat && doc.location.lng) {
+                var mapLink = 'https://www.google.com/maps/search/?api=1&query=' + doc.location.lat + ',' + doc.location.lng;
+                mapBtnHTML = '<a href="' + mapLink + '" target="_blank" class="map-btn"><i class="fa-solid fa-map-location-dot"></i> ' + t('view_map') + '</a>';
+            }
 
-        var mapBtnHTML = '';
-        if (doc.location && doc.location.lat && doc.location.lng) {
-            var mapLink = 'https://www.google.com/maps/search/?api=1&query=' + doc.location.lat + ',' + doc.location.lng;
-            mapBtnHTML = '<a href="' + mapLink + '" target="_blank" class="map-btn"><i class="fa-solid fa-map-location-dot"></i> ' + t('view_map') + '</a>';
+            list.innerHTML += '<div class="clinic-card" style="' + (isClosed ? 'opacity: 0.7;' : '') + '">' +
+                '<div class="clinic-info">' +
+                '<h2>' + docGroup.name + '</h2>' +
+                '<p class="doc-specialty" style="color:var(--warning);">🏥 ' + doc.clinicName + '</p>' +
+                '<p class="doc-specialty">' + docGroup.specialty + '</p>' +
+                '<p class="doc-address">📍 ' + addressText + '</p>' +
+                '<p class="doc-address" style="font-size: 12px; color: var(--primary);">🕒 ' + t('hours_label') + ' ' + start + ' - ' + end + '</p>' +
+                mapBtnHTML +
+                '</div>' +
+                '<div class="clinic-status" style="margin-top: 15px;">' + badgeHTML + '</div>' +
+                btnHTML +
+                '</div>';
+        } 
+        // إذا كان للطبيب أكثر من عيادة
+        else {
+            list.innerHTML += '<div class="clinic-card">' +
+                '<div class="clinic-info">' +
+                '<h2>' + docGroup.name + '</h2>' +
+                '<p class="doc-specialty">' + docGroup.specialty + '</p>' +
+                '<p class="doc-address" style="color: var(--success); font-weight:bold;">يعمل في ' + clinics.length + ' أماكن مختلفة</p>' +
+                '</div>' +
+                '<button class="book-btn" style="margin-top:15px;" onclick="openClinicSelectionModal(\'' + encodeURIComponent(JSON.stringify({name: docGroup.name, clinics: clinics})) + '\')">' + t('choose_clinic_btn') + '</button>' +
+                '</div>';
         }
-
-        list.innerHTML += '<div class="clinic-card" style="' + (isClosed ? 'opacity: 0.7;' : '') + '">' +
-            '<div class="clinic-info">' +
-            '<h2>' + doc.name + '</h2>' +
-            '<p class="doc-specialty" style="color:var(--warning);">🏥 ' + doc.clinicName + '</p>' +
-            '<p class="doc-specialty">' + doc.specialty + '</p>' +
-            '<p class="doc-address">📍 ' + addressText + '</p>' +
-            '<p class="doc-address" style="font-size: 12px; color: var(--primary);">🕒 ' + t('hours_label') + ' ' + start + ' - ' + end + '</p>' +
-            mapBtnHTML +
-            '</div>' +
-            '<div class="clinic-status" style="margin-top: 15px;">' + badgeHTML + '</div>' +
-            btnHTML +
-            '</div>';
     }
 }
 
@@ -191,24 +229,75 @@ function filterDoctors() {
     var selectedCity = citySelect.value;
     var textQuery = searchInput.value.toLowerCase();
     var filtered = [];
+    
     for (var i = 0; i < allDoctors.length; i++) {
-        var doc = allDoctors[i];
-        var matchesCity = selectedCity === "" || (doc.address && doc.address.city === selectedCity);
-        var matchesText = (doc.name || '').toLowerCase().indexOf(textQuery) > -1 || (doc.specialty || '').toLowerCase().indexOf(textQuery) > -1;
-        if (matchesCity && matchesText) filtered.push(doc);
+        var docGroup = allDoctors[i];
+        var matchesNameOrSpecialty = (docGroup.name || '').toLowerCase().indexOf(textQuery) > -1 || (docGroup.specialty || '').toLowerCase().indexOf(textQuery) > -1;
+        
+        if (matchesNameOrSpecialty) {
+            // التحقق من المدينة (إذا كانت هناك عيادة واحدة على الأقل في هذه المدينة)
+            if (selectedCity === "") {
+                filtered.push(docGroup);
+            } else {
+                var hasCity = false;
+                for (var j = 0; j < docGroup.clinics.length; j++) {
+                    if (docGroup.clinics[j].address && docGroup.clinics[j].address.city === selectedCity) {
+                        hasCity = true;
+                        break;
+                    }
+                }
+                if (hasCity) filtered.push(docGroup);
+            }
+        }
     }
     renderDoctors(filtered);
 }
 
+// نافذة اختيار العيادة
+function openClinicSelectionModal(encodedData) {
+    var data = JSON.parse(decodeURIComponent(encodedData));
+    var listDiv = document.getElementById('clinicSelectionList');
+    listDiv.innerHTML = '';
+    
+    for (var i = 0; i < data.clinics.length; i++) {
+        var c = data.clinics[i];
+        var addressText = c.address ? c.address.city + ' - ' + (c.address.street || '') : '';
+        var statusText = c.isOpen ? t('available') : t('closed_temp');
+        var color = c.isOpen ? 'var(--success)' : 'var(--danger)';
+        
+        listDiv.innerHTML += '<div style="border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 10px;">' +
+            '<h4 style="margin: 0 0 5px 0; color: var(--primary);">' + c.clinicName + '</h4>' +
+            '<p style="margin: 0 0 5px 0; font-size: 13px;">📍 ' + addressText + '</p>' +
+            '<p style="margin: 0 0 10px 0; font-size: 13px; color: ' + color + ';">الحالة: ' + statusText + ' | 🕒 ' + c.startTime + ' - ' + c.endTime + '</p>' +
+            '<button class="btn-primary" style="padding: 8px;" onclick="selectClinicToBook(\'' + c.id + '\', \'' + data.name + '\', \'' + c.clinicName + '\')">' + t('book_now') + '</button>' +
+            '</div>';
+    }
+    
+    document.getElementById('clinicSelectionModal').classList.remove('hidden');
+}
+
+function closeClinicSelectionModal() {
+    document.getElementById('clinicSelectionModal').classList.add('hidden');
+}
+
+function selectClinicToBook(clinicId, doctorName, clinicName) {
+    closeClinicSelectionModal();
+    openBookingModal(clinicId, doctorName, clinicName);
+}
+
+// نافذة الحجز
 function openBookingModal(doctorId, doctorName, clinicName) {
     modalDoctorId = doctorId;
     modalDoctorName = doctorName;
     
+    // جلب أيام عمل هذه العيادة
     modalWorkingDays = [];
     for (var i = 0; i < allDoctors.length; i++) {
-        if (allDoctors[i].id === doctorId) {
-            modalWorkingDays = allDoctors[i].workingDays || [];
-            break;
+        for (var j = 0; j < allDoctors[i].clinics.length; j++) {
+            if (allDoctors[i].clinics[j].id === doctorId) {
+                modalWorkingDays = allDoctors[i].clinics[j].workingDays || [];
+                break;
+            }
         }
     }
     
@@ -288,7 +377,7 @@ function confirmBooking() {
                     name: name, 
                     phone: phone, 
                     bookingDate: bookingDate,
-                    status: 'waiting', // <-- تم إضافة هذه الحالة
+                    status: 'waiting',
                     date: new Date().toISOString() 
                 });
                 localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
@@ -332,11 +421,7 @@ function showMyBookingsView() {
     list.innerHTML = '';
     
     if (active.length === 0) { 
-        // 🟢 كود التشخيص
-        list.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t('no_bookings') + '</p>' +
-                         '<div style="margin-top:20px; padding:10px; background:#fee2e2; border-radius:8px; font-size:12px; color:#991b1b; word-break:break-all;">' +
-                         '<b>تشخيص الذاكرة:</b><br>' + JSON.stringify(myBookings) + 
-                         '</div>';
+        list.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t('no_bookings') + '</p>';
         return; 
     }
     
