@@ -28,7 +28,9 @@
             <div class="filter-row">
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-city"></i>
-                    <select id="cityFilter" onchange="filterDoctors()"><option value="" data-i18n="all_cities">كل المدن</option></select>
+                    <!-- حقل بحث للمدينة بدلاً من القائمة المنسدلة -->
+                    <input type="text" id="cityFilter" list="citiesList" placeholder="ابحث عن مدينة..." oninput="filterDoctors()">
+                    <datalist id="citiesList"></datalist>
                 </div>
                 <div class="input-icon-wrapper">
                     <i class="fa-solid fa-magnifying-glass"></i>
@@ -52,9 +54,7 @@
                 <p class="muted" data-i18n="your_ticket_number">رقم دورك</p>
                 <div class="big-number" id="ticketNumber">1</div>
                 <div class="status-badge" id="ticketStatus" data-i18n="status_waiting">في الانتظار</div>
-                
                 <p class="muted" id="appointmentDateDisplay" style="font-weight:bold; color:var(--primary); margin-top: 10px;"></p>
-
                 <div class="stats-row">
                     <div class="stat-box"><div class="stat-value" id="peopleAhead">—</div><div class="stat-label" data-i18n="ahead_label">أمامك</div></div>
                     <div class="stat-box"><div class="stat-value" id="waitTime">—</div><div class="stat-label" data-i18n="wait_time_label">دقيقة انتظار</div></div>
@@ -62,14 +62,12 @@
                 </div>
                 <p class="ticket-hint"><span data-i18n="welcome_msg">أهلاً</span> <span id="patientNameDisplay" style="font-weight:bold;"></span>، <span data-i18n="ticket_hint">شاشة التذكرة تتحدث تلقائياً.</span></p>
                 <p class="muted" id="doctorNameDisplay" style="font-size:14px; font-weight:bold; color:var(--primary);"></p>
-                
                 <button class="btn-outline" onclick="showMyBookingsView()"><i class="fa-solid fa-list"></i> <span data-i18n="back_to_bookings">العودة لقائمة حجوزاتي</span></button>
                 <button class="btn-danger" onclick="cancelCurrentTicket()"><i class="fa-solid fa-trash"></i> <span data-i18n="cancel_booking_btn">إلغاء هذا الحجز</span></button>
             </div>
         </div>
     </div>
 
-    <!-- نافذة اختيار العيادة للحجز (جديدة) -->
     <div id="clinicSelectionModal" class="hidden modal-overlay">
         <div class="modal-content">
             <h3 class="view-title" data-i18n="select_clinic_to_book">اختر مكان الحجز:</h3>
@@ -78,17 +76,14 @@
         </div>
     </div>
 
-    <!-- نافذة الحجز -->
     <div id="bookingModal" class="hidden modal-overlay">
         <div class="modal-content">
             <h3 class="view-title" data-i18n="confirm_booking_title">تأكيد الحجز</h3>
             <p class="muted" id="modalDoctorName" style="text-align: center; margin-bottom: 20px;">عند: ...</p>
-            
             <div class="input-group">
                 <label data-i18n="booking_date_label">تاريخ الحجز:</label>
                 <input type="date" id="bookingDate">
             </div>
-
             <div class="input-group">
                 <label data-i18n="full_name_label">الاسم الكامل:</label>
                 <input type="text" id="bookingName" placeholder="اكتب اسمك هنا" data-i18n-placeholder="name_placeholder">
@@ -102,7 +97,6 @@
         </div>
     </div>
 
-    <!-- نافذة دخول الطبيب -->
     <div id="doctorModal" class="hidden modal-overlay">
         <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
             <h3 class="view-title" style="margin-bottom: 10px;" data-i18n="doctor_portal_title">بوابة الأطباء</h3>
@@ -119,7 +113,6 @@
             <div id="registerSection" class="hidden">
                 <div class="input-group"><label data-i18n="email_label">البريد الإلكتروني:</label><input type="email" id="regEmail"></div>
                 <div class="input-group"><label data-i18n="password_min_label">كلمة المرور (6 أحرف على الأقل):</label><input type="password" id="regPassword"></div>
-                
                 <div class="input-group"><label data-i18n="activation_code_label">كود التفعيل:</label><input type="text" id="regActivationCode" placeholder="أدخل الكود السري هنا" data-i18n-placeholder="activation_code_ph"></div>
                 
                 <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
@@ -127,31 +120,33 @@
                 <div class="input-group"><label data-i18n="specialty_label">التخصص:</label><input type="text" id="docSpecialty"></div>
                 <div class="input-group"><label data-i18n="phone_label">رقم الهاتف:</label><input type="tel" id="docPhone"></div>
                 
-                <div class="input-group"><label data-i18n="clinic_name_label">اسم العيادة/المستشفى:</label><input type="text" id="docClinicName" placeholder="مثال: مستشفى الثورة" data-i18n-placeholder="clinic_name_ph"></div>
-                <div class="input-group"><label data-i18n="city_label">المدينة:</label><input type="text" id="docCity"></div>
-                <div class="input-group"><label data-i18n="street_label">الشارع:</label><input type="text" id="docStreet"></div>
-                <div class="input-group"><label data-i18n="landmark_label">علامة مميزة:</label><input type="text" id="docLandmark" placeholder="مثال: مقابل مستشفى..." data-i18n-placeholder="landmark_ph"></div>
-                
-                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-main); font-size: 14px;" data-i18n="working_days_label">أيام العمل:</label>
-                <div class="days-grid" id="reg-days-grid">
-                    <input type="checkbox" id="day_0" class="day-checkbox" value="0"><label for="day_0" class="day-label" data-i18n="day_sun">الأحد</label>
-                    <input type="checkbox" id="day_1" class="day-checkbox" value="1"><label for="day_1" class="day-label" data-i18n="day_mon">الاثنين</label>
-                    <input type="checkbox" id="day_2" class="day-checkbox" value="2"><label for="day_2" class="day-label" data-i18n="day_tue">الثلاثاء</label>
-                    <input type="checkbox" id="day_3" class="day-checkbox" value="3"><label for="day_3" class="day-label" data-i18n="day_wed">الأربعاء</label>
-                    <input type="checkbox" id="day_4" class="day-checkbox" value="4"><label for="day_4" class="day-label" data-i18n="day_thu">الخميس</label>
-                    <input type="checkbox" id="day_5" class="day-checkbox" value="5"><label for="day_5" class="day-label" data-i18n="day_fri">الجمعة</label>
-                    <input type="checkbox" id="day_6" class="day-checkbox" value="6"><label for="day_6" class="day-label" data-i18n="day_sat">السبت</label>
+                <!-- بيانات العيادة الأولى -->
+                <div id="clinicFormContainer">
+                    <div class="input-group"><label data-i18n="clinic_name_label">اسم العيادة/المستشفى:</label><input type="text" id="docClinicName" placeholder="مثال: مستشفى الثورة"></div>
+                    <div class="input-group"><label data-i18n="city_label">المدينة:</label><input type="text" id="docCity"></div>
+                    <div class="input-group"><label data-i18n="street_label">الشارع:</label><input type="text" id="docStreet"></div>
+                    <div class="input-group"><label data-i18n="landmark_label">علامة مميزة:</label><input type="text" id="docLandmark"></div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px;" data-i18n="working_days_label">أيام العمل:</label>
+                    <div class="days-grid" id="reg-days-grid">
+                        <input type="checkbox" id="day_0" class="day-checkbox" value="0"><label for="day_0" class="day-label" data-i18n="day_sun">الأحد</label>
+                        <input type="checkbox" id="day_1" class="day-checkbox" value="1"><label for="day_1" class="day-label" data-i18n="day_mon">الاثنين</label>
+                        <input type="checkbox" id="day_2" class="day-checkbox" value="2"><label for="day_2" class="day-label" data-i18n="day_tue">الثلاثاء</label>
+                        <input type="checkbox" id="day_3" class="day-checkbox" value="3"><label for="day_3" class="day-label" data-i18n="day_wed">الأربعاء</label>
+                        <input type="checkbox" id="day_4" class="day-checkbox" value="4"><label for="day_4" class="day-label" data-i18n="day_thu">الخميس</label>
+                        <input type="checkbox" id="day_5" class="day-checkbox" value="5"><label for="day_5" class="day-label" data-i18n="day_fri">الجمعة</label>
+                        <input type="checkbox" id="day_6" class="day-checkbox" value="6"><label for="day_6" class="day-label" data-i18n="day_sat">السبت</label>
+                    </div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px;" data-i18n="map_label">حدد موقع العيادة على الخريطة:</label>
+                    <div id="reg-map"></div>
+                    <input type="hidden" id="docLat" value="">
+                    <input type="hidden" id="docLng" value="">
+                    <div class="input-group"><label data-i18n="start_time_label">وقت الفتح:</label><input type="time" id="docStartTime" value="09:00"></div>
+                    <div class="input-group"><label data-i18n="end_time_label">وقت الإغلاق:</label><input type="time" id="docEndTime" value="17:00"></div>
+                    <div class="input-group"><label data-i18n="service_time_label">مدة الكشف (دقيقة):</label><input type="number" id="docServiceTime" value="10" min="1"></div>
                 </div>
 
-                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-main); font-size: 14px;" data-i18n="map_label">حدد موقع العيادة على الخريطة:</label>
-                <p class="map-hint"><i class="fa-solid fa-hand-pointer"></i> <span data-i18n="map_hint">اضغط على المكان الصحيح في الخريطة</span></p>
-                <div id="reg-map"></div>
-                <input type="hidden" id="docLat" value="">
-                <input type="hidden" id="docLng" value="">
-
-                <div class="input-group"><label data-i18n="start_time_label">وقت الفتح:</label><input type="time" id="docStartTime" value="09:00"></div>
-                <div class="input-group"><label data-i18n="end_time_label">وقت الإغلاق:</label><input type="time" id="docEndTime" value="17:00"></div>
-                <div class="input-group"><label data-i18n="service_time_label">مدة الكشف (دقيقة):</label><input type="number" id="docServiceTime" value="10" min="1"></div>
+                <!-- زر إضافة عيادة أخرى -->
+                <button class="btn-outline" style="width:100%; margin-bottom:10px; border-color:var(--warning); color:var(--warning);" onclick="addAnotherClinicField()"><i class="fa-solid fa-plus"></i> إضافة عيادة أخرى</button>
 
                 <button class="btn-primary" onclick="registerAndSaveDoctor()"><i class="fa-solid fa-save"></i> <span data-i18n="create_account_btn">إنشاء الحساب وحفظ العيادة</span></button>
                 <button class="btn-outline" onclick="closeDoctorModal()" style="margin-top:10px; border:none;" data-i18n="cancel_btn">إلغاء</button>
