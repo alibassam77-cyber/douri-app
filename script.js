@@ -7,7 +7,6 @@ firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 var auth = firebase.auth();
 
-// الكود السري لتسجيل الأطباء (يمكنك تغييره من هنا)
 var ADMIN_SECRET_CODE = "DOCTOR2024";
 
 var allDoctors = [];
@@ -16,6 +15,10 @@ var activeTicketToDisplay = null;
 var modalDoctorId = null;
 var modalDoctorName = null;
 var timerInterval = null;
+
+// متغيرات الخريطة
+var doctorMap = null;
+var doctorMarker = null;
 
 function initTheme() {
     var savedTheme = localStorage.getItem('douri_theme');
@@ -104,7 +107,7 @@ function loadDoctors() {
         var cities = {};
         snapshot.forEach(function(doc) {
             var data = doc.data();
-            var d = { id: doc.id, name: data.name, specialty: data.specialty, address: data.address, isOpen: data.isOpen, currentServing: data.currentServing, lastTicket: data.lastTicket, startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime };
+            var d = { id: doc.id, name: data.name, specialty: data.specialty, address: data.address, location: data.location, isOpen: data.isOpen, currentServing: data.currentServing, lastTicket: data.lastTicket, startTime: data.startTime, endTime: data.endTime, serviceTime: data.serviceTime };
             allDoctors.push(d);
             if (d.address && d.address.city) { cities[d.address.city] = true; }
         });
@@ -137,12 +140,18 @@ function renderDoctors(doctorsToRender) {
         var badgeHTML = isClosed ? '<span class="badge red">' + t('closed_temp') + '</span>' : '<span class="badge green">' + t('available') + '</span>';
         var btnHTML = isClosed ? '<button class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button class="book-btn" onclick="openBookingModal(\'' + doc.id + '\', \'' + doc.name + '\')">' + t('book_now') + '</button>';
         
-        // إضافة العلامة المميزة للعنوان
         var landmarkText = (doc.address && doc.address.landmark) ? ' (' + doc.address.landmark + ')' : '';
         var addressText = doc.address ? doc.address.city + ' - ' + (doc.address.street || '') + landmarkText : '';
         
         var start = doc.startTime || '09:00';
         var end = doc.endTime || '17:00';
+
+        // زر الخريطة
+        var mapBtnHTML = '';
+        if (doc.location && doc.location.lat && doc.location.lng) {
+            var mapLink = 'https://www.google.com/maps/search/?api=1&query=' + doc.location.lat + ',' + doc.location.lng;
+            mapBtnHTML = '<a href="' + mapLink + '" target="_blank" class="map-btn"><i class="fa-solid fa-map-location-dot"></i> ' + t('view_map') + '</a>';
+        }
 
         list.innerHTML += '<div class="clinic-card" style="' + (isClosed ? 'opacity: 0.7;' : '') + '">' +
             '<div class="clinic-info">' +
@@ -150,6 +159,7 @@ function renderDoctors(doctorsToRender) {
             '<p class="doc-specialty">' + doc.specialty + '</p>' +
             '<p class="doc-address">📍 ' + addressText + '</p>' +
             '<p class="doc-address" style="font-size: 12px; color: var(--primary);">🕒 ' + t('hours_label') + ' ' + start + ' - ' + end + '</p>' +
+            mapBtnHTML +
             '</div>' +
             '<div class="clinic-status" style="margin-top: 15px;">' + badgeHTML + '</div>' +
             btnHTML +
@@ -365,9 +375,41 @@ function listenToMyBookings() {
 
 function openDoctorModal() { document.getElementById('doctorModal').classList.remove('hidden'); }
 function closeDoctorModal() { document.getElementById('doctorModal').classList.add('hidden'); }
+
 function switchAuthTab(tab) {
-    if (tab === 'login') { document.getElementById('tabLogin').classList.add('active'); document.getElementById('tabRegister').classList.remove('active'); document.getElementById('loginSection').classList.remove('hidden'); document.getElementById('registerSection').classList.add('hidden'); }
-    else { document.getElementById('tabRegister').classList.add('active'); document.getElementById('tabLogin').classList.remove('active'); document.getElementById('registerSection').classList.remove('hidden'); document.getElementById('loginSection').classList.add('hidden'); }
+    if (tab === 'login') { 
+        document.getElementById('tabLogin').classList.add('active'); 
+        document.getElementById('tabRegister').classList.remove('active'); 
+        document.getElementById('loginSection').classList.remove('hidden'); 
+        document.getElementById('registerSection').classList.add('hidden'); 
+    } else { 
+        document.getElementById('tabRegister').classList.add('active'); 
+        document.getElementById('tabLogin').classList.remove('active'); 
+        document.getElementById('registerSection').classList.remove('hidden'); 
+        document.getElementById('loginSection').classList.add('hidden'); 
+        setTimeout(initDoctorMap, 300); // تهيئة الخريطة بعد ظهور القسم
+    }
+}
+
+// تهيئة الخريطة
+function initDoctorMap() {
+    if (!document.getElementById('reg-map')) return;
+    if (doctorMap) {
+        doctorMap.invalidateSize();
+        return;
+    }
+    var defaultLat = 15.3694; // صنعاء
+    var defaultLng = 44.1910;
+    
+    doctorMap = L.map('reg-map').setView([defaultLat, defaultLng], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(doctorMap);
+    
+    doctorMap.on('click', function(e) {
+        document.getElementById('docLat').value = e.latlng.lat;
+        document.getElementById('docLng').value = e.latlng.lng;
+        if (doctorMarker) doctorMarker.setLatLng(e.latlng);
+        else doctorMarker = L.marker(e.latlng).addTo(doctorMap);
+    });
 }
 
 function loginDoctor() {
@@ -390,21 +432,20 @@ function registerAndSaveDoctor() {
     var startTime = document.getElementById('docStartTime').value;
     var endTime = document.getElementById('docEndTime').value;
     var serviceTime = document.getElementById('docServiceTime').value;
+    var lat = document.getElementById('docLat').value;
+    var lng = document.getElementById('docLng').value;
 
     if (!email || !password || !name || !specialty || !city || !activationCode) return alert(currentLang === 'ar' ? "أكمل البيانات!" : "Complete data!");
-    
-    // التحقق من كود التفعيل
-    if (activationCode !== ADMIN_SECRET_CODE) {
-        return alert(t('invalid_code'));
-    }
-
+    if (activationCode !== ADMIN_SECRET_CODE) return alert(t('invalid_code'));
     if (password.length < 6) return alert(currentLang === 'ar' ? "كلمة المرور قصيرة" : "Password short");
+    if (!lat || !lng) return alert(currentLang === 'ar' ? "الرجاء تحديد موقع العيادة على الخريطة!" : "Please select location on map!");
 
     auth.createUserWithEmailAndPassword(email, password).then(function(userCredential) {
         var user = userCredential.user;
         db.collection("doctors").add({ 
             ownerUid: user.uid, email: user.email, name: name, specialty: specialty, phone: phone, 
-            address: { city: city, street: street, landmark: landmark }, // حفظ العلامة المميزة
+            address: { city: city, street: street, landmark: landmark }, 
+            location: { lat: Number(lat), lng: Number(lng) }, // حفظ الإحداثيات
             serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, 
             currentServing: 0, lastTicket: 0, isOpen: true, createdAt: new Date().toISOString() 
         }).then(function() {
