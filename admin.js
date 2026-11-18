@@ -6,6 +6,7 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 var auth = firebase.auth();
+var functions = firebase.app().functions('us-central1');
 
 var myClinics = [];
 var selectedClinicId = null;
@@ -13,9 +14,15 @@ var currentDoctorData = null;
 var currentIsOpen = true;
 var currentAdminDate = "";
 var queueListener = null;
-var dayCounterListener = null;
+var queueRequestGeneration = 0;
+var clinicsListener = null;
 var addMap = null, addMarker = null, editMap = null, editMarker = null;
 
+function escapeHTML(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
+}
 function getTodayString() {
     var today = new Date();
     var yyyy = today.getFullYear();
@@ -30,18 +37,29 @@ auth.onAuthStateChanged(function(user) {
         currentAdminDate = getTodayString();
         document.getElementById('adminDate').value = currentAdminDate;
         
-        db.collection("doctors").where("ownerUid", "==", user.uid).onSnapshot(function(snapshot) {
+        if (clinicsListener) clinicsListener();
+        clinicsListener = db.collection("doctors").where("ownerUid", "==", user.uid).onSnapshot(function(snapshot) {
+            var previousClinicId = selectedClinicId;
             myClinics = [];
             snapshot.forEach(function(doc) { myClinics.push({ id: doc.id, data: doc.data() }); });
             
             if (myClinics.length > 0) {
                 populateClinicDropdown();
-                autoSelectClinic();
+                if (previousClinicId && myClinics.some(function(clinic) { return clinic.id === previousClinicId; })) {
+                    selectedClinicId = previousClinicId;
+                    document.getElementById('clinicSelector').value = selectedClinicId;
+                } else {
+                    autoSelectClinic();
+                }
                 initAdminPanel();
             } else {
+                if (queueListener) { clearInterval(queueListener); queueListener = null; }
                 document.getElementById('activeDoctorName').innerText = "لم تقم بتسجيل عيادة بعد";
                 document.getElementById('patientsQueue').innerHTML = '<p style="text-align:center; color:var(--primary);">يرجى الخروج وتسجيل عيادة جديدة.</p>';
             }
+        }, function(error) {
+            console.error(error);
+            document.getElementById('patientsQueue').innerText = 'تعذر تحميل بيانات العيادات.';
         });
     } else { window.location.href = 'index.html'; }
 });
@@ -51,7 +69,7 @@ function populateClinicDropdown() {
     select.innerHTML = '';
     for (var i = 0; i < myClinics.length; i++) {
         var c = myClinics[i];
-        select.innerHTML += '<option value="' + c.id + '">' + c.data.clinicName + '</option>';
+        select.innerHTML += '<option value="' + escapeHTML(c.id) + '">' + escapeHTML(c.data.clinicName) + '</option>'; 
     }
 }
 
@@ -80,7 +98,6 @@ function changeAdminDate() {
     currentAdminDate = document.getElementById('adminDate').value;
     if (currentAdminDate && selectedClinicId) {
         listenToQueue();
-        listenToDayCounters();
     }
 }
 
@@ -95,8 +112,7 @@ function initAdminPanel() {
     document.getElementById('activeDoctorName').innerText = currentDoctorData.name + " (" + currentDoctorData.specialty + ")";
     
     updateClinicStatusUI(); 
-    listenToQueue(); 
-    listenToDayCounters();
+    listenToQueue();
 }
 
 function updateClinicStatusUI() {
@@ -105,39 +121,43 @@ function updateClinicStatusUI() {
     else { btn.className = 'status-toggle-btn status-closed'; btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> ' + t('open_clinic'); }
 }
 
-function toggleClinicStatus() {
+async function toggleClinicStatus() {
     if (!selectedClinicId) return;
-    currentIsOpen = !currentIsOpen;
-    db.collection("doctors").doc(selectedClinicId).update({ isOpen: currentIsOpen }).then(function() { 
-        updateClinicStatusUI(); 
+    var nextState = !currentIsOpen;
+    try {
+        await db.collection('doctors').doc(selectedClinicId).update({ isOpen: nextState });
+        currentIsOpen = nextState;
+        updateClinicStatusUI();
         for (var i = 0; i < myClinics.length; i++) {
             if (myClinics[i].id === selectedClinicId) { myClinics[i].data.isOpen = currentIsOpen; break; }
         }
-    });
-}
-
-function listenToDayCounters() {
-    if (!selectedClinicId || !currentAdminDate) return;
-    if (dayCounterListener) dayCounterListener();
-    var dayDocId = selectedClinicId + "_" + currentAdminDate;
-    dayCounterListener = db.collection("doctor_days").doc(dayDocId).onSnapshot(function(doc) {
-        // يتم التحديث في renderQueue
-    });
+    } catch (error) { alert('تعذر تحديث حالة العيادة: ' + error.message); }
 }
 
 function listenToQueue() {
     if (!selectedClinicId || !currentAdminDate) return;
-    if (queueListener) queueListener();
-    
-    queueListener = db.collection("bookings")
-        .where("doctorId", "==", selectedClinicId)
-        .where("bookingDate", "==", currentAdminDate)
-        .onSnapshot(function(snapshot) {
-            var patients = [];
-            snapshot.forEach(function(doc) { patients.push({ id: doc.id, data: doc.data() }); });
-            patients.sort(function(a, b) { return a.data.ticketNumber - b.data.ticketNumber; });
-            renderQueue(patients);
+    if (queueListener) clearInterval(queueListener);
+    refreshQueue();
+    queueListener = setInterval(refreshQueue, 10000);
+}
+
+async function refreshQueue() {
+    if (!selectedClinicId || !currentAdminDate || !auth.currentUser) return;
+    var requestGeneration = ++queueRequestGeneration;
+    var requestedClinicId = selectedClinicId;
+    var requestedDate = currentAdminDate;
+    try {
+        var response = await functions.httpsCallable('listDoctorQueue')({
+            doctorId: requestedClinicId, bookingDate: requestedDate
         });
+        if (requestGeneration !== queueRequestGeneration || requestedClinicId !== selectedClinicId || requestedDate !== currentAdminDate) return;
+        var patients = (response.data || []).map(function(item) { return { id: item.id, data: item }; });
+        renderQueue(patients);
+    } catch (error) {
+        if (requestGeneration !== queueRequestGeneration) return;
+        console.error(error);
+        document.getElementById('patientsQueue').innerText = 'تعذر تحديث قائمة الانتظار.';
+    }
 }
 
 function renderQueue(patients) {
@@ -154,7 +174,7 @@ function renderQueue(patients) {
         }
     }
     
-    // 🟢 عرض اسم ورقم المريض الحالي والرقم التسلسلي
+    // عرض اسم ورقم المريض الحالي والرقم التسلسلي
     if (servingPatient) {
         document.getElementById('currentServingDisplay').innerText = servingPatient.data.ticketNumber;
         document.getElementById('currentServingName').innerText = servingPatient.data.patientName;
@@ -178,66 +198,38 @@ function renderQueue(patients) {
         
         queueDiv.innerHTML += '<div class="queue-item ' + statusClass + '">' +
             '<div class="patient-info">' +
-            '<h4>' + p.data.patientName + ' <span style="font-size:12px; color:var(--text-muted);">(' + t('serial_label') + ' ' + (p.data.serialNumber || '-') + ')</span></h4>' +
-            '<p><i class="fa-solid fa-phone"></i> ' + p.data.patientPhone + ' - <span style="color:var(--primary); font-weight:bold;">' + statusText + '</span></p>' +
+            '<h4>' + escapeHTML(p.data.patientName) + ' <span style="font-size:12px; color:var(--text-muted);">(' + t('serial_label') + ' ' + (p.data.serialNumber || '-') + ')</span></h4>' +
+            '<p><i class="fa-solid fa-phone"></i> ' + escapeHTML(p.data.patientPhone) + ' - <span style="color:var(--primary); font-weight:bold;">' + statusText + '</span></p>' +
             '</div>' +
             '<div class="ticket-num">' + p.data.ticketNumber + '</div>' +
             '</div>';
     }
 }
 
-function callNextPatient() {
+async function callNextPatient() {
     if (!selectedClinicId || !currentAdminDate) return;
-    
-    if (currentAdminDate > getTodayString()) {
-        return alert("لا يمكنك نداء المرضى قبل يومهم! يمكنك تصفح القائمة فقط.");
+    if (currentAdminDate > getTodayString()) return alert('لا يمكنك نداء المرضى قبل يوم موعدهم.');
+    if (!currentIsOpen) {
+        if (!confirm('العيادة مغلقة حالياً. هل تريد فتحها؟')) return;
+        await toggleClinicStatus();
+        if (!currentIsOpen) return;
     }
-    
-    if (!currentIsOpen) { if(!confirm("العيادة مغلقة حالياً. هل تريد فتحها؟")) return; toggleClinicStatus(); }
-    
-    var dayDocId = selectedClinicId + "_" + currentAdminDate;
-    var dayRef = db.collection("doctor_days").doc(dayDocId);
-    
-    dayRef.get().then(function(daySnap) {
-        var currentServing = daySnap.exists ? (daySnap.data().currentServing || 0) : 0;
-        var lastTicket = daySnap.exists ? (daySnap.data().lastTicket || 0) : 0;
-        
-        if (lastTicket === 0 || currentServing >= lastTicket) {
-            return alert(t('no_patients'));
-        }
-        
-        var nextServing = currentServing + 1;
-        
-        dayRef.update({ currentServing: nextServing }).then(function() {
-            db.collection("bookings")
-                .where("doctorId", "==", selectedClinicId)
-                .where("bookingDate", "==", currentAdminDate)
-                .where("ticketNumber", "==", nextServing)
-                .get().then(function(snapshot) {
-                    snapshot.forEach(function(doc) {
-                        db.collection("bookings").doc(doc.id).update({ status: 'serving' });
-                    });
-                });
-                
-            if (currentServing > 0) {
-                db.collection("bookings")
-                .where("doctorId", "==", selectedClinicId)
-                .where("bookingDate", "==", currentAdminDate)
-                .where("ticketNumber", "==", currentServing)
-                .get().then(function(snapshot) {
-                    snapshot.forEach(function(doc) {
-                        db.collection("bookings").doc(doc.id).update({ status: 'done' });
-                    });
-                });
-            }
+    var button = document.querySelector('.next-btn');
+    if (button) button.disabled = true;
+    try {
+        var result = await functions.httpsCallable('callNextPatient')({
+            doctorId: selectedClinicId, bookingDate: currentAdminDate
         });
-    });
+        alert('تم استدعاء المريض رقم ' + result.data.ticketNumber + ': ' + result.data.patientName);
+        refreshQueue();
+    } catch (error) {
+        alert((error && error.message) || 'تعذر استدعاء المريض التالي.');
+    } finally { if (button) button.disabled = false; }
 }
 
 function logoutDoctor() {
     localStorage.removeItem('douri_saved_email');
-    window.location.replace('index.html');
-    try { auth.signOut(); } catch (e) { console.log(e); }
+    auth.signOut().finally(function() { window.location.replace('index.html'); });
 }
 
 // --- إضافة عيادة جديدة ---
@@ -286,7 +278,7 @@ function saveNewClinic() {
         createdAt: new Date().toISOString() 
     }).then(function() {
         alert("تمت إضافة العيادة!"); closeAddClinicModal();
-    });
+    }).catch(function(error) { alert('تعذر إضافة العيادة: ' + error.message); });
 }
 
 // --- تعديل العيادة ---
@@ -358,5 +350,5 @@ function saveEditClinic() {
         serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, workingDays: workingDays
     }).then(function() {
         alert("تم حفظ التعديلات!"); closeEditClinicModal();
-    });
+    }).catch(function(error) { alert('تعذر حفظ التعديلات: ' + error.message); });
 }
