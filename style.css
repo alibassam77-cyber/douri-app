@@ -62,3 +62,11 @@ button:active { transform: scale(0.97); }
 /* زر إضافة وتعديل العيادة */
 .action-btn { width: 100%; padding: 12px; background-color: var(--success); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
 .edit-btn { width: 100%; padding: 12px; background-color: var(--warning); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+
+
+/* بيانات استعادة التذكرة السرية */
+.booking-credentials { margin: 16px 0; padding: 14px; border: 1px dashed var(--primary); border-radius: 12px; background: var(--bg-color); text-align: right; overflow-wrap: anywhere; }
+.booking-credentials p { margin: 6px 0; }
+.booking-credentials span { color: var(--primary); font-weight: 700; letter-spacing: 1px; }
+.booking-credentials small { display: block; color: var(--text-muted); line-height: 1.7; margin: 8px 0; }
+button:disabled { opacity: .6; cursor: not-allowed; }
