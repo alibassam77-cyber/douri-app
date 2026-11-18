@@ -46,6 +46,7 @@
         <div id="bookings-view" class="hidden">
             <h3 class="view-title" data-i18n="my_bookings_title">حجوزاتي النشطة</h3>
             <div id="myBookingsList"></div>
+            <button class="btn-outline" type="button" onclick="restoreBookingByCode()" data-i18n="restore_booking_btn">استعادة حجز برقم الحجز والرمز السري</button>
             <button class="btn-primary" onclick="goBackToSearch()"><i class="fa-solid fa-arrow-right"></i> <span data-i18n="back_to_search">العودة للبحث</span></button>
         </div>
 
@@ -62,6 +63,12 @@
                 </div>
                 <p class="ticket-hint"><span data-i18n="welcome_msg">أهلاً</span> <span id="patientNameDisplay" style="font-weight:bold;"></span>، <span data-i18n="ticket_hint">شاشة التذكرة تتحدث تلقائياً.</span></p>
                 <p class="muted" id="doctorNameDisplay" style="font-size:14px; font-weight:bold; color:var(--primary);"></p>
+                <div id="bookingCredentials" class="booking-credentials hidden" aria-live="polite">
+                    <p><strong data-i18n="booking_ref_label">رقم الحجز المرجعي:</strong> <span id="bookingReference"></span></p>
+                    <p><strong data-i18n="secret_code_label">الرمز السري:</strong> <span id="bookingSecret"></span></p>
+                    <small><span data-i18n="secret_hint">احتفظ بالرقم والرمز؛ ستحتاج إليهما لاستعادة الحجز من جهاز آخر.</span></small>
+                    <button class="btn-outline" type="button" onclick="copyPatientCredentials()" data-i18n="copy_booking_details">نسخ بيانات الحجز</button>
+                </div>
                 <button class="btn-outline" onclick="showMyBookingsView()"><i class="fa-solid fa-list"></i> <span data-i18n="back_to_bookings">العودة لقائمة حجوزاتي</span></button>
                 <button class="btn-danger" onclick="cancelCurrentTicket()"><i class="fa-solid fa-trash"></i> <span data-i18n="cancel_booking_btn">إلغاء هذا الحجز</span></button>
             </div>
@@ -157,8 +164,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-functions-compat.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="translations.js"></script>
-    <script src="script.js"></script>
+    <script src="translations.js?v=2"></script>
+    <script src="script.js?v=2"></script>
 </body>
 </html>
