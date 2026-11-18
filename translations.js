@@ -28,7 +28,14 @@ var translations = {
         add_clinic_btn: "إضافة عيادة جديدة", select_clinic_label: "العيادة الحالية:", invalid_working_day: "الطبيب لا يعمل في هذه العيادة في هذا اليوم!",
         days_label: "أيام العمل:", edit_clinic_btn: "تعديل العيادة", save_changes_btn: "حفظ التعديلات", 
         
-        serial_label: "الرقم التسلسلي:", /* <-- إضافة جديدة */
+        serial_label: "الرقم التسلسلي:",
+        restore_booking_btn: "استعادة حجز برقم الحجز والرمز السري",
+        booking_ref_label: "رقم الحجز المرجعي:", secret_code_label: "الرمز السري:",
+        secret_hint: "احتفظ بالرقم والرمز؛ ستحتاج إليهما لاستعادة الحجز من جهاز آخر.",
+        copy_booking_details: "نسخ بيانات الحجز", booking_ref_prompt: "أدخل رقم الحجز المرجعي:",
+        secret_prompt: "أدخل الرمز السري المكوّن من 12 رقماً:", copy_success: "تم نسخ بيانات الحجز.",
+        invalid_booking: "رقم الحجز أو الرمز السري غير صحيح.", old_booking_warning: "هذا حجز قديم لا يحتوي على رمز استعادة.",
+        booking_done: "انتهى الموعد", booking_cancelled: "تم إلغاء الحجز",
         next_btn: "التالي" 
     },
     en: { 
@@ -60,7 +67,14 @@ var translations = {
         add_clinic_btn: "Add New Clinic", select_clinic_label: "Current Clinic:", invalid_working_day: "Doctor does not work at this clinic on this day!",
         days_label: "Working Days:", edit_clinic_btn: "Edit Clinic", save_changes_btn: "Save Changes",
         
-        serial_label: "Serial No:", /* <-- إضافة جديدة */
+        serial_label: "Serial No:",
+        restore_booking_btn: "Restore booking with reference and secret code",
+        booking_ref_label: "Booking reference:", secret_code_label: "Secret code:",
+        secret_hint: "Keep both values. You need them to restore this booking on another device.",
+        copy_booking_details: "Copy booking details", booking_ref_prompt: "Enter booking reference:",
+        secret_prompt: "Enter the 12-digit secret code:", copy_success: "Booking details copied.",
+        invalid_booking: "The booking reference or secret code is incorrect.", old_booking_warning: "This older booking has no recovery code.",
+        booking_done: "Appointment completed", booking_cancelled: "Booking cancelled",
         next_btn: "Next"
     }
 };
