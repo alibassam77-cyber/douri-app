@@ -3,54 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دوري - حجز مواعيد العيادات</title>
+    <title>دوري - نظام حجز وطوابير العيادات</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 </head>
 <body>
     <header class="app-header">
-        <div class="brand">
-            <i class="fa-solid fa-hospital-user fa-xl" style="color:var(--primary)"></i>
-            <div>
-                <h1>دوري</h1>
-                <span>نظام حجز وطابور العيادات</span>
+        <div class="header-inner">
+            <div class="brand-box">
+                <i class="fa-solid fa-hospital-user brand-icon"></i>
+                <div>
+                    <h1 class="app-title" data-i18n="app_title">دوري</h1>
+                    <p class="app-subtitle" data-i18n="app_subtitle">نظام حجز وطوابير العيادات</p>
+                </div>
             </div>
-        </div>
-        <div class="header-actions">
-            <button type="button" class="secondary-btn" onclick="showMyBookingsView()">
-                <i class="fa-solid fa-ticket"></i> حجوزاتي
-            </button>
-            <button type="button" class="secondary-btn" onclick="restoreBookingByCode()">
-                <i class="fa-solid fa-key"></i> استعادة بالرمز السري
-            </button>
-            <button type="button" class="btn-primary" onclick="openDoctorModal()">
-                <i class="fa-solid fa-user-doctor"></i> الأطباء
-            </button>
-            <button type="button" id="themeToggle" class="icon-btn" onclick="toggleTheme()" title="تبديل المظهر">
-                <i class="fa-solid fa-moon"></i>
-            </button>
+            <div class="header-actions">
+                <button type="button" class="btn-outline" onclick="showMyBookingsView()">
+                    <i class="fa-solid fa-ticket"></i> <span data-i18n="my_bookings_btn">حجوزاتي</span>
+                </button>
+                <button type="button" class="btn-outline" onclick="restoreBookingByCode()">
+                    <i class="fa-solid fa-key"></i> <span data-i18n="restore_btn">استعادة بالرمز السري</span>
+                </button>
+                <button type="button" class="btn-primary" onclick="openDoctorModal()">
+                    <i class="fa-solid fa-user-doctor"></i> <span data-i18n="doctors_portal_btn">الأطباء</span>
+                </button>
+                <button type="button" id="themeToggle" class="btn-icon" onclick="toggleTheme()" aria-label="تبديل المظهر">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
         </div>
     </header>
 
     <main class="container">
-        <div id="activeBookingBanner" class="active-banner hidden">
-            <span id="bannerText">لديك حجز نشط</span>
-            <button type="button" class="btn-primary" onclick="showMyBookingsView()">عرض الحجز</button>
+        <div id="activeBookingBanner" class="active-banner hidden" onclick="showMyBookingsView()">
+            <i class="fa-solid fa-bell"></i>
+            <span id="bannerText"></span>
         </div>
 
         <section id="main-view">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="ابحث باسم الطبيب أو التخصص..." oninput="filterDoctors()">
-                <input type="text" id="cityFilter" list="citiesList" placeholder="اختر أو اكتب المدينة..." oninput="filterDoctors()">
+            <div class="search-bar-box">
+                <input type="text" id="searchInput" oninput="filterDoctors()" placeholder="ابحث باسم الطبيب أو التخصص..." data-i18n-placeholder="search_placeholder">
+                <input type="text" id="cityFilter" list="citiesList" oninput="filterDoctors()" placeholder="اختر أو اكتب المدينة..." data-i18n-placeholder="city_placeholder">
                 <datalist id="citiesList"></datalist>
             </div>
 
-            <div id="doctorsList" class="doctors-grid">
+            <div id="doctorsList" class="clinics-grid">
                 <div class="clinic-card skeleton-card"></div>
                 <div class="clinic-card skeleton-card"></div>
                 <div class="clinic-card skeleton-card"></div>
@@ -58,230 +56,201 @@
         </section>
 
         <section id="bookings-view" class="hidden">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-                <h2 style="margin:0;">حجوزاتي النشطة</h2>
-                <button type="button" class="secondary-btn" onclick="goBackToSearch()">العودة للعيادات</button>
+            <div class="view-header">
+                <h2 data-i18n="my_bookings_title">حجوزاتي النشطة</h2>
+                <button type="button" class="btn-outline" onclick="goBackToSearch()">
+                    <i class="fa-solid fa-arrow-right"></i> <span data-i18n="back_to_search">العودة للبحث</span>
+                </button>
             </div>
-            <div id="myBookingsList" class="doctors-grid"></div>
+            <div id="myBookingsList" class="clinics-grid"></div>
         </section>
 
         <section id="ticket-view" class="hidden">
-            <div style="margin-bottom:12px;">
-                <button type="button" class="secondary-btn" onclick="showMyBookingsView()">← الرجوع إلى حجوزاتي</button>
+            <div class="view-header">
+                <h2 data-i18n="ticket_title">تذكرة الحجز</h2>
+                <button type="button" class="btn-outline" onclick="showMyBookingsView()">
+                    <i class="fa-solid fa-arrow-right"></i> <span data-i18n="back_btn">رجوع</span>
+                </button>
             </div>
-            <div class="ticket-card">
-                <div id="ticketStatus" class="badge green">في الانتظار</div>
-                <div id="ticketAlertBox" class="ticket-alert-box hidden"></div>
-                <h2 id="patientNameDisplay" style="margin:10px 0 4px 0;"></h2>
-                <p id="doctorNameDisplay" class="muted" style="margin:2px 0;"></p>
-                <p id="appointmentDateDisplay" class="muted" style="margin:2px 0;"></p>
 
-                <div id="ticketNumber" class="ticket-number-box">-</div>
-                <div class="muted">رقم دورك الحالي</div>
+            <div id="ticketAlertBox" class="ticket-alert-box hidden"></div>
+
+            <div class="ticket-card">
+                <div class="ticket-top">
+                    <h3 id="patientNameDisplay">---</h3>
+                    <span id="ticketStatus" class="badge">---</span>
+                </div>
+
+                <div class="ticket-number-box">
+                    <span data-i18n="your_ticket_label">رقم دورك</span>
+                    <strong id="ticketNumber">-</strong>
+                </div>
+
+                <p id="doctorNameDisplay" class="ticket-meta">---</p>
+                <p id="appointmentDateDisplay" class="ticket-meta">---</p>
 
                 <div class="ticket-stats">
-                    <div class="stat-box">
-                        <div class="muted">أمامك</div>
-                        <b id="peopleAhead">-</b>
+                    <div>
+                        <span data-i18n="people_ahead_label">أمامك</span>
+                        <strong id="peopleAhead">-</strong>
                     </div>
-                    <div class="stat-box">
-                        <div class="muted">الانتظار التقريبي</div>
-                        <b id="waitTime">-</b>
+                    <div>
+                        <span data-i18n="wait_time_label">الانتظار التقريبي (دقائق)</span>
+                        <strong id="waitTime">-</strong>
                     </div>
-                    <div class="stat-box">
-                        <div class="muted">الوقت المتوقع</div>
-                        <b id="etaTime">-</b>
+                    <div>
+                        <span data-i18n="eta_label">الوقت المتوقع</span>
+                        <strong id="etaTime">-</strong>
                     </div>
                 </div>
 
                 <div id="bookingCredentials" class="credentials-box hidden">
-                    <div>رقم الحجز: <b id="bookingReference"></b></div>
-                    <div>الرمز السري: <b id="bookingSecret"></b></div>
-                    <button type="button" class="secondary-btn" style="margin-top:8px;" onclick="copyPatientCredentials()">
-                        <i class="fa-solid fa-copy"></i> نسخ الرمز السري
+                    <p><strong>رقم الحجز:</strong> <span id="bookingReference">---</span></p>
+                    <p><strong>الرمز السري:</strong> <span id="bookingSecret">---</span></p>
+                    <button type="button" class="btn-outline" onclick="copyPatientCredentials()">
+                        <i class="fa-solid fa-copy"></i> <span data-i18n="copy_secret_btn">نسخ الرمز السري</span>
                     </button>
                 </div>
 
-                <button type="button" class="secondary-btn" style="color:var(--danger); border-color:var(--danger);" onclick="cancelCurrentTicket()">
-                    <i class="fa-solid fa-xmark"></i> إلغاء الحجز
+                <button type="button" class="btn-danger" style="width:100%; margin-top:15px;" onclick="cancelCurrentTicket()">
+                    <i class="fa-solid fa-xmark"></i> <span data-i18n="cancel_booking_btn">إلغاء الحجز</span>
                 </button>
             </div>
         </section>
     </main>
 
-    <!-- نافذة الحجز -->
+    <!-- نافذة حجز موعد -->
     <div id="bookingModal" class="modal-backdrop hidden">
         <div class="modal-card">
             <div class="modal-header">
                 <h3 id="modalDoctorName">حجز موعد</h3>
                 <button type="button" class="close-btn" onclick="closeModal()">&times;</button>
             </div>
-            <div class="form-group">
-                <label>اسم المريض</label>
-                <input type="text" id="bookingName" placeholder="أدخل الاسم الثلاثي">
-            </div>
-            <div class="form-group">
-                <label>رقم الهاتف</label>
-                <input type="tel" id="bookingPhone" placeholder="مثال: 77xxxxxxxx">
-            </div>
-            <div class="form-group">
+            <div class="modal-body">
+                <label data-i18n="patient_name_label">اسم المريض</label>
+                <input type="text" id="bookingName" placeholder="أدخل اسم المريض">
+
+                <label data-i18n="patient_phone_label">رقم الهاتف</label>
+                <input type="tel" id="bookingPhone" placeholder="أدخل رقم الهاتف">
+
                 <label>اختر يوم الحجز</label>
                 <input type="hidden" id="bookingDate">
                 <div id="customBookingCalendar" class="custom-calendar"></div>
                 <small id="calendarHint" style="display:block; margin-top:6px; color:var(--text-muted); font-size:12px;"></small>
             </div>
-            <button type="button" class="btn-primary" style="width:100%;" onclick="confirmBooking()">تأكيد الحجز</button>
+            <div class="modal-footer">
+                <button type="button" class="btn-primary" onclick="confirmBooking()" data-i18n="confirm_booking_btn">تأكيد الحجز</button>
+                <button type="button" class="btn-outline" onclick="closeModal()" data-i18n="close_btn">إغلاق</button>
+            </div>
         </div>
     </div>
 
-    <!-- نافذة اختيار عيادة للطبيب -->
+    <!-- نافذة اختيار العيادة -->
     <div id="clinicSelectionModal" class="modal-backdrop hidden">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>اختر العيادة</h3>
+                <h3 data-i18n="choose_clinic_title">اختر العيادة</h3>
                 <button type="button" class="close-btn" onclick="closeClinicSelectionModal()">&times;</button>
             </div>
-            <div id="clinicSelectionList"></div>
+            <div id="clinicSelectionList" class="modal-body"></div>
         </div>
     </div>
 
-    <!-- نافذة تسجيل ودخول الأطباء -->
+    <!-- نافذة دخول وتسجيل الأطباء -->
     <div id="doctorModal" class="modal-backdrop hidden">
-        <div class="modal-card">
+        <div class="modal-card modal-wide">
             <div class="modal-header">
-                <h3>بوابة الأطباء</h3>
+                <h3 data-i18n="doctors_portal_title">بوابة الأطباء</h3>
                 <button type="button" class="close-btn" onclick="closeDoctorModal()">&times;</button>
             </div>
-            <div class="auth-tabs">
-                <button type="button" id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')">تسجيل الدخول</button>
-                <button type="button" id="tabRegister" class="auth-tab" onclick="switchAuthTab('register')">حساب طبيب جديد</button>
-            </div>
+            <div class="modal-body">
+                <div class="auth-tabs">
+                    <button type="button" id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')">تسجيل الدخول</button>
+                    <button type="button" id="tabRegister" class="auth-tab" onclick="switchAuthTab('register')">إنشاء حساب عيادة</button>
+                </div>
 
-            <div id="loginSection">
-                <div class="form-group">
+                <div id="loginSection">
                     <label>البريد الإلكتروني</label>
                     <input type="email" id="loginEmail" placeholder="doctor@example.com">
-                </div>
-                <div class="form-group">
+
                     <label>كلمة المرور</label>
                     <input type="password" id="loginPassword" placeholder="********">
-                </div>
-                <button type="button" class="btn-primary" style="width:100%;" onclick="loginDoctor()">دخول للوحة التحكم</button>
-            </div>
 
-            <div id="registerSection" class="hidden">
-                <div class="form-group">
+                    <button type="button" class="btn-primary" style="width:100%; margin-top:12px;" onclick="loginDoctor()">دخول</button>
+                </div>
+
+                <div id="registerSection" class="hidden">
                     <label>البريد الإلكتروني</label>
                     <input type="email" id="regEmail" placeholder="doctor@example.com">
-                </div>
-                <div class="form-group">
-                    <label>كلمة المرور (6 أحرف فأكثر)</label>
-                    <input type="password" id="regPassword">
-                </div>
-                <div class="form-group">
+
+                    <label>كلمة المرور (6 أحرف على الأقل)</label>
+                    <input type="password" id="regPassword" placeholder="********">
+
                     <label>رمز التفعيل</label>
                     <input type="text" id="regActivationCode" placeholder="أدخل رمز التفعيل">
-                </div>
-                <div class="form-group">
+
                     <label>اسم الطبيب</label>
-                    <input type="text" id="docName" placeholder="د. ...">
-                </div>
-                <div class="form-group">
+                    <input type="text" id="docName" placeholder="د. أحمد محمد">
+
                     <label>التخصص</label>
-                    <input type="text" id="docSpecialty" placeholder="باطنية، أطفال، أسنان...">
-                </div>
-                <div class="form-group">
+                    <input type="text" id="docSpecialty" placeholder="باطنية / أطفال / أسنان...">
+
                     <label>رقم الهاتف</label>
-                    <input type="tel" id="docPhone">
-                </div>
-                <hr style="border:none; border-top:1px solid var(--border-color); margin:12px 0;">
-                <div class="form-group">
+                    <input type="tel" id="docPhone" placeholder="رقم التواصل">
+
+                    <hr style="margin:14px 0;">
+
                     <label>اسم العيادة</label>
                     <input type="text" id="docClinicName" placeholder="عيادة الشفاء">
-                </div>
-                <div class="form-group">
+
                     <label>المدينة</label>
-                    <input type="text" id="docCity" placeholder="صنعاء، إب...">
-                </div>
-                <div class="form-group">
-                    <label>الشارع</label>
-                    <input type="text" id="docStreet">
-                </div>
-                <div class="form-group">
-                    <label>أقرب معلم</label>
-                    <input type="text" id="docLandmark">
-                </div>
-                <div class="admin-controls-row">
-                    <div class="form-group">
-                        <label>بداية العمل</label>
-                        <input type="time" id="docStartTime" value="09:00">
-                    </div>
-                    <div class="form-group">
-                        <label>نهاية العمل</label>
-                        <input type="time" id="docEndTime" value="17:00">
-                    </div>
-                    <div class="form-group">
-                        <label>مدة الكشف (دقيقة)</label>
-                        <input type="number" id="docServiceTime" value="15" min="1">
-                    </div>
-                </div>
-                <div class="form-group">
+                    <input type="text" id="docCity" placeholder="المدينة">
+
+                    <label>الشارع / الحي</label>
+                    <input type="text" id="docStreet" placeholder="الشارع أو الحي">
+
+                    <label>علامة مميزة</label>
+                    <input type="text" id="docLandmark" placeholder="بجوار...">
+
+                    <label>وقت البدء</label>
+                    <input type="time" id="docStartTime" value="09:00">
+
+                    <label>وقت الانتهاء</label>
+                    <input type="time" id="docEndTime" value="17:00">
+
+                    <label>مدة الكشف لكل مريض (بالدقائق)</label>
+                    <input type="number" id="docServiceTime" value="10" min="1">
+
                     <label>أيام العمل</label>
                     <div class="days-grid">
-                        <label class="day-chip"><input type="checkbox" id="day_6"> السبت</label>
-                        <label class="day-chip"><input type="checkbox" id="day_0"> الأحد</label>
-                        <label class="day-chip"><input type="checkbox" id="day_1"> الإثنين</label>
-                        <label class="day-chip"><input type="checkbox" id="day_2"> الثلاثاء</label>
-                        <label class="day-chip"><input type="checkbox" id="day_3"> الأربعاء</label>
-                        <label class="day-chip"><input type="checkbox" id="day_4"> الخميس</label>
-                        <label class="day-chip"><input type="checkbox" id="day_5"> الجمعة</label>
+                        <label><input type="checkbox" id="day_0"> الأحد</label>
+                        <label><input type="checkbox" id="day_1"> الإثنين</label>
+                        <label><input type="checkbox" id="day_2"> الثلاثاء</label>
+                        <label><input type="checkbox" id="day_3"> الأربعاء</label>
+                        <label><input type="checkbox" id="day_4"> الخميس</label>
+                        <label><input type="checkbox" id="day_5"> الجمعة</label>
+                        <label><input type="checkbox" id="day_6"> السبت</label>
                     </div>
-                </div>
-                <div class="form-group">
+
                     <label>حدد موقع العيادة على الخريطة</label>
-                    <div id="reg-map" style="height:180px; border-radius:8px;"></div>
+                    <div id="reg-map" style="height:220px; border-radius:8px; margin-bottom:8px;"></div>
                     <input type="hidden" id="docLat">
                     <input type="hidden" id="docLng">
+
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                        <button type="button" class="btn-outline" onclick="addAnotherClinicField()">+ إضافة عيادة أخرى</button>
+                        <button type="button" class="btn-primary" onclick="registerAndSaveDoctor()">حفظ وإنشاء الحساب</button>
+                    </div>
                 </div>
-                <button type="button" class="secondary-btn" style="width:100%; margin-bottom:8px;" onclick="addAnotherClinicField()">+ إضافة عيادة أخرى</button>
-                <button type="button" class="btn-primary" style="width:100%;" onclick="registerAndSaveDoctor()">إنشاء الحساب وحفظ العيادة</button>
             </div>
         </div>
     </div>
 
-    <script>
-        var TRANSLATIONS = {
-            ar: {
-                no_results: 'لا توجد عيادات مطابقة للبحث.',
-                closed_temp: 'مغلق مؤقتاً',
-                available: 'متاح للحجز',
-                on_break: 'غير متاح حالياً',
-                book_now: 'احجز الآن',
-                view_map: 'عرض الموقع',
-                hours_label: 'ساعات العمل:',
-                choose_clinic_btn: 'اختيار فرع / عيادة',
-                at_doctor: 'لدى ',
-                invalid_working_day: 'اليوم المختار ليس من أيام عمل العيادة.',
-                active_booking_msg: 'لديك {n} حجز نشط',
-                no_bookings: 'لا توجد حجوزات نشطة حالياً.',
-                appointment_date: 'تاريخ الموعد:',
-                your_number: 'رقم دورك:',
-                view_ticket: 'عرض التذكرة',
-                invalid_booking: 'الرمز السري غير صحيح أو الحجز غير موجود.',
-                secret_prompt: 'أدخل الرمز السري المكون من 12 رقماً لاستعادة حجزك:',
-                old_booking_warning: 'هذا الحجز قديم ولا يحتوي على رمز سري.',
-                booking_done: 'تم إنهاء الكشف',
-                booking_cancelled: 'تم إلغاء الحجز',
-                status_your_turn: 'حان دورك الآن',
-                status_one_left: 'مريض واحد أمامك',
-                status_waiting: 'في الانتظار',
-                copy_success: 'تم نسخ الرمز السري بنجاح.',
-                tomorrow: 'غداً '
-            }
-        };
-        function t(key) { return (TRANSLATIONS.ar && TRANSLATIONS.ar[key]) || key; }
-        function applyLanguage() { document.documentElement.lang = 'ar'; document.documentElement.dir = 'rtl'; }
-    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="lang.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
