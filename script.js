@@ -144,7 +144,7 @@ function renderDoctors(doctorsToRender) {
             var doc = clinics[0];
             var isClosed = doc.isOpen === false;
             var badgeHTML = isClosed ? '<span class="badge red">' + t('closed_temp') + '</span>' : '<span class="badge green">' + t('available') + '</span>';
-            var btnHTML = isClosed ? '<button class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button class="book-btn" onclick="openBookingModal(' + safeJsArg(doc.id) + ', ' + safeJsArg(docGroup.name) + ', ' + safeJsArg(doc.clinicName) + ')">' + t('book_now') + '</button>'; 
+            var btnHTML = isClosed ? '<button type="button" class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button type="button" class="book-btn" onclick="openBookingModal(' + safeJsArg(doc.id) + ', ' + safeJsArg(docGroup.name) + ', ' + safeJsArg(doc.clinicName) + ')">' + t('book_now') + '</button>'; 
             var landmarkText = (doc.address && doc.address.landmark) ? ' (' + escapeHTML(doc.address.landmark) + ')' : '';
             var addressText = doc.address ? escapeHTML(doc.address.city) + ' - ' + escapeHTML(doc.address.street || '') + landmarkText : '';
             var start = doc.startTime || '09:00'; var end = doc.endTime || '17:00';
@@ -164,7 +164,7 @@ function renderDoctors(doctorsToRender) {
             list.innerHTML += '<div class="clinic-card">' +
                 '<div class="clinic-info"><h2>' + escapeHTML(docGroup.name) + '</h2><p class="doc-specialty">' + escapeHTML(docGroup.specialty) + '</p>' +
                 '<p class="doc-address" style="color: var(--success); font-weight:bold;">يعمل في ' + clinics.length + ' أماكن مختلفة</p></div>' +
-                '<button class="book-btn" style="margin-top:15px;" onclick="openClinicSelectionModal(\'' + encodeURIComponent(JSON.stringify({name: docGroup.name, clinics: clinics})) + '\')">' + t('choose_clinic_btn') + '</button>' +
+                '<button type="button" class="book-btn" style="margin-top:15px;" onclick="openClinicSelectionModal(\'' + encodeURIComponent(JSON.stringify({name: docGroup.name, clinics: clinics})) + '\')">' + t('choose_clinic_btn') + '</button>' +
                 '</div>';
         }
     }
@@ -212,7 +212,7 @@ function openClinicSelectionModal(encodedData) {
             '<h4 style="margin: 0 0 5px 0; color: var(--primary);">' + escapeHTML(c.clinicName) + '</h4>' +
             '<p style="margin: 0 0 5px 0; font-size: 13px;">📍 ' + escapeHTML(addressText) + '</p>' +
             '<p style="margin: 0 0 10px 0; font-size: 13px; color: ' + color + ';">الحالة: ' + escapeHTML(statusText) + ' | 🕒 ' + escapeHTML(c.startTime) + ' - ' + escapeHTML(c.endTime) + '</p>' +
-            '<button class="btn-primary" style="padding: 8px;" onclick="selectClinicToBook(' + safeJsArg(c.id) + ', ' + safeJsArg(data.name) + ', ' + safeJsArg(c.clinicName) + ')">' + t('book_now') + '</button>' +
+            '<button type="button" class="btn-primary" style="padding: 8px;" onclick="selectClinicToBook(' + safeJsArg(c.id) + ', ' + safeJsArg(data.name) + ', ' + safeJsArg(c.clinicName) + ')">' + t('book_now') + '</button>' +
             '</div>';
     }
     document.getElementById('clinicSelectionModal').classList.remove('hidden');
@@ -302,10 +302,9 @@ function showMyBookingsView() {
     if (active.length === 0) { list.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t('no_bookings') + '</p>'; return; }
     for (var j = 0; j < active.length; j++) {
         var b = active[j];
-        list.innerHTML += '<div class="clinic-card" style="border-right: 5px solid var(--primary);"><h3 style="margin:0; font-size:16px;">' + escapeHTML(b.doctorName) + '</h3><p class="muted" style="margin:5px 0;">' + t('appointment_date') + ' <b style="color:var(--primary);">' + escapeHTML(b.bookingDate) + '</b></p><p class="muted" style="margin:5px 0;">' + t('your_number') + ' <b>' + Number(b.ticket || 0) + '</b></p><button class="book-btn" style="padding:8px; font-size:14px;" onclick="openSpecificTicket(' + safeJsArg(b.firebaseId) + ')">' + t('view_ticket') + '</button></div>';
+        list.innerHTML += '<div class="clinic-card" style="border-right: 5px solid var(--primary);"><h3 style="margin:0; font-size:16px;">' + escapeHTML(b.doctorName) + '</h3><p class="muted" style="margin:5px 0;">' + t('appointment_date') + ' <b style="color:var(--primary);">' + escapeHTML(b.bookingDate) + '</b></p><p class="muted" style="margin:5px 0;">' + t('your_number') + ' <b>' + Number(b.ticket || 0) + '</b></p><button type="button" class="book-btn" style="padding:8px; font-size:14px;" onclick="openSpecificTicket(' + safeJsArg(b.firebaseId) + ')">' + t('view_ticket') + '</button></div>';
     }
 }
-
 
 async function restoreBookingByCode() {
     var bookingId = prompt(t('booking_ref_prompt'));
@@ -484,19 +483,20 @@ function registerAndSaveDoctor() {
     var name = document.getElementById('docName').value.trim(); var specialty = document.getElementById('docSpecialty').value.trim(); var phone = document.getElementById('docPhone').value.trim();
     
     var currentClinicData = collectClinicData();
-    if (!currentClinicData && extraClinics.length === 0) return alert("أكمل بيانات العيادة وحدد الموقع!");
-    if (currentClinicData) extraClinics.push(currentClinicData);
+    var clinicsToRegister = extraClinics.slice();
+    if (currentClinicData) clinicsToRegister.push(currentClinicData);
+    if (clinicsToRegister.length === 0) return alert("أكمل بيانات العيادة وحدد الموقع!");
     
     if (!email || !password || !name || !specialty || !activationCode) return alert("أكمل البيانات الأساسية!");
     if (password.length < 6) return alert("كلمة المرور قصيرة");
 
-    var clinicsToRegister = extraClinics.slice();
     functions.httpsCallable('registerDoctor')({
         email: email, password: password, activationCode: activationCode,
         name: name, specialty: specialty, phone: phone, clinics: clinicsToRegister
     }).then(function() {
         return auth.signInWithEmailAndPassword(email, password);
     }).then(function() {
+        extraClinics = [];
         alert('تم إنشاء الحساب وحفظ العيادات بنجاح!');
         window.location.href = 'admin.html';
     }).catch(function(error) {
