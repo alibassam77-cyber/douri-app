@@ -330,7 +330,7 @@ async function confirmBooking() {
         localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
 
         closeModal();
-        alert('تم الحجز بنجاح. رقم دورك: ' + createdBooking.ticketNumber + '\nاحفظ رقم الحجز والرمز السري الظاهرين في التذكرة.');
+        alert('تم الحجز بنجاح. رقم دورك: ' + createdBooking.ticketNumber + '\nاحفظ الرمز السري الظاهر في التذكرة لاستعادة الحجز لاحقاً.');
         updateBanner();
         showMyBookingsView();
         openSpecificTicket(createdBooking.bookingId);
@@ -411,23 +411,45 @@ async function fetchBookingLiveInfo(bookingId, patientSecret) {
 }
 
 async function restoreBookingByCode() {
-    var bookingId = prompt(t('booking_ref_prompt'));
-    if (!bookingId) return;
     var patientSecret = prompt(t('secret_prompt'));
     if (!patientSecret) return;
+    var cleanSecret = patientSecret.trim();
+    if (!cleanSecret) return;
+
     try {
-        var data = await fetchBookingLiveInfo(bookingId.trim(), patientSecret.trim());
+        var snap = await db.collection('bookings')
+            .where('patientSecret', '==', cleanSecret)
+            .limit(1)
+            .get();
+
+        if (snap.empty) {
+            throw new Error(t('invalid_booking'));
+        }
+
+        var doc = snap.docs[0];
+        var data = await fetchBookingLiveInfo(doc.id, cleanSecret);
+
         var bookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
         var restored = {
-            firebaseId: data.bookingId, patientSecret: patientSecret.trim(), ticket: data.ticketNumber,
-            serial: data.serialNumber, doctorId: data.doctorId, doctorName: data.doctorName,
-            name: data.patientName, bookingDate: data.bookingDate, status: data.status
+            firebaseId: data.bookingId,
+            patientSecret: cleanSecret,
+            ticket: data.ticketNumber,
+            serial: data.serialNumber,
+            doctorId: data.doctorId,
+            doctorName: data.doctorName,
+            name: data.patientName,
+            bookingDate: data.bookingDate,
+            status: data.status
         };
         bookings = bookings.filter(function(item) { return item.firebaseId !== restored.firebaseId; });
         bookings.push(restored);
         localStorage.setItem('douri_bookings', JSON.stringify(bookings));
-        updateBanner(); showMyBookingsView(); openSpecificTicket(restored.firebaseId);
-    } catch (error) { alert((error && error.message) || t('invalid_booking')); }
+        updateBanner();
+        showMyBookingsView();
+        openSpecificTicket(restored.firebaseId);
+    } catch (error) {
+        alert((error && error.message) || t('invalid_booking'));
+    }
 }
 
 function openSpecificTicket(id) {
@@ -502,7 +524,7 @@ async function cancelCurrentTicket() {
 
 function copyPatientCredentials() {
     if (!activeTicketToDisplay) return;
-    var value = 'رقم الحجز: ' + activeTicketToDisplay.firebaseId + '\nالرمز السري: ' + activeTicketToDisplay.patientSecret;
+    var value = 'الرمز السري: ' + activeTicketToDisplay.patientSecret;
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(value).then(function() { alert(t('copy_success')); }).catch(function() { alert(value); });
     else alert(value);
 }
