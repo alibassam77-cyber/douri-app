@@ -52,9 +52,11 @@ auth.onAuthStateChanged(function(user) {
                 }
                 initAdminPanel();
             } else {
+                selectedClinicId = null;
+                currentDoctorData = null;
                 if (queueListener) { clearInterval(queueListener); queueListener = null; }
                 document.getElementById('activeDoctorName').innerText = "لم تقم بتسجيل عيادة بعد";
-                document.getElementById('patientsQueue').innerHTML = '<p style="text-align:center; color:var(--primary);">يرجى الخروج وتسجيل عيادة جديدة.</p>';
+                document.getElementById('patientsQueue').innerHTML = '<p style="text-align:center; color:var(--primary);">يرجى إضافة عيادة جديدة أو الخروج.</p>';
             }
         }, function(error) {
             console.error(error);
@@ -160,7 +162,10 @@ async function refreshQueue() {
 
         var patients = [];
         snap.forEach(function(doc) {
-            patients.push({ id: doc.id, data: doc.data() || {} });
+            var d = doc.data() || {};
+            if (d.status !== 'cancelled') {
+                patients.push({ id: doc.id, data: d });
+            }
         });
 
         patients.sort(function(a, b) {
@@ -186,9 +191,10 @@ function renderQueue(patients) {
     var servingPatient = null;
 
     for (var j = 0; j < patients.length; j++) {
-        if (patients[j].data.status === 'waiting' || patients[j].data.status === 'serving') {
+        var st = patients[j].data && patients[j].data.status;
+        if (st === 'waiting' || st === 'serving') {
             activePatients.push(patients[j]);
-            if (patients[j].data.status === 'serving') servingPatient = patients[j];
+            if (st === 'serving') servingPatient = patients[j];
         }
     }
 
@@ -365,6 +371,9 @@ function openEditClinicModal() {
     document.getElementById('editLat').value = (currentDoctorData.location && currentDoctorData.location.lat) ? currentDoctorData.location.lat : '';
     document.getElementById('editLng').value = (currentDoctorData.location && currentDoctorData.location.lng) ? currentDoctorData.location.lng : '';
 
+    var confirmInput = document.getElementById('deleteClinicConfirmInput');
+    if (confirmInput) confirmInput.value = '';
+
     var workingDays = currentDoctorData.workingDays || [];
     for (var i = 0; i <= 6; i++) { var cb = document.getElementById('edit_day_' + i); if (cb) cb.checked = workingDays.indexOf(i) > -1; }
 
@@ -423,4 +432,32 @@ function saveEditClinic() {
     }).then(function() {
         alert("تم حفظ التعديلات!"); closeEditClinicModal();
     }).catch(function(error) { alert('تعذر حفظ التعديلات: ' + error.message); });
+}
+
+async function deleteCurrentClinic() {
+    if (!selectedClinicId) return;
+    var confirmInput = document.getElementById('deleteClinicConfirmInput');
+    var phrase = confirmInput ? confirmInput.value.trim() : '';
+    if (phrase !== 'إحذف العيادة') {
+        return alert('يجب كتابة العبارة التالية بدقة لتأكيد الحذف: إحذف العيادة');
+    }
+
+    try {
+        var bookingsSnap = await db.collection('bookings').where('doctorId', '==', selectedClinicId).get();
+        var batch = db.batch();
+        bookingsSnap.forEach(function(doc) {
+            batch.delete(doc.ref);
+        });
+        batch.delete(db.collection('doctors').doc(selectedClinicId));
+        await batch.commit();
+
+        if (queueListener) { clearInterval(queueListener); queueListener = null; }
+        selectedClinicId = null;
+        currentDoctorData = null;
+        closeEditClinicModal();
+        alert('تم حذف العيادة وجميع حجوزاتها بنجاح.');
+    } catch (error) {
+        console.error(error);
+        alert('تعذر حذف العيادة: ' + error.message);
+    }
 }
