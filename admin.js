@@ -95,7 +95,11 @@ function changeClinic() {
 }
 
 function changeAdminDate() {
-    currentAdminDate = document.getElementById('adminDate').value;
+    var dateInput = document.getElementById('adminDate');
+    if (!dateInput.value) {
+        dateInput.value = getTodayString();
+    }
+    currentAdminDate = dateInput.value;
     if (currentAdminDate && selectedClinicId) {
         listenToQueue();
     }
@@ -103,6 +107,7 @@ function changeAdminDate() {
 
 function initAdminPanel() {
     if (!selectedClinicId) return;
+    currentDoctorData = null;
     for (var i = 0; i < myClinics.length; i++) {
         if (myClinics[i].id === selectedClinicId) { currentDoctorData = myClinics[i].data; break; }
     }
@@ -156,7 +161,10 @@ async function refreshQueue() {
     } catch (error) {
         if (requestGeneration !== queueRequestGeneration) return;
         console.error(error);
-        document.getElementById('patientsQueue').innerText = 'تعذر تحديث قائمة الانتظار.';
+        var queueDiv = document.getElementById('patientsQueue');
+        if (queueDiv && !queueDiv.innerHTML.trim()) {
+            queueDiv.innerHTML = '<p style="text-align:center; color:var(--danger);">تعذر تحديث قائمة الانتظار.</p>';
+        }
     }
 }
 
@@ -174,7 +182,6 @@ function renderQueue(patients) {
         }
     }
     
-    // عرض اسم ورقم المريض الحالي والرقم التسلسلي
     if (servingPatient) {
         document.getElementById('currentServingDisplay').innerText = servingPatient.data.ticketNumber;
         document.getElementById('currentServingName').innerText = servingPatient.data.patientName;
@@ -232,7 +239,6 @@ function logoutDoctor() {
     auth.signOut().finally(function() { window.location.replace('index.html'); });
 }
 
-// --- إضافة عيادة جديدة ---
 function openAddClinicModal() {
     document.getElementById('addClinicModal').classList.remove('hidden');
     setTimeout(initAddMap, 300);
@@ -259,7 +265,7 @@ function saveNewClinic() {
     var landmark = document.getElementById('addLandmark').value.trim();
     var startTime = document.getElementById('addStartTime').value;
     var endTime = document.getElementById('addEndTime').value;
-    var serviceTime = document.getElementById('addServiceTime').value;
+    var serviceTime = Number(document.getElementById('addServiceTime').value);
     var lat = document.getElementById('addLat').value;
     var lng = document.getElementById('addLng').value;
     
@@ -267,21 +273,21 @@ function saveNewClinic() {
     for (var i = 0; i <= 6; i++) { var cb = document.getElementById('add_day_' + i); if (cb && cb.checked) workingDays.push(i); }
 
     if (!clinicName || !city || !lat || !lng) return alert("أكمل البيانات وحدد الموقع!");
+    if (!serviceTime || serviceTime < 1) return alert("أدخل مدة كشف صحيحة (دقيقة واحدة على الأقل)!");
     if (workingDays.length === 0) return alert("حدد يوم عمل واحد على الأقل!");
     if (!currentDoctorData) return;
 
     db.collection("doctors").add({ 
         ownerUid: auth.currentUser.uid, email: auth.currentUser.email, name: currentDoctorData.name, specialty: currentDoctorData.specialty, phone: currentDoctorData.phone, 
         clinicName: clinicName, address: { city: city, street: street, landmark: landmark }, location: { lat: Number(lat), lng: Number(lng) },
-        serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, workingDays: workingDays, 
-        globalSerial: 0, // 🟢 بداية العداد التسلسلي من الصفر
+        serviceTime: serviceTime, startTime: startTime, endTime: endTime, workingDays: workingDays, 
+        globalSerial: 0,
         createdAt: new Date().toISOString() 
     }).then(function() {
         alert("تمت إضافة العيادة!"); closeAddClinicModal();
     }).catch(function(error) { alert('تعذر إضافة العيادة: ' + error.message); });
 }
 
-// --- تعديل العيادة ---
 function openEditClinicModal() {
     if (!currentDoctorData) return;
     document.getElementById('editClinicName').value = currentDoctorData.clinicName || '';
@@ -335,7 +341,7 @@ function saveEditClinic() {
     var landmark = document.getElementById('editLandmark').value.trim();
     var startTime = document.getElementById('editStartTime').value;
     var endTime = document.getElementById('editEndTime').value;
-    var serviceTime = document.getElementById('editServiceTime').value;
+    var serviceTime = Number(document.getElementById('editServiceTime').value);
     var lat = document.getElementById('editLat').value;
     var lng = document.getElementById('editLng').value;
     
@@ -343,11 +349,12 @@ function saveEditClinic() {
     for (var i = 0; i <= 6; i++) { var cb = document.getElementById('edit_day_' + i); if (cb && cb.checked) workingDays.push(i); }
 
     if (!clinicName || !city || !lat || !lng) return alert("أكمل البيانات وحدد الموقع!");
+    if (!serviceTime || serviceTime < 1) return alert("أدخل مدة كشف صحيحة (دقيقة واحدة على الأقل)!");
     if (workingDays.length === 0) return alert("حدد يوم عمل واحد على الأقل!");
 
     db.collection("doctors").doc(selectedClinicId).update({ 
         clinicName: clinicName, address: { city: city, street: street, landmark: landmark }, location: { lat: Number(lat), lng: Number(lng) },
-        serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, workingDays: workingDays
+        serviceTime: serviceTime, startTime: startTime, endTime: endTime, workingDays: workingDays
     }).then(function() {
         alert("تم حفظ التعديلات!"); closeEditClinicModal();
     }).catch(function(error) { alert('تعذر حفظ التعديلات: ' + error.message); });
