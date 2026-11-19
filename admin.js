@@ -1,10 +1,10 @@
 var firebaseConfig = {
-    apiKey: "AIzaSyA2u0b_o28M9C8P6W7vY8xZ9kL1mN2oP3q",
+    apiKey: "AIzaSyBupRlote48_0GtaelL_a13uYUfFPhCWbE",
     authDomain: "douri-app-63918.firebaseapp.com",
     projectId: "douri-app-63918",
-    storageBucket: "douri-app-63918.appspot.com",
-    messagingSenderId: "123456789012",
-    appId: "1:123456789012:web:abcdef1234567890"
+    storageBucket: "douri-app-63918.firebasestorage.app",
+    messagingSenderId: "653080780726",
+    appId: "1:653080780726:web:4f2b3421b905e65af9ab17"
 };
 
 if (!firebase.apps.length) {
