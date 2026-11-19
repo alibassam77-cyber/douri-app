@@ -271,6 +271,18 @@ async function confirmBooking() {
     if (button) button.disabled = true;
 
     try {
+        var queueSnap = await db.collection('bookings')
+            .where('doctorId', '==', modalDoctorId)
+            .where('bookingDate', '==', bookingDate)
+            .get();
+
+        var maxTicket = 0;
+        queueSnap.forEach(function(item) {
+            var tNum = Number(item.data().ticketNumber) || 0;
+            if (tNum > maxTicket) maxTicket = tNum;
+        });
+        var ticketNumber = maxTicket + 1;
+
         var doctorRef = db.collection('doctors').doc(modalDoctorId);
         var secretCode = generateSecretCode();
         var createdBooking = null;
@@ -282,19 +294,8 @@ async function confirmBooking() {
             if (docData.isOpen === false) throw new Error('العيادة مغلقة مؤقتاً.');
 
             var nextSerial = (Number(docData.globalSerial) || 0) + 1;
-            var queueSnap = await db.collection('bookings')
-                .where('doctorId', '==', modalDoctorId)
-                .where('bookingDate', '==', bookingDate)
-                .get();
-
-            var maxTicket = 0;
-            queueSnap.forEach(function(item) {
-                var tNum = Number(item.data().ticketNumber) || 0;
-                if (tNum > maxTicket) maxTicket = tNum;
-            });
-            var ticketNumber = maxTicket + 1;
-
             var newBookingRef = db.collection('bookings').doc();
+
             createdBooking = {
                 bookingId: newBookingRef.id,
                 patientSecret: secretCode,
