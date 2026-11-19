@@ -1,6 +1,8 @@
 var translations = {
     ar: { 
-        app_title: "عيادة", doctors_btn: "الأطباء", all_cities: "كل المدن", search_placeholder: "اسم الطبيب أو التخصص...", 
+        app_title: "عيادة", doctors_btn: "الأطباء", all_cities: "كل المدن", 
+        city_search_placeholder: "ابحث عن مدينة...",
+        search_placeholder: "اسم الطبيب أو التخصص...", 
         no_results: "لا يوجد أطباء.", available: "متاح للحجز", closed_temp: "مغلق مؤقتاً", on_break: "استراحة", 
         book_now: "احجز الآن", choose_clinic_btn: "اختر العيادة للحجز", select_clinic_to_book: "اختر مكان الحجز:", 
         clinic_location: "موقع العيادة", view_map: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", 
@@ -27,7 +29,6 @@ var translations = {
         status_waiting_admin: "في الانتظار", admin_date_label: "اختر اليوم لعرض مواعيده:",
         add_clinic_btn: "إضافة عيادة جديدة", select_clinic_label: "العيادة الحالية:", invalid_working_day: "الطبيب لا يعمل في هذه العيادة في هذا اليوم!",
         days_label: "أيام العمل:", edit_clinic_btn: "تعديل العيادة", save_changes_btn: "حفظ التعديلات", 
-        
         serial_label: "الرقم التسلسلي:",
         restore_booking_btn: "استعادة حجز برقم الحجز والرمز السري",
         booking_ref_label: "رقم الحجز المرجعي:", secret_code_label: "الرمز السري:",
@@ -39,7 +40,9 @@ var translations = {
         next_btn: "التالي" 
     },
     en: { 
-        app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", search_placeholder: "Doctor name or specialty...", 
+        app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", 
+        city_search_placeholder: "Search city...",
+        search_placeholder: "Doctor name or specialty...", 
         no_results: "No doctors.", available: "Available", closed_temp: "Closed", on_break: "Break", 
         book_now: "Book Now", choose_clinic_btn: "Choose Clinic to Book", select_clinic_to_book: "Select booking location:", 
         clinic_location: "Location", view_map: "Clinic Location", at_doctor: "At: ", my_bookings_title: "Bookings", 
@@ -66,7 +69,6 @@ var translations = {
         status_waiting_admin: "Waiting", admin_date_label: "Select a day to view appointments:",
         add_clinic_btn: "Add New Clinic", select_clinic_label: "Current Clinic:", invalid_working_day: "Doctor does not work at this clinic on this day!",
         days_label: "Working Days:", edit_clinic_btn: "Edit Clinic", save_changes_btn: "Save Changes",
-        
         serial_label: "Serial No:",
         restore_booking_btn: "Restore booking with reference and secret code",
         booking_ref_label: "Booking reference:", secret_code_label: "Secret code:",
@@ -85,11 +87,13 @@ function applyLanguage() {
     var dict = translations[currentLang];
     if (currentLang === 'ar') { 
         document.documentElement.setAttribute('dir', 'rtl'); 
+        document.documentElement.setAttribute('lang', 'ar');
         var langBtn = document.getElementById('langToggleBtn');
         if(langBtn) langBtn.innerText = 'EN'; 
     }
     else { 
         document.documentElement.setAttribute('dir', 'ltr'); 
+        document.documentElement.setAttribute('lang', 'en');
         var langBtn = document.getElementById('langToggleBtn');
         if(langBtn) langBtn.innerText = 'عربي'; 
     }
