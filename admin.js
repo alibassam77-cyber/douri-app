@@ -6,7 +6,6 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 var auth = firebase.auth();
-var functions = firebase.app().functions('us-central1');
 
 var myClinics = [];
 var selectedClinicId = null;
@@ -32,17 +31,17 @@ function getTodayString() {
 }
 
 auth.onAuthStateChanged(function(user) {
-    if (user) { 
-        applyLanguage(); 
+    if (user) {
+        applyLanguage();
         currentAdminDate = getTodayString();
         document.getElementById('adminDate').value = currentAdminDate;
-        
+
         if (clinicsListener) clinicsListener();
         clinicsListener = db.collection("doctors").where("ownerUid", "==", user.uid).onSnapshot(function(snapshot) {
             var previousClinicId = selectedClinicId;
             myClinics = [];
             snapshot.forEach(function(doc) { myClinics.push({ id: doc.id, data: doc.data() }); });
-            
+
             if (myClinics.length > 0) {
                 populateClinicDropdown();
                 if (previousClinicId && myClinics.some(function(clinic) { return clinic.id === previousClinicId; })) {
@@ -69,16 +68,16 @@ function populateClinicDropdown() {
     select.innerHTML = '';
     for (var i = 0; i < myClinics.length; i++) {
         var c = myClinics[i];
-        select.innerHTML += '<option value="' + escapeHTML(c.id) + '">' + escapeHTML(c.data.clinicName) + '</option>'; 
+        select.innerHTML += '<option value="' + escapeHTML(c.id) + '">' + escapeHTML(c.data.clinicName) + '</option>';
     }
 }
 
 function autoSelectClinic() {
     var now = new Date();
-    var todayDay = now.getDay(); 
+    var todayDay = now.getDay();
     var currentTimeStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
 
-    var bestClinic = myClinics[0]; 
+    var bestClinic = myClinics[0];
     for (var i = 0; i < myClinics.length; i++) {
         var c = myClinics[i].data;
         var worksToday = c.workingDays && c.workingDays.indexOf(todayDay) > -1;
@@ -112,11 +111,11 @@ function initAdminPanel() {
         if (myClinics[i].id === selectedClinicId) { currentDoctorData = myClinics[i].data; break; }
     }
     if (!currentDoctorData) return;
-    
+
     currentIsOpen = currentDoctorData.isOpen !== false;
     document.getElementById('activeDoctorName').innerText = currentDoctorData.name + " (" + currentDoctorData.specialty + ")";
-    
-    updateClinicStatusUI(); 
+
+    updateClinicStatusUI();
     listenToQueue();
 }
 
@@ -152,11 +151,22 @@ async function refreshQueue() {
     var requestedClinicId = selectedClinicId;
     var requestedDate = currentAdminDate;
     try {
-        var response = await functions.httpsCallable('listDoctorQueue')({
-            doctorId: requestedClinicId, bookingDate: requestedDate
-        });
+        var snap = await db.collection('bookings')
+            .where('doctorId', '==', requestedClinicId)
+            .where('bookingDate', '==', requestedDate)
+            .get();
+
         if (requestGeneration !== queueRequestGeneration || requestedClinicId !== selectedClinicId || requestedDate !== currentAdminDate) return;
-        var patients = (response.data || []).map(function(item) { return { id: item.id, data: item }; });
+
+        var patients = [];
+        snap.forEach(function(doc) {
+            patients.push({ id: doc.id, data: doc.data() || {} });
+        });
+
+        patients.sort(function(a, b) {
+            return (Number(a.data.ticketNumber) || 0) - (Number(b.data.ticketNumber) || 0);
+        });
+
         renderQueue(patients);
     } catch (error) {
         if (requestGeneration !== queueRequestGeneration) return;
@@ -171,17 +181,17 @@ async function refreshQueue() {
 function renderQueue(patients) {
     var queueDiv = document.getElementById('patientsQueue');
     queueDiv.innerHTML = '';
-    
+
     var activePatients = [];
     var servingPatient = null;
-    
-    for (var j = 0; j < patients.length; j++) { 
+
+    for (var j = 0; j < patients.length; j++) {
         if (patients[j].data.status === 'waiting' || patients[j].data.status === 'serving') {
-            activePatients.push(patients[j]); 
+            activePatients.push(patients[j]);
             if (patients[j].data.status === 'serving') servingPatient = patients[j];
         }
     }
-    
+
     if (servingPatient) {
         document.getElementById('currentServingDisplay').innerText = servingPatient.data.ticketNumber;
         document.getElementById('currentServingName').innerText = servingPatient.data.patientName;
@@ -191,18 +201,18 @@ function renderQueue(patients) {
         document.getElementById('currentServingName').innerText = '-';
         document.getElementById('currentServingSerial').innerText = '';
     }
-    
+
     if (activePatients.length === 0) {
         queueDiv.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t('no_patients') + '</p>';
         return;
     }
-    
+
     for (var k = 0; k < activePatients.length; k++) {
         var p = activePatients[k];
         var isServing = p.data.status === 'serving';
         var statusClass = isServing ? 'serving' : '';
         var statusText = isServing ? t('status_serving') : t('status_waiting_admin');
-        
+
         queueDiv.innerHTML += '<div class="queue-item ' + statusClass + '">' +
             '<div class="patient-info">' +
             '<h4>' + escapeHTML(p.data.patientName) + ' <span style="font-size:12px; color:var(--text-muted);">(' + t('serial_label') + ' ' + (p.data.serialNumber || '-') + ')</span></h4>' +
@@ -221,17 +231,61 @@ async function callNextPatient() {
         await toggleClinicStatus();
         if (!currentIsOpen) return;
     }
+
     var button = document.querySelector('.next-btn');
     if (button) button.disabled = true;
+
     try {
-        var result = await functions.httpsCallable('callNextPatient')({
-            doctorId: selectedClinicId, bookingDate: currentAdminDate
+        var snap = await db.collection('bookings')
+            .where('doctorId', '==', selectedClinicId)
+            .where('bookingDate', '==', currentAdminDate)
+            .get();
+
+        var servingDocs = [];
+        var waitingDocs = [];
+
+        snap.forEach(function(doc) {
+            var d = doc.data() || {};
+            if (d.status === 'serving') {
+                servingDocs.push({ ref: doc.ref, data: d });
+            } else if (d.status === 'waiting') {
+                waitingDocs.push({ ref: doc.ref, data: d });
+            }
         });
-        alert('تم استدعاء المريض رقم ' + result.data.ticketNumber + ': ' + result.data.patientName);
+
+        waitingDocs.sort(function(a, b) {
+            return (Number(a.data.ticketNumber) || 0) - (Number(b.data.ticketNumber) || 0);
+        });
+
+        if (waitingDocs.length === 0 && servingDocs.length === 0) {
+            return alert('لا يوجد مرضى في الانتظار حالياً.');
+        }
+
+        var batch = db.batch();
+        servingDocs.forEach(function(item) {
+            batch.update(item.ref, { status: 'done', servedAt: new Date().toISOString() });
+        });
+
+        var nextPatient = null;
+        if (waitingDocs.length > 0) {
+            nextPatient = waitingDocs[0];
+            batch.update(nextPatient.ref, { status: 'serving', calledAt: new Date().toISOString() });
+        }
+
+        await batch.commit();
         refreshQueue();
+
+        if (nextPatient) {
+            alert('تم استدعاء المريض رقم ' + nextPatient.data.ticketNumber + ': ' + nextPatient.data.patientName);
+        } else {
+            alert('تم إنهاء كشف المريض الحالي ولا يوجد مرضى آخرون في الانتظار.');
+        }
     } catch (error) {
+        console.error(error);
         alert((error && error.message) || 'تعذر استدعاء المريض التالي.');
-    } finally { if (button) button.disabled = false; }
+    } finally {
+        if (button) button.disabled = false;
+    }
 }
 
 function logoutDoctor() {
@@ -268,7 +322,7 @@ function saveNewClinic() {
     var serviceTime = Number(document.getElementById('addServiceTime').value);
     var lat = document.getElementById('addLat').value;
     var lng = document.getElementById('addLng').value;
-    
+
     var workingDays = [];
     for (var i = 0; i <= 6; i++) { var cb = document.getElementById('add_day_' + i); if (cb && cb.checked) workingDays.push(i); }
 
@@ -277,12 +331,23 @@ function saveNewClinic() {
     if (workingDays.length === 0) return alert("حدد يوم عمل واحد على الأقل!");
     if (!currentDoctorData) return;
 
-    db.collection("doctors").add({ 
-        ownerUid: auth.currentUser.uid, email: auth.currentUser.email, name: currentDoctorData.name, specialty: currentDoctorData.specialty, phone: currentDoctorData.phone, 
-        clinicName: clinicName, address: { city: city, street: street, landmark: landmark }, location: { lat: Number(lat), lng: Number(lng) },
-        serviceTime: serviceTime, startTime: startTime, endTime: endTime, workingDays: workingDays, 
+    db.collection("doctors").add({
+        ownerUid: auth.currentUser.uid,
+        groupKey: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        name: currentDoctorData.name,
+        specialty: currentDoctorData.specialty,
+        phone: currentDoctorData.phone,
+        clinicName: clinicName,
+        address: { city: city, street: street, landmark: landmark },
+        location: { lat: Number(lat), lng: Number(lng) },
+        serviceTime: serviceTime,
+        startTime: startTime,
+        endTime: endTime,
+        workingDays: workingDays,
+        isOpen: true,
         globalSerial: 0,
-        createdAt: new Date().toISOString() 
+        createdAt: new Date().toISOString()
     }).then(function() {
         alert("تمت إضافة العيادة!"); closeAddClinicModal();
     }).catch(function(error) { alert('تعذر إضافة العيادة: ' + error.message); });
@@ -299,10 +364,10 @@ function openEditClinicModal() {
     document.getElementById('editServiceTime').value = currentDoctorData.serviceTime || 10;
     document.getElementById('editLat').value = (currentDoctorData.location && currentDoctorData.location.lat) ? currentDoctorData.location.lat : '';
     document.getElementById('editLng').value = (currentDoctorData.location && currentDoctorData.location.lng) ? currentDoctorData.location.lng : '';
-    
+
     var workingDays = currentDoctorData.workingDays || [];
     for (var i = 0; i <= 6; i++) { var cb = document.getElementById('edit_day_' + i); if (cb) cb.checked = workingDays.indexOf(i) > -1; }
-    
+
     document.getElementById('editClinicModal').classList.remove('hidden');
     setTimeout(initEditMap, 300);
 }
@@ -313,7 +378,7 @@ function initEditMap() {
     if (!document.getElementById('edit-map')) return;
     var lat = Number(document.getElementById('editLat').value) || 15.3694;
     var lng = Number(document.getElementById('editLng').value) || 44.1910;
-    
+
     if (!editMap) {
         editMap = L.map('edit-map').setView([lat, lng], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(editMap);
@@ -326,7 +391,7 @@ function initEditMap() {
     } else {
         editMap.setView([lat, lng], 13); editMap.invalidateSize();
     }
-    
+
     if (document.getElementById('editLat').value) {
         var latlng = L.latLng(lat, lng);
         if (editMarker) editMarker.setLatLng(latlng);
@@ -344,7 +409,7 @@ function saveEditClinic() {
     var serviceTime = Number(document.getElementById('editServiceTime').value);
     var lat = document.getElementById('editLat').value;
     var lng = document.getElementById('editLng').value;
-    
+
     var workingDays = [];
     for (var i = 0; i <= 6; i++) { var cb = document.getElementById('edit_day_' + i); if (cb && cb.checked) workingDays.push(i); }
 
@@ -352,7 +417,7 @@ function saveEditClinic() {
     if (!serviceTime || serviceTime < 1) return alert("أدخل مدة كشف صحيحة (دقيقة واحدة على الأقل)!");
     if (workingDays.length === 0) return alert("حدد يوم عمل واحد على الأقل!");
 
-    db.collection("doctors").doc(selectedClinicId).update({ 
+    db.collection("doctors").doc(selectedClinicId).update({
         clinicName: clinicName, address: { city: city, street: street, landmark: landmark }, location: { lat: Number(lat), lng: Number(lng) },
         serviceTime: serviceTime, startTime: startTime, endTime: endTime, workingDays: workingDays
     }).then(function() {
