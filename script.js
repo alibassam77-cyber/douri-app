@@ -713,6 +713,8 @@ function goBackToSearch() {
         unsubscribeTicketBookings = null;
     }
     currentTicketBookingId = null;
+    lastTicketNumber = null;
+    lastAheadCount = null;
     hideTicketAlert();
     var mainView = document.getElementById("main-view");
     var bookingsView = document.getElementById("bookings-view");
@@ -728,6 +730,9 @@ function showMyBookingsView() {
         unsubscribeTicketBookings();
         unsubscribeTicketBookings = null;
     }
+    currentTicketBookingId = null;
+    lastTicketNumber = null;
+    lastAheadCount = null;
     hideTicketAlert();
     var mainView = document.getElementById("main-view");
     var bookingsView = document.getElementById("bookings-view");
