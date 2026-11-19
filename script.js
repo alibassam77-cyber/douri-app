@@ -12,7 +12,12 @@ var allDoctors = [];
 var activeTicketToDisplay = null;
 var modalDoctorId = null;
 var modalDoctorName = null;
+var modalClinicObj = null;
 var modalWorkingDays = [];
+var calendarYear = null;
+var calendarMonth = null;
+var dayCountsMap = {};
+var lastAlertKey = null;
 var timerInterval = null;
 var doctorMap = null;
 var doctorMarker = null;
@@ -24,6 +29,7 @@ function escapeHTML(value) {
     });
 }
 function safeJsArg(value) { return escapeHTML(JSON.stringify(String(value == null ? '' : value))); }
+
 function getTodayString() {
     var today = new Date();
     var yyyy = today.getFullYear();
@@ -31,12 +37,61 @@ function getTodayString() {
     var dd = String(today.getDate()).padStart(2, '0');
     return yyyy + '-' + mm + '-' + dd;
 }
+
+function formatDateStr(y, m, d) {
+    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+
 function generateSecretCode() {
     var code = '';
     for (var i = 0; i < 12; i++) {
         code += Math.floor(Math.random() * 10);
     }
     return code;
+}
+
+function getDailyCapacity(clinicData) {
+    var serviceTime = Math.max(1, Number(clinicData && clinicData.serviceTime) || 10);
+    var startParts = String((clinicData && clinicData.startTime) || '09:00').split(':');
+    var endParts = String((clinicData && clinicData.endTime) || '17:00').split(':');
+    var startMin = (Number(startParts[0]) || 9) * 60 + (Number(startParts[1]) || 0);
+    var endMin = (Number(endParts[0]) || 17) * 60 + (Number(endParts[1]) || 0);
+    var workMinutes = endMin > startMin ? (endMin - startMin) : 240;
+    return Math.max(1, Math.floor(workMinutes / serviceTime));
+}
+
+function triggerPatientAlert(message, key) {
+    var box = document.getElementById('ticketAlertBox');
+    if (box) {
+        box.innerText = message;
+        box.classList.remove('hidden');
+    }
+    if (key && lastAlertKey === key) return;
+    lastAlertKey = key || message;
+
+    try {
+        if (navigator.vibrate) {
+            navigator.vibrate([250, 120, 250]);
+        }
+    } catch (e) {}
+
+    try {
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+            var ctx = new AudioCtx();
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            gain.gain.setValueAtTime(0.18, ctx.currentTime);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        }
+    } catch (e) {}
+
+    alert(message);
 }
 
 function saveViewState(view) {
@@ -59,6 +114,7 @@ function initTheme() {
     if (savedTheme === 'dark') { document.documentElement.setAttribute('data-theme', 'dark'); themeBtn.innerHTML = '<i class="fa-solid fa-sun"></i>'; }
     else { document.documentElement.removeAttribute('data-theme'); themeBtn.innerHTML = '<i class="fa-solid fa-moon"></i>'; }
 }
+
 function toggleTheme() {
     var currentTheme = document.documentElement.getAttribute('data-theme');
     var themeBtn = document.getElementById('themeToggle');
@@ -241,31 +297,150 @@ function selectClinicToBook(clinicId, doctorName, clinicName) {
 
 function closeClinicSelectionModal() { document.getElementById('clinicSelectionModal').classList.add('hidden'); }
 
-function openBookingModal(doctorId, doctorName, clinicName) {
-    modalDoctorId = doctorId; modalDoctorName = doctorName;
-    modalWorkingDays = [];
+function findClinicById(doctorId) {
     for (var i = 0; i < allDoctors.length; i++) {
         for (var j = 0; j < allDoctors[i].clinics.length; j++) {
-            if (allDoctors[i].clinics[j].id === doctorId) { modalWorkingDays = allDoctors[i].clinics[j].workingDays || []; break; }
+            if (allDoctors[i].clinics[j].id === doctorId) return allDoctors[i].clinics[j];
         }
     }
+    return null;
+}
+
+async function openBookingModal(doctorId, doctorName, clinicName) {
+    modalDoctorId = doctorId;
+    modalDoctorName = doctorName;
+    modalClinicObj = findClinicById(doctorId) || { serviceTime: 10, startTime: '09:00', endTime: '17:00', workingDays: [] };
+    modalWorkingDays = modalClinicObj.workingDays || [];
+
+    var now = new Date();
+    calendarYear = now.getFullYear();
+    calendarMonth = now.getMonth();
+    dayCountsMap = {};
+
     document.getElementById('modalDoctorName').innerText = t('at_doctor') + doctorName + ' (' + clinicName + ')';
     document.getElementById('bookingName').value = '';
     document.getElementById('bookingPhone').value = '';
-    document.getElementById('bookingDate').value = getTodayString();
+    document.getElementById('bookingDate').value = '';
     document.getElementById('bookingModal').classList.remove('hidden');
+
+    var snap = await db.collection('bookings').where('doctorId', '==', doctorId).get();
+    snap.forEach(function(doc) {
+        var d = doc.data() || {};
+        if (d.status !== 'cancelled' && d.bookingDate) {
+            dayCountsMap[d.bookingDate] = (dayCountsMap[d.bookingDate] || 0) + 1;
+        }
+    });
+
+    var cap = getDailyCapacity(modalClinicObj);
+    var hint = document.getElementById('calendarHint');
+    if (hint) {
+        hint.innerText = 'الحد الأقصى اليومي لهذه العيادة: ' + cap + ' مرضى (الأيام الرمادية ممتلئة أو غير متاحة).';
+    }
+    renderBookingCalendar();
 }
 
-function closeModal() { document.getElementById('bookingModal').classList.add('hidden'); modalDoctorId = null; modalDoctorName = null; }
+function changeCalendarMonth(delta) {
+    calendarMonth += delta;
+    if (calendarMonth < 0) {
+        calendarMonth = 11;
+        calendarYear--;
+    } else if (calendarMonth > 11) {
+        calendarMonth = 0;
+        calendarYear++;
+    }
+    renderBookingCalendar();
+}
+
+function selectCalendarDay(dateStr) {
+    document.getElementById('bookingDate').value = dateStr;
+    renderBookingCalendar();
+}
+
+function renderBookingCalendar() {
+    var container = document.getElementById('customBookingCalendar');
+    if (!container) return;
+
+    var monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    var weekDays = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+    var firstDayOfMonth = new Date(calendarYear, calendarMonth, 1).getDay();
+    var daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    var todayStr = getTodayString();
+    var selectedDate = document.getElementById('bookingDate').value;
+    var capacity = getDailyCapacity(modalClinicObj);
+    var allowedDays = (modalWorkingDays || []).map(Number);
+
+    var html = '<div class="calendar-header">' +
+        '<button type="button" onclick="changeCalendarMonth(-1)">&lt;</button>' +
+        '<span>' + monthNames[calendarMonth] + ' ' + calendarYear + '</span>' +
+        '<button type="button" onclick="changeCalendarMonth(1)">&gt;</button>' +
+        '</div><div class="calendar-grid">';
+
+    for (var w = 0; w < 7; w++) {
+        html += '<div class="calendar-weekday">' + weekDays[w] + '</div>';
+    }
+    for (var b = 0; b < firstDayOfMonth; b++) {
+        html += '<div></div>';
+    }
+
+    for (var d = 1; d <= daysInMonth; d++) {
+        var dateStr = formatDateStr(calendarYear, calendarMonth, d);
+        var dayOfWeek = new Date(calendarYear, calendarMonth, d).getDay();
+        var bookedCount = dayCountsMap[dateStr] || 0;
+        var isPast = dateStr < todayStr;
+        var isWorkingDay = allowedDays.length === 0 || allowedDays.indexOf(dayOfWeek) > -1;
+        var isFull = bookedCount >= capacity;
+        var disabled = isPast || !isWorkingDay || isFull;
+        var isSelected = selectedDate === dateStr && !disabled;
+
+        var classes = 'calendar-day-btn' + (disabled ? ' disabled-day' : '') + (isSelected ? ' selected' : '');
+        html += '<button type="button" class="' + classes + '" ' + (disabled ? 'disabled' : 'onclick="selectCalendarDay(' + safeJsArg(dateStr) + ')"') + '>' + d + '</button>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function closeModal() {
+    document.getElementById('bookingModal').classList.add('hidden');
+    modalDoctorId = null;
+    modalDoctorName = null;
+    modalClinicObj = null;
+}
+
+async function renumberBookingsForDate(doctorId, bookingDate) {
+    var snap = await db.collection('bookings')
+        .where('doctorId', '==', doctorId)
+        .where('bookingDate', '==', bookingDate)
+        .get();
+
+    var activeDocs = [];
+    snap.forEach(function(doc) {
+        var d = doc.data() || {};
+        if (d.status !== 'cancelled') {
+            activeDocs.push({ ref: doc.ref, id: doc.id, data: d });
+        }
+    });
+
+    activeDocs.sort(function(a, b) {
+        return (Number(a.data.ticketNumber) || 0) - (Number(b.data.ticketNumber) || 0);
+    });
+
+    var batch = db.batch();
+    for (var i = 0; i < activeDocs.length; i++) {
+        var newTicket = i + 1;
+        if (Number(activeDocs[i].data.ticketNumber) !== newTicket) {
+            batch.update(activeDocs[i].ref, { ticketNumber: newTicket });
+        }
+    }
+    await batch.commit();
+}
 
 async function confirmBooking() {
     var name = document.getElementById('bookingName').value.trim();
     var phone = document.getElementById('bookingPhone').value.trim();
     var bookingDate = document.getElementById('bookingDate').value;
-    if (!name || !phone || !bookingDate || !modalDoctorId) return alert('يرجى إدخال البيانات والتاريخ!');
+    if (!name || !phone || !bookingDate || !modalDoctorId) return alert('يرجى إدخال البيانات واختيار يوم متاح من التقويم!');
     if (bookingDate < getTodayString()) return alert('لا يمكن اختيار تاريخ مضى.');
-    var selectedDay = new Date(bookingDate + 'T00:00:00').getDay();
-    if (modalWorkingDays.length && !modalWorkingDays.map(Number).includes(selectedDay)) return alert(t('invalid_working_day'));
 
     var button = document.querySelector('#bookingModal .btn-primary');
     if (button) button.disabled = true;
@@ -276,13 +451,23 @@ async function confirmBooking() {
             .where('bookingDate', '==', bookingDate)
             .get();
 
+        var activeCount = 0;
         var maxTicket = 0;
         queueSnap.forEach(function(item) {
-            var tNum = Number(item.data().ticketNumber) || 0;
-            if (tNum > maxTicket) maxTicket = tNum;
+            var d = item.data() || {};
+            if (d.status !== 'cancelled') {
+                activeCount++;
+                var tNum = Number(d.ticketNumber) || 0;
+                if (tNum > maxTicket) maxTicket = tNum;
+            }
         });
-        var ticketNumber = maxTicket + 1;
 
+        var cap = getDailyCapacity(modalClinicObj);
+        if (activeCount >= cap) {
+            throw new Error('هذا اليوم ممتلئ بالحجوزات في هذه العيادة.');
+        }
+
+        var ticketNumber = maxTicket + 1;
         var doctorRef = db.collection('doctors').doc(modalDoctorId);
         var secretCode = generateSecretCode();
         var createdBooking = null;
@@ -330,7 +515,7 @@ async function confirmBooking() {
         localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
 
         closeModal();
-        alert('تم الحجز بنجاح. رقم دورك: ' + createdBooking.ticketNumber + '\nاحفظ الرمز السري الظاهر في التذكرة لاستعادة الحجز لاحقاً.');
+        alert('تم الحجز بنجاح. رقم دورك: ' + createdBooking.ticketNumber + '\nالرقم التسلسلي: ' + createdBooking.serialNumber + '\nاحفظ الرمز السري لاستعادة الحجز لاحقاً.');
         updateBanner();
         showMyBookingsView();
         openSpecificTicket(createdBooking.bookingId);
@@ -458,6 +643,10 @@ function openSpecificTicket(id) {
     if (!b) return;
     if (!b.patientSecret) return alert(t('old_booking_warning'));
     activeTicketToDisplay = b;
+    lastAlertKey = null;
+    var alertBox = document.getElementById('ticketAlertBox');
+    if (alertBox) alertBox.classList.add('hidden');
+
     document.getElementById('main-view').classList.add('hidden');
     document.getElementById('bookings-view').classList.add('hidden');
     document.getElementById('ticket-view').classList.remove('hidden');
@@ -476,10 +665,23 @@ function openSpecificTicket(id) {
         try {
             var data = await fetchBookingLiveInfo(b.firebaseId, b.patientSecret);
             if (generation !== bookingPollGeneration) return;
-            var current = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
-            current = current.map(function(item) { if (item.firebaseId === b.firebaseId) item.status = data.status; return item; });
-            localStorage.setItem('douri_bookings', JSON.stringify(current));
+
+            var oldTicket = Number(b.ticket);
+            var newTicket = Number(data.ticketNumber);
+            b.ticket = newTicket;
             b.status = data.status;
+            document.getElementById('ticketNumber').innerText = newTicket;
+
+            var current = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
+            current = current.map(function(item) {
+                if (item.firebaseId === b.firebaseId) {
+                    item.status = data.status;
+                    item.ticket = newTicket;
+                }
+                return item;
+            });
+            localStorage.setItem('douri_bookings', JSON.stringify(current));
+
             if (data.status === 'cancelled' || data.status === 'done') {
                 document.getElementById('ticketStatus').innerText = data.status === 'done' ? t('booking_done') : t('booking_cancelled');
                 document.getElementById('peopleAhead').innerText = '—';
@@ -487,6 +689,15 @@ function openSpecificTicket(id) {
                 document.getElementById('etaTime').innerText = '—';
                 clearInterval(timerInterval); updateBanner(); return;
             }
+
+            if (oldTicket && newTicket && oldTicket !== newTicket) {
+                triggerPatientAlert('تغير دورك إلى رقم ' + newTicket + ' لدى ' + data.doctorName, 'ticket_' + newTicket);
+            } else if (data.status === 'serving') {
+                triggerPatientAlert('حان الآن دورك لدى ' + data.doctorName + '!', 'serving');
+            } else if (data.peopleAhead <= 3) {
+                triggerPatientAlert('اقترب موعدك لدى ' + data.doctorName + '، تبقى أمامك ' + data.peopleAhead + ' مرضى', 'ahead_' + data.peopleAhead);
+            }
+
             document.getElementById('peopleAhead').innerText = data.peopleAhead;
             document.getElementById('waitTime').innerText = '~' + (data.peopleAhead * data.serviceTime);
             document.getElementById('etaTime').innerText = getSmartETA(data, data.peopleAhead, b.bookingDate);
@@ -508,17 +719,20 @@ function openSpecificTicket(id) {
 async function cancelCurrentTicket() {
     if (!activeTicketToDisplay || !confirm('إلغاء الحجز؟')) return;
     try {
-        await db.collection('bookings').doc(activeTicketToDisplay.firebaseId).update({
-            status: 'cancelled',
-            cancelledAt: new Date().toISOString()
-        });
-        var id = activeTicketToDisplay.firebaseId;
+        var target = activeTicketToDisplay;
+        await db.collection('bookings').doc(target.firebaseId).delete();
+        await renumberBookingsForDate(target.doctorId, target.bookingDate);
+
         var myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
-        myBookings.forEach(function(item) { if (item.firebaseId === id) item.status = 'cancelled'; });
+        myBookings = myBookings.filter(function(item) { return item.firebaseId !== target.firebaseId; });
         localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
+
         if (timerInterval) clearInterval(timerInterval);
-        bookingPollGeneration++; activeTicketToDisplay = null; updateBanner(); showMyBookingsView();
-        alert('تم إلغاء الحجز.');
+        bookingPollGeneration++;
+        activeTicketToDisplay = null;
+        updateBanner();
+        showMyBookingsView();
+        alert('تم إلغاء الحجز وإعادة ترتيب الأدوار تلقائياً.');
     } catch (err) { alert((err && err.message) || 'تعذر إلغاء الحجز.'); }
 }
 
@@ -578,79 +792,4 @@ function collectClinicData() {
     var workingDays = [];
     for (var i = 0; i <= 6; i++) { var cb = document.getElementById('day_' + i); if (cb && cb.checked) workingDays.push(i); }
 
-    if (!clinicName || !city || !lat || !lng) return null;
-    if (workingDays.length === 0) return null;
-
-    return { clinicName: clinicName, address: { city: city, street: street, landmark: landmark }, location: { lat: Number(lat), lng: Number(lng) }, serviceTime: Number(serviceTime) || 10, startTime: startTime, endTime: endTime, workingDays: workingDays };
-}
-
-function addAnotherClinicField() {
-    var data = collectClinicData();
-    if (!data) return alert("الرجاء تعبئة بيانات العيادة الحالية وتحديد الموقع وأيام العمل أولاً قبل إضافة عيادة جديدة.");
-    extraClinics.push(data);
-    alert("تم حفظ العيادة في القائمة، يمكنك الآن تعبئة بيانات العيادة الجديدة.");
-
-    document.getElementById('docClinicName').value = '';
-    document.getElementById('docCity').value = '';
-    document.getElementById('docStreet').value = '';
-    document.getElementById('docLandmark').value = '';
-    document.getElementById('docLat').value = '';
-    document.getElementById('docLng').value = '';
-    if (doctorMarker) { doctorMap.removeLayer(doctorMarker); doctorMarker = null; }
-    for (var i = 0; i <= 6; i++) { var cb = document.getElementById('day_' + i); if (cb) cb.checked = false; }
-}
-
-async function registerAndSaveDoctor() {
-    var email = document.getElementById('regEmail').value.trim();
-    var password = document.getElementById('regPassword').value;
-    var activationCode = document.getElementById('regActivationCode').value.trim();
-    var name = document.getElementById('docName').value.trim();
-    var specialty = document.getElementById('docSpecialty').value.trim();
-    var phone = document.getElementById('docPhone').value.trim();
-
-    var currentClinicData = collectClinicData();
-    var clinicsToRegister = extraClinics.slice();
-    if (currentClinicData) clinicsToRegister.push(currentClinicData);
-    if (clinicsToRegister.length === 0) return alert("أكمل بيانات العيادة وحدد الموقع!");
-
-    if (!email || !password || !name || !specialty || !activationCode) return alert("أكمل البيانات الأساسية!");
-    if (password.length < 6) return alert("كلمة المرور قصيرة");
-
-    try {
-        var cred = await auth.createUserWithEmailAndPassword(email, password);
-        var uid = cred.user.uid;
-
-        for (var i = 0; i < clinicsToRegister.length; i++) {
-            var c = clinicsToRegister[i];
-            await db.collection('doctors').add({
-                ownerUid: uid,
-                groupKey: uid,
-                email: email,
-                name: name,
-                specialty: specialty,
-                phone: phone,
-                clinicName: c.clinicName,
-                address: c.address,
-                location: c.location,
-                serviceTime: c.serviceTime,
-                startTime: c.startTime,
-                endTime: c.endTime,
-                workingDays: c.workingDays,
-                isOpen: true,
-                globalSerial: 0,
-                createdAt: new Date().toISOString()
-            });
-        }
-
-        extraClinics = [];
-        alert('تم إنشاء الحساب وحفظ العيادات بنجاح!');
-        window.location.href = 'admin.html';
-    } catch (error) {
-        console.error(error);
-        alert((error && error.message) || 'تعذر إنشاء الحساب.');
-    }
-}
-
-window.onload = function() {
-    applyLanguage(); initTheme(); loadDoctors(); listenToMyBookings(); updateBanner(); restoreViewState();
-};
+    if (!clinicName || !city || !lat || !lng
