@@ -6,18 +6,17 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 var auth = firebase.auth();
-var functions = firebase.app().functions('us-central1');
 var bookingPollGeneration = 0;
 
-var allDoctors = []; 
+var allDoctors = [];
 var activeTicketToDisplay = null;
 var modalDoctorId = null;
 var modalDoctorName = null;
-var modalWorkingDays = []; 
+var modalWorkingDays = [];
 var timerInterval = null;
 var doctorMap = null;
 var doctorMarker = null;
-var extraClinics = []; 
+var extraClinics = [];
 
 function escapeHTML(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
@@ -31,6 +30,13 @@ function getTodayString() {
     var mm = String(today.getMonth() + 1).padStart(2, '0');
     var dd = String(today.getDate()).padStart(2, '0');
     return yyyy + '-' + mm + '-' + dd;
+}
+function generateSecretCode() {
+    var code = '';
+    for (var i = 0; i < 12; i++) {
+        code += Math.floor(Math.random() * 10);
+    }
+    return code;
 }
 
 function saveViewState(view) {
@@ -102,16 +108,24 @@ function loadDoctors() {
             list.innerHTML = '<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;"><b>فشل الاتصال بقاعدة البيانات!</b></p>';
         }
     }, 10000);
-    functions.httpsCallable('listPublicDoctors')({}).then(function(response) {
+
+    db.collection('doctors').get().then(function(snapshot) {
         clearTimeout(timeout);
         var groupedDoctors = {}, cities = {};
-        (response.data || []).forEach(function(data) {
-            var ownerKey = data.groupKey || data.name;
-            if (!groupedDoctors[ownerKey]) groupedDoctors[ownerKey] = { name: data.name, specialty: data.specialty, clinics: [] };
+        snapshot.forEach(function(doc) {
+            var data = doc.data() || {};
+            var ownerKey = data.ownerUid || data.groupKey || data.name || doc.id;
+            if (!groupedDoctors[ownerKey]) groupedDoctors[ownerKey] = { name: data.name || '', specialty: data.specialty || '', clinics: [] };
             groupedDoctors[ownerKey].clinics.push({
-                id: data.id, clinicName: data.clinicName || 'عيادة', address: data.address, location: data.location,
-                isOpen: data.isOpen, startTime: data.startTime, endTime: data.endTime,
-                serviceTime: data.serviceTime, workingDays: data.workingDays || []
+                id: doc.id,
+                clinicName: data.clinicName || 'عيادة',
+                address: data.address,
+                location: data.location,
+                isOpen: data.isOpen !== false,
+                startTime: data.startTime || '09:00',
+                endTime: data.endTime || '17:00',
+                serviceTime: Number(data.serviceTime) || 10,
+                workingDays: data.workingDays || []
             });
             if (data.address && data.address.city) cities[data.address.city] = true;
         });
@@ -121,9 +135,11 @@ function loadDoctors() {
             datalist.innerHTML = '';
             Object.keys(cities).forEach(function(city) { datalist.innerHTML += '<option value="' + escapeHTML(city) + '">'; });
         }
-        filterDoctors(); updateBanner();
+        filterDoctors();
+        updateBanner();
     }).catch(function(error) {
-        clearTimeout(timeout); console.error(error);
+        clearTimeout(timeout);
+        console.error(error);
         if (list) list.innerHTML = '<p style="text-align:center; color:red; padding:20px; background:#fee2e2; border-radius:10px;"><b>تعذر جلب بيانات العيادات. حاول تحديث الصفحة.</b></p>';
     });
 }
@@ -135,16 +151,16 @@ function renderDoctors(doctorsToRender) {
         list.innerHTML = '<p style="text-align:center; color:var(--text-muted); margin-top:20px;">' + t('no_results') + '</p>';
         return;
     }
-    
+
     for (var i = 0; i < doctorsToRender.length; i++) {
         var docGroup = doctorsToRender[i];
         var clinics = docGroup.clinics;
-        
+
         if (clinics.length === 1) {
             var doc = clinics[0];
             var isClosed = doc.isOpen === false;
             var badgeHTML = isClosed ? '<span class="badge red">' + t('closed_temp') + '</span>' : '<span class="badge green">' + t('available') + '</span>';
-            var btnHTML = isClosed ? '<button type="button" class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button type="button" class="book-btn" onclick="openBookingModal(' + safeJsArg(doc.id) + ', ' + safeJsArg(docGroup.name) + ', ' + safeJsArg(doc.clinicName) + ')">' + t('book_now') + '</button>'; 
+            var btnHTML = isClosed ? '<button type="button" class="book-btn" style="background-color:var(--text-muted);" disabled>' + t('on_break') + '</button>' : '<button type="button" class="book-btn" onclick="openBookingModal(' + safeJsArg(doc.id) + ', ' + safeJsArg(docGroup.name) + ', ' + safeJsArg(doc.clinicName) + ')">' + t('book_now') + '</button>';
             var landmarkText = (doc.address && doc.address.landmark) ? ' (' + escapeHTML(doc.address.landmark) + ')' : '';
             var addressText = doc.address ? escapeHTML(doc.address.city) + ' - ' + escapeHTML(doc.address.street || '') + landmarkText : '';
             var start = doc.startTime || '09:00'; var end = doc.endTime || '17:00';
@@ -177,11 +193,11 @@ function filterDoctors() {
     var selectedCity = cityFilter.value.trim().toLowerCase();
     var textQuery = searchInput.value.toLowerCase();
     var filtered = [];
-    
+
     for (var i = 0; i < allDoctors.length; i++) {
         var docGroup = allDoctors[i];
         var matchesNameOrSpecialty = (docGroup.name || '').toLowerCase().indexOf(textQuery) > -1 || (docGroup.specialty || '').toLowerCase().indexOf(textQuery) > -1;
-        
+
         if (matchesNameOrSpecialty) {
             if (selectedCity === "") {
                 filtered.push(docGroup);
@@ -236,11 +252,7 @@ function openBookingModal(doctorId, doctorName, clinicName) {
     document.getElementById('modalDoctorName').innerText = t('at_doctor') + doctorName + ' (' + clinicName + ')';
     document.getElementById('bookingName').value = '';
     document.getElementById('bookingPhone').value = '';
-    var today = new Date();
-    var yyyy = today.getFullYear();
-    var mm = String(today.getMonth() + 1).padStart(2, '0');
-    var dd = String(today.getDate()).padStart(2, '0');
-    document.getElementById('bookingDate').value = yyyy + '-' + mm + '-' + dd;
+    document.getElementById('bookingDate').value = getTodayString();
     document.getElementById('bookingModal').classList.remove('hidden');
 }
 
@@ -254,29 +266,79 @@ async function confirmBooking() {
     if (bookingDate < getTodayString()) return alert('لا يمكن اختيار تاريخ مضى.');
     var selectedDay = new Date(bookingDate + 'T00:00:00').getDay();
     if (modalWorkingDays.length && !modalWorkingDays.map(Number).includes(selectedDay)) return alert(t('invalid_working_day'));
+
     var button = document.querySelector('#bookingModal .btn-primary');
     if (button) button.disabled = true;
+
     try {
-        var response = await functions.httpsCallable('createBooking')({
-            doctorId: modalDoctorId, patientName: name, patientPhone: phone, bookingDate: bookingDate
+        var doctorRef = db.collection('doctors').doc(modalDoctorId);
+        var secretCode = generateSecretCode();
+        var createdBooking = null;
+
+        await db.runTransaction(async function(transaction) {
+            var docSnap = await transaction.get(doctorRef);
+            if (!docSnap.exists) throw new Error('العيادة غير موجودة.');
+            var docData = docSnap.data() || {};
+            if (docData.isOpen === false) throw new Error('العيادة مغلقة مؤقتاً.');
+
+            var nextSerial = (Number(docData.globalSerial) || 0) + 1;
+            var queueSnap = await db.collection('bookings')
+                .where('doctorId', '==', modalDoctorId)
+                .where('bookingDate', '==', bookingDate)
+                .get();
+
+            var maxTicket = 0;
+            queueSnap.forEach(function(item) {
+                var tNum = Number(item.data().ticketNumber) || 0;
+                if (tNum > maxTicket) maxTicket = tNum;
+            });
+            var ticketNumber = maxTicket + 1;
+
+            var newBookingRef = db.collection('bookings').doc();
+            createdBooking = {
+                bookingId: newBookingRef.id,
+                patientSecret: secretCode,
+                ticketNumber: ticketNumber,
+                serialNumber: nextSerial,
+                doctorId: modalDoctorId,
+                doctorName: modalDoctorName,
+                patientName: name,
+                patientPhone: phone,
+                bookingDate: bookingDate,
+                status: 'waiting',
+                createdAt: new Date().toISOString()
+            };
+
+            transaction.update(doctorRef, { globalSerial: nextSerial });
+            transaction.set(newBookingRef, createdBooking);
         });
-        var result = response.data;
+
         var myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
-        var booking = {
-            firebaseId: result.bookingId, patientSecret: result.patientSecret,
-            ticket: result.ticketNumber, serial: result.serialNumber,
-            doctorId: modalDoctorId, doctorName: modalDoctorName, name: name,
-            bookingDate: bookingDate, status: 'waiting', date: new Date().toISOString()
-        };
-        myBookings.push(booking);
+        myBookings.push({
+            firebaseId: createdBooking.bookingId,
+            patientSecret: createdBooking.patientSecret,
+            ticket: createdBooking.ticketNumber,
+            serial: createdBooking.serialNumber,
+            doctorId: createdBooking.doctorId,
+            doctorName: createdBooking.doctorName,
+            name: createdBooking.patientName,
+            bookingDate: createdBooking.bookingDate,
+            status: 'waiting',
+            date: new Date().toISOString()
+        });
         localStorage.setItem('douri_bookings', JSON.stringify(myBookings));
+
         closeModal();
-        alert('تم الحجز بنجاح. رقم دورك: ' + result.ticketNumber + '\nاحفظ رقم الحجز والرمز السري الظاهرين في التذكرة.');
-        updateBanner(); showMyBookingsView(); openSpecificTicket(result.bookingId);
+        alert('تم الحجز بنجاح. رقم دورك: ' + createdBooking.ticketNumber + '\nاحفظ رقم الحجز والرمز السري الظاهرين في التذكرة.');
+        updateBanner();
+        showMyBookingsView();
+        openSpecificTicket(createdBooking.bookingId);
     } catch (err) {
         console.error(err);
         alert((err && err.message) || 'تعذر إتمام الحجز. حاول مرة أخرى.');
-    } finally { if (button) button.disabled = false; }
+    } finally {
+        if (button) button.disabled = false;
+    }
 }
 
 function updateBanner() {
@@ -306,14 +368,54 @@ function showMyBookingsView() {
     }
 }
 
+async function fetchBookingLiveInfo(bookingId, patientSecret) {
+    var snap = await db.collection('bookings').doc(bookingId).get();
+    if (!snap.exists) throw new Error(t('invalid_booking'));
+    var bData = snap.data() || {};
+    if (patientSecret && bData.patientSecret && String(bData.patientSecret) !== String(patientSecret)) {
+        throw new Error(t('invalid_booking'));
+    }
+
+    var docSnap = await db.collection('doctors').doc(bData.doctorId).get();
+    var docData = docSnap.exists ? (docSnap.data() || {}) : {};
+
+    var qSnap = await db.collection('bookings')
+        .where('doctorId', '==', bData.doctorId)
+        .where('bookingDate', '==', bData.bookingDate)
+        .get();
+
+    var peopleAhead = 0;
+    qSnap.forEach(function(item) {
+        var d = item.data() || {};
+        if (d.status === 'waiting' && Number(d.ticketNumber) < Number(bData.ticketNumber)) {
+            peopleAhead++;
+        }
+    });
+
+    return {
+        bookingId: snap.id,
+        patientSecret: bData.patientSecret || '',
+        ticketNumber: bData.ticketNumber,
+        serialNumber: bData.serialNumber,
+        doctorId: bData.doctorId,
+        doctorName: bData.doctorName,
+        patientName: bData.patientName,
+        bookingDate: bData.bookingDate,
+        status: bData.status || 'waiting',
+        peopleAhead: peopleAhead,
+        serviceTime: Number(docData.serviceTime) || 10,
+        startTime: docData.startTime || '09:00',
+        endTime: docData.endTime || '17:00'
+    };
+}
+
 async function restoreBookingByCode() {
     var bookingId = prompt(t('booking_ref_prompt'));
     if (!bookingId) return;
     var patientSecret = prompt(t('secret_prompt'));
     if (!patientSecret) return;
     try {
-        var response = await functions.httpsCallable('getPatientBooking')({ bookingId: bookingId.trim(), patientSecret: patientSecret.trim() });
-        var data = response.data;
+        var data = await fetchBookingLiveInfo(bookingId.trim(), patientSecret.trim());
         var bookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
         var restored = {
             firebaseId: data.bookingId, patientSecret: patientSecret.trim(), ticket: data.ticketNumber,
@@ -345,12 +447,12 @@ function openSpecificTicket(id) {
     document.getElementById('bookingCredentials').classList.remove('hidden');
     if (timerInterval) clearInterval(timerInterval);
     var generation = ++bookingPollGeneration;
+
     async function refreshTicket() {
         if (generation !== bookingPollGeneration || !activeTicketToDisplay) return;
         try {
-            var response = await functions.httpsCallable('getPatientBooking')({ bookingId: b.firebaseId, patientSecret: b.patientSecret });
+            var data = await fetchBookingLiveInfo(b.firebaseId, b.patientSecret);
             if (generation !== bookingPollGeneration) return;
-            var data = response.data;
             var current = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
             current = current.map(function(item) { if (item.firebaseId === b.firebaseId) item.status = data.status; return item; });
             localStorage.setItem('douri_bookings', JSON.stringify(current));
@@ -383,9 +485,9 @@ function openSpecificTicket(id) {
 async function cancelCurrentTicket() {
     if (!activeTicketToDisplay || !confirm('إلغاء الحجز؟')) return;
     try {
-        await functions.httpsCallable('cancelBooking')({
-            bookingId: activeTicketToDisplay.firebaseId,
-            patientSecret: activeTicketToDisplay.patientSecret
+        await db.collection('bookings').doc(activeTicketToDisplay.firebaseId).update({
+            status: 'cancelled',
+            cancelledAt: new Date().toISOString()
         });
         var id = activeTicketToDisplay.firebaseId;
         var myBookings = JSON.parse(localStorage.getItem('douri_bookings') || '[]');
@@ -412,9 +514,7 @@ function goBackToSearch() {
     document.getElementById('ticket-view').classList.add('hidden'); document.getElementById('bookings-view').classList.add('hidden'); document.getElementById('main-view').classList.remove('hidden');
 }
 
-function listenToMyBookings() {
-    // تحديث التذكرة النشطة يتم عبر callable موثوق، ولا توجد قراءة مباشرة لوثائق المرضى.
-}
+function listenToMyBookings() {}
 
 function openDoctorModal() { document.getElementById('doctorModal').classList.remove('hidden'); }
 function closeDoctorModal() { document.getElementById('doctorModal').classList.add('hidden'); }
@@ -458,7 +558,7 @@ function collectClinicData() {
     if (!clinicName || !city || !lat || !lng) return null;
     if (workingDays.length === 0) return null;
 
-    return { clinicName: clinicName, address: { city: city, street: street, landmark: landmark }, location: { lat: Number(lat), lng: Number(lng) }, serviceTime: Number(serviceTime), startTime: startTime, endTime: endTime, workingDays: workingDays };
+    return { clinicName: clinicName, address: { city: city, street: street, landmark: landmark }, location: { lat: Number(lat), lng: Number(lng) }, serviceTime: Number(serviceTime) || 10, startTime: startTime, endTime: endTime, workingDays: workingDays };
 }
 
 function addAnotherClinicField() {
@@ -466,7 +566,7 @@ function addAnotherClinicField() {
     if (!data) return alert("الرجاء تعبئة بيانات العيادة الحالية وتحديد الموقع وأيام العمل أولاً قبل إضافة عيادة جديدة.");
     extraClinics.push(data);
     alert("تم حفظ العيادة في القائمة، يمكنك الآن تعبئة بيانات العيادة الجديدة.");
-    
+
     document.getElementById('docClinicName').value = '';
     document.getElementById('docCity').value = '';
     document.getElementById('docStreet').value = '';
@@ -477,32 +577,55 @@ function addAnotherClinicField() {
     for (var i = 0; i <= 6; i++) { var cb = document.getElementById('day_' + i); if (cb) cb.checked = false; }
 }
 
-function registerAndSaveDoctor() {
-    var email = document.getElementById('regEmail').value.trim(); var password = document.getElementById('regPassword').value;
+async function registerAndSaveDoctor() {
+    var email = document.getElementById('regEmail').value.trim();
+    var password = document.getElementById('regPassword').value;
     var activationCode = document.getElementById('regActivationCode').value.trim();
-    var name = document.getElementById('docName').value.trim(); var specialty = document.getElementById('docSpecialty').value.trim(); var phone = document.getElementById('docPhone').value.trim();
-    
+    var name = document.getElementById('docName').value.trim();
+    var specialty = document.getElementById('docSpecialty').value.trim();
+    var phone = document.getElementById('docPhone').value.trim();
+
     var currentClinicData = collectClinicData();
     var clinicsToRegister = extraClinics.slice();
     if (currentClinicData) clinicsToRegister.push(currentClinicData);
     if (clinicsToRegister.length === 0) return alert("أكمل بيانات العيادة وحدد الموقع!");
-    
+
     if (!email || !password || !name || !specialty || !activationCode) return alert("أكمل البيانات الأساسية!");
     if (password.length < 6) return alert("كلمة المرور قصيرة");
 
-    functions.httpsCallable('registerDoctor')({
-        email: email, password: password, activationCode: activationCode,
-        name: name, specialty: specialty, phone: phone, clinics: clinicsToRegister
-    }).then(function() {
-        return auth.signInWithEmailAndPassword(email, password);
-    }).then(function() {
+    try {
+        var cred = await auth.createUserWithEmailAndPassword(email, password);
+        var uid = cred.user.uid;
+
+        for (var i = 0; i < clinicsToRegister.length; i++) {
+            var c = clinicsToRegister[i];
+            await db.collection('doctors').add({
+                ownerUid: uid,
+                groupKey: uid,
+                email: email,
+                name: name,
+                specialty: specialty,
+                phone: phone,
+                clinicName: c.clinicName,
+                address: c.address,
+                location: c.location,
+                serviceTime: c.serviceTime,
+                startTime: c.startTime,
+                endTime: c.endTime,
+                workingDays: c.workingDays,
+                isOpen: true,
+                globalSerial: 0,
+                createdAt: new Date().toISOString()
+            });
+        }
+
         extraClinics = [];
         alert('تم إنشاء الحساب وحفظ العيادات بنجاح!');
         window.location.href = 'admin.html';
-    }).catch(function(error) {
+    } catch (error) {
         console.error(error);
         alert((error && error.message) || 'تعذر إنشاء الحساب.');
-    });
+    }
 }
 
 window.onload = function() {
