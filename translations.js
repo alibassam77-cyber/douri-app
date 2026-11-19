@@ -1,121 +1,89 @@
 var translations = {
-    ar: { 
-        app_title: "عيادة", doctors_btn: "الأطباء", all_cities: "كل المدن", 
-        city_search_placeholder: "ابحث عن مدينة...",
-        search_placeholder: "اسم الطبيب أو التخصص...", 
-        no_results: "لا يوجد أطباء.", available: "متاح للحجز", closed_temp: "مغلق مؤقتاً", on_break: "استراحة", 
-        book_now: "احجز الآن", choose_clinic_btn: "اختر العيادة للحجز", select_clinic_to_book: "اختر مكان الحجز:", 
-        clinic_location: "موقع العيادة", view_map: "موقع العيادة", at_doctor: "عند: ", my_bookings_title: "حجوزاتي", 
-        no_bookings: "لا يوجد حجوزات.", your_number: "رقم دورك:", view_ticket: "عرض التذكرة", back_to_search: "العودة للبحث", 
-        your_ticket_number: "رقم دورك", status_waiting: "في الانتظار", status_your_turn: "حان دورك!", status_one_left: "بقي مريض واحد", 
-        ahead_label: "أمامك", wait_time_label: "دقيقة", eta_label: "الوقت المتوقع", welcome_msg: "أهلاً", ticket_hint: "شاشة التذكرة تتحدث تلقائياً.", 
-        back_to_bookings: "العودة", cancel_booking_btn: "إلغاء", confirm_booking_title: "تأكيد الحجز", full_name_label: "الاسم:", 
-        name_placeholder: "اكتب اسمك هنا", phone_label: "رقم الهاتف:", phone_placeholder: "مثال: 777123456", confirm_btn: "تأكيد الحجز", cancel_btn: "إلغاء", 
-        doctor_portal_title: "بوابة الأطباء", login_tab: "دخول", register_tab: "حساب طبيب جديد", email_label: "البريد الإلكتروني:", password_label: "كلمة المرور:", 
-        password_min_label: "كلمة المرور (6 أحرف على الأقل):", remember_me: "تذكرني", login_btn: "تسجيل الدخول", doctor_name_label: "اسم الطبيب:", doc_name_ph: "مثال: د. أحمد", 
-        specialty_label: "التخصص:", specialty_ph: "مثال: باطنية", city_label: "المدينة:", city_ph: "مثال: صنعاء", street_label: "الشارع:", street_ph: "مثال: حدة", 
-        landmark_label: "علامة مميزة (مقابل/بجوار):", landmark_ph: "مثال: مقابل مستشفى...", 
-        clinic_name_label: "اسم العيادة أو المستشفى:", clinic_name_ph: "مثال: مستشفى الثورة", 
-        working_days_label: "أيام العمل:", 
-        day_sun: "الأحد", day_mon: "الاثنين", day_tue: "الثلاثاء", day_wed: "الأربعاء", day_thu: "الخميس", day_fri: "الجمعة", day_sat: "السبت",
-        activation_code_label: "كود التفعيل (من الإدارة):", activation_code_ph: "أدخل الكود السري هنا", invalid_code: "كود التفعيل غير صحيح! تواصل مع الإدارة.",
-        map_label: "حدد موقع العيادة على الخريطة (اضغط على الخريطة):", map_hint: "اضغط على المكان الصحيح في الخريطة لتحديد الموقع",
-        start_time_label: "وقت فتح العيادة:", end_time_label: "وقت إغلاق العيادة:", service_time_label: "مدة الكشف للمريض (بالدقائق):", create_account_btn: "إنشاء الحساب وحفظ العيادة", 
-        active_booking_msg: "لديك {n} حجز نشط! اضغط هنا لعرضها", tomorrow: "غداً ", hours_label: "ساعات العمل:",
-        booking_date_label: "تاريخ الحجز:", appointment_date: "تاريخ الموعد:",
-        admin_title: "لوحة تحكم العيادة", current_patient: "المريض الحالي (الذي عند الطبيب)", call_next: "نادِ المريض التالي", 
-        close_clinic: "إغلاق العيادة (استراحة)", open_clinic: "فتح العيادة للاستقبال", 
-        queue_title: "طابور الانتظار", no_patients: "لا يوجد مرضى في الانتظار حالياً.", status_serving: "عند الطبيب الآن", 
-        status_waiting_admin: "في الانتظار", admin_date_label: "اختر اليوم لعرض مواعيده:",
-        add_clinic_btn: "إضافة عيادة جديدة", select_clinic_label: "العيادة الحالية:", invalid_working_day: "الطبيب لا يعمل في هذه العيادة في هذا اليوم!",
-        days_label: "أيام العمل:", edit_clinic_btn: "تعديل العيادة", save_changes_btn: "حفظ التعديلات", 
-        serial_label: "الرقم التسلسلي:",
-        restore_booking_btn: "استعادة حجز برقم الحجز والرمز السري",
-        booking_ref_label: "رقم الحجز المرجعي:", secret_code_label: "الرمز السري:",
-        secret_hint: "احتفظ بالرقم والرمز؛ ستحتاج إليهما لاستعادة الحجز من جهاز آخر.",
-        copy_booking_details: "نسخ بيانات الحجز", booking_ref_prompt: "أدخل رقم الحجز المرجعي:",
-        secret_prompt: "أدخل الرمز السري المكوّن من 12 رقماً:", copy_success: "تم نسخ بيانات الحجز.",
-        invalid_booking: "رقم الحجز أو الرمز السري غير صحيح.", old_booking_warning: "هذا حجز قديم لا يحتوي على رمز استعادة.",
-        booking_done: "انتهى الموعد", booking_cancelled: "تم إلغاء الحجز",
-        next_btn: "التالي" 
-    },
-    en: { 
-        app_title: "Clinic", doctors_btn: "Doctors", all_cities: "All Cities", 
-        city_search_placeholder: "Search city...",
-        search_placeholder: "Doctor name or specialty...", 
-        no_results: "No doctors.", available: "Available", closed_temp: "Closed", on_break: "Break", 
-        book_now: "Book Now", choose_clinic_btn: "Choose Clinic to Book", select_clinic_to_book: "Select booking location:", 
-        clinic_location: "Location", view_map: "Clinic Location", at_doctor: "At: ", my_bookings_title: "Bookings", 
-        no_bookings: "No bookings.", your_number: "Number:", view_ticket: "View", back_to_search: "Back", 
-        your_ticket_number: "Your Number", status_waiting: "Waiting", status_your_turn: "Your Turn!", status_one_left: "One left", 
-        ahead_label: "Ahead", wait_time_label: "Min", eta_label: "ETA", welcome_msg: "Welcome", ticket_hint: "Ticket updates automatically.", 
-        back_to_bookings: "Back", cancel_booking_btn: "Cancel", confirm_booking_title: "Confirm", full_name_label: "Name:", 
-        name_placeholder: "Enter your name", phone_label: "Phone:", phone_placeholder: "Example: 777123456", confirm_btn: "Confirm", cancel_btn: "Cancel", 
-        doctor_portal_title: "Doctor Portal", login_tab: "Login", register_tab: "New Doctor Account", email_label: "Email:", password_label: "Password:", 
-        password_min_label: "Password (min 6 chars):", remember_me: "Remember me", login_btn: "Login", doctor_name_label: "Doctor Name:", doc_name_ph: "Example: Dr. Ahmed", 
-        specialty_label: "Specialty:", specialty_ph: "Example: Internal", city_label: "City:", city_ph: "Example: Sanaa", street_label: "Street:", street_ph: "Example: Hadda", 
-        landmark_label: "Landmark (Opposite/Near):", landmark_ph: "Example: Opposite hospital...", 
-        clinic_name_label: "Clinic/Hospital Name:", clinic_name_ph: "Example: Al-Thawra Hospital",
-        working_days_label: "Working Days:",
-        day_sun: "Sunday", day_mon: "Monday", day_tue: "Tuesday", day_wed: "Wednesday", day_thu: "Thursday", day_fri: "Friday", day_sat: "Saturday",
-        activation_code_label: "Activation Code:", activation_code_ph: "Enter secret code", invalid_code: "Invalid activation code! Contact admin.",
-        map_label: "Select Clinic Location on Map (Click on map):", map_hint: "Click on the map to set the location",
-        start_time_label: "Opening Time:", end_time_label: "Closing Time:", service_time_label: "Service Time (min):", create_account_btn: "Create Account & Save Clinic", 
-        active_booking_msg: "You have {n} active booking(s)! Click here to view.", tomorrow: "Tmrw ", hours_label: "Hours:",
-        booking_date_label: "Booking Date:", appointment_date: "Appointment Date:",
-        admin_title: "Clinic Dashboard", current_patient: "Current Patient (with Doctor)", call_next: "Call Next Patient", 
-        close_clinic: "Close Clinic (Break)", open_clinic: "Open Clinic", 
-        queue_title: "Waiting Queue", no_patients: "No patients in queue.", status_serving: "With Doctor", 
-        status_waiting_admin: "Waiting", admin_date_label: "Select a day to view appointments:",
-        add_clinic_btn: "Add New Clinic", select_clinic_label: "Current Clinic:", invalid_working_day: "Doctor does not work at this clinic on this day!",
-        days_label: "Working Days:", edit_clinic_btn: "Edit Clinic", save_changes_btn: "Save Changes",
-        serial_label: "Serial No:",
-        restore_booking_btn: "Restore booking with reference and secret code",
-        booking_ref_label: "Booking reference:", secret_code_label: "Secret code:",
-        secret_hint: "Keep both values. You need them to restore this booking on another device.",
-        copy_booking_details: "Copy booking details", booking_ref_prompt: "Enter booking reference:",
-        secret_prompt: "Enter the 12-digit secret code:", copy_success: "Booking details copied.",
-        invalid_booking: "The booking reference or secret code is incorrect.", old_booking_warning: "This older booking has no recovery code.",
-        booking_done: "Appointment completed", booking_cancelled: "Booking cancelled",
-        next_btn: "Next"
+    ar: {
+        app_title: 'دوري',
+        app_subtitle: 'نظام حجز وطوابير العيادات',
+        my_bookings_btn: 'حجوزاتي',
+        restore_btn: 'استعادة بالرمز السري',
+        doctors_portal_btn: 'الأطباء',
+        search_placeholder: 'ابحث باسم الطبيب أو التخصص...',
+        city_placeholder: 'اختر أو اكتب المدينة...',
+        my_bookings_title: 'حجوزاتي النشطة',
+        back_to_search: 'العودة للبحث',
+        ticket_title: 'تذكرة الحجز',
+        back_btn: 'رجوع',
+        your_ticket_label: 'رقم دورك',
+        people_ahead_label: 'أمامك',
+        wait_time_label: 'الانتظار التقريبي (دقائق)',
+        eta_label: 'الوقت المتوقع',
+        copy_secret_btn: 'نسخ الرمز السري',
+        cancel_booking_btn: 'إلغاء الحجز',
+        patient_name_label: 'اسم المريض',
+        patient_phone_label: 'رقم الهاتف',
+        confirm_booking_btn: 'تأكيد الحجز',
+        close_btn: 'إغلاق',
+        choose_clinic_title: 'اختر العيادة',
+        doctors_portal_title: 'بوابة الأطباء',
+        admin_subtitle: 'إدارة طابور الانتظار والعيادات',
+        currently_serving_label: 'الدور الحالي',
+        no_results: 'لا توجد عيادات مطابقة للبحث.',
+        closed_temp: 'مغلق مؤقتاً',
+        available: 'متاح',
+        on_break: 'في استراحة',
+        book_now: 'احجز الآن',
+        view_map: 'عرض على الخريطة',
+        hours_label: 'ساعات العمل:',
+        choose_clinic_btn: 'اختر العيادة',
+        at_doctor: 'لدى ',
+        tomorrow: 'غداً ',
+        active_booking_msg: 'لديك {n} حجز نشط حالياً — اضغط لعرض التذكرة',
+        no_bookings: 'لا توجد حجوزات نشطة حالياً.',
+        appointment_date: 'تاريخ الموعد:',
+        your_number: 'رقم دورك:',
+        view_ticket: 'عرض التذكرة',
+        invalid_booking: 'الرمز السري غير صحيح أو الحجز غير موجود.',
+        secret_prompt: 'أدخل الرمز السري المكون من 12 رقماً لاستعادة حجذك:',
+        old_booking_warning: 'هذا الحجز لا يحتوي على رمز سري لاستعادته.',
+        booking_done: 'تم إنهاء الموعد',
+        booking_cancelled: 'تم إلغاء الحجز',
+        status_your_turn: 'حان دورك الآن',
+        status_one_left: 'مريض واحد أمامك',
+        status_waiting: 'في الانتظار',
+        copy_success: 'تم نسخ الرمز السري بنجاح.',
+        close_clinic: 'إغلاق العيادة',
+        open_clinic: 'فتح العيادة',
+        serial_label: 'الرقم التسلسلي:',
+        no_patients: 'لا يوجد مرضى في قائمة الانتظار لهذا اليوم.',
+        status_serving: 'قيد الكشف الآن',
+        status_waiting_admin: 'ينتظر'
     }
 };
 
-var currentLang = localStorage.getItem('douri_lang') || 'ar';
+function getCurrentLang() {
+    return localStorage.getItem('douri_lang') || 'ar';
+}
+
+function t(key) {
+    var lang = getCurrentLang();
+    var dict = translations[lang] || translations.ar;
+    return dict[key] || translations.ar[key] || key;
+}
 
 function applyLanguage() {
-    var dict = translations[currentLang];
-    if (currentLang === 'ar') { 
-        document.documentElement.setAttribute('dir', 'rtl'); 
-        document.documentElement.setAttribute('lang', 'ar');
-        var langBtn = document.getElementById('langToggleBtn');
-        if(langBtn) langBtn.innerText = 'EN'; 
+    var lang = getCurrentLang();
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+
+    var textNodes = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < textNodes.length; i++) {
+        var el = textNodes[i];
+        var key = el.getAttribute('data-i18n');
+        if (key) el.innerText = t(key);
     }
-    else { 
-        document.documentElement.setAttribute('dir', 'ltr'); 
-        document.documentElement.setAttribute('lang', 'en');
-        var langBtn = document.getElementById('langToggleBtn');
-        if(langBtn) langBtn.innerText = 'عربي'; 
-    }
-    
-    var elements = document.querySelectorAll('[data-i18n]');
-    for (var i = 0; i < elements.length; i++) {
-        var key = elements[i].getAttribute('data-i18n');
-        if (dict[key]) elements[i].innerText = dict[key];
-    }
+
     var placeholders = document.querySelectorAll('[data-i18n-placeholder]');
     for (var j = 0; j < placeholders.length; j++) {
-        var pKey = placeholders[j].getAttribute('data-i18n-placeholder');
-        if (dict[pKey]) placeholders[j].setAttribute('placeholder', dict[pKey]);
+        var inp = placeholders[j];
+        var pKey = inp.getAttribute('data-i18n-placeholder');
+        if (pKey) inp.setAttribute('placeholder', t(pKey));
     }
-}
-
-function toggleLanguage() { 
-    currentLang = currentLang === 'ar' ? 'en' : 'ar'; 
-    localStorage.setItem('douri_lang', currentLang); 
-    window.location.reload(); 
-}
-
-function t(key) { 
-    return translations[currentLang] && translations[currentLang][key] ? translations[currentLang][key] : key; 
 }
