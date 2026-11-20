@@ -1,6 +1,6 @@
 var translations = {
     ar: {
-        app_title: 'دوري',
+        app_title: 'عيادة',
         app_subtitle: 'نظام حجز وطوابير العيادات',
         my_bookings_btn: 'حجوزاتي',
         restore_btn: 'استعادة بالرمز السري',
@@ -15,7 +15,8 @@ var translations = {
         your_ticket_label: 'رقم دورك',
         people_ahead_label: 'أمامك',
         wait_time_label: 'الانتظار التقريبي (دقائق)',
-        eta_label: 'الوقت المتوقع',
+        eta_label: 'موعدك المتوقع',
+        countdown_label: 'العد التنازلي للموعد',
         copy_secret_btn: 'نسخ الرمز السري',
         cancel_booking_btn: 'إلغاء الحجز',
         patient_name_label: 'اسم المريض',
@@ -32,6 +33,7 @@ var translations = {
         on_break: 'في استراحة',
         book_now: 'احجز الآن',
         view_map: 'عرض على الخريطة',
+        my_location_btn: 'تحديد موقعي الحالي',
         hours_label: 'ساعات العمل:',
         choose_clinic_btn: 'اختر العيادة',
         at_doctor: 'لدى ',
@@ -55,10 +57,12 @@ var translations = {
         serial_label: 'الرقم التسلسلي:',
         no_patients: 'لا يوجد مرضى في قائمة الانتظار لهذا اليوم.',
         status_serving: 'قيد الكشف الآن',
-        status_waiting_admin: 'ينتظر'
+        status_waiting_admin: 'ينتظر',
+        countdown_after_open: 'يبدأ مع فتح العيادة في يوم الموعد',
+        countdown_due_now: '00:00'
     },
     en: {
-        app_title: 'Douri',
+        app_title: 'Clinic',
         app_subtitle: 'Clinic Booking & Queue System',
         my_bookings_btn: 'My Bookings',
         restore_btn: 'Restore by Secret Code',
@@ -73,7 +77,8 @@ var translations = {
         your_ticket_label: 'Your Queue Number',
         people_ahead_label: 'Ahead of You',
         wait_time_label: 'Estimated Wait (mins)',
-        eta_label: 'Expected Time',
+        eta_label: 'Expected Appointment',
+        countdown_label: 'Appointment Countdown',
         copy_secret_btn: 'Copy Secret Code',
         cancel_booking_btn: 'Cancel Booking',
         patient_name_label: 'Patient Name',
@@ -90,6 +95,7 @@ var translations = {
         on_break: 'On Break',
         book_now: 'Book Now',
         view_map: 'View on Map',
+        my_location_btn: 'Use My Current Location',
         hours_label: 'Working Hours:',
         choose_clinic_btn: 'Choose Clinic',
         at_doctor: 'With ',
@@ -113,7 +119,9 @@ var translations = {
         serial_label: 'Serial Number:',
         no_patients: 'No patients in the queue for today.',
         status_serving: 'Being Seen Now',
-        status_waiting_admin: 'Waiting'
+        status_waiting_admin: 'Waiting',
+        countdown_after_open: 'Starts when clinic opens on appointment day',
+        countdown_due_now: '00:00'
     }
 };
 
@@ -140,6 +148,9 @@ function toggleLanguage() {
     if (typeof updateActiveBookingBanner === 'function') {
         updateActiveBookingBanner();
     }
+    if (typeof refreshTicketCountdownDisplay === 'function') {
+        refreshTicketCountdownDisplay();
+    }
 }
 
 function applyLanguage() {
@@ -147,8 +158,8 @@ function applyLanguage() {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     document.title = lang === 'ar'
-        ? 'دوري - نظام حجز وطوابير العيادات'
-        : 'Douri - Clinic Booking & Queue System';
+        ? 'عيادة - نظام حجز وطوابير العيادات'
+        : 'Clinic - Clinic Booking & Queue System';
 
     var textNodes = document.querySelectorAll('[data-i18n]');
     for (var i = 0; i < textNodes.length; i++) {
