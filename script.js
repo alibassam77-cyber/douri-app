@@ -525,7 +525,7 @@ function updateActiveBookingBanner() {
 }
 
 function hasValidClinics(doc) {
-    return !!(doc && Array.isArray(doc.clinics) && doc.clinics.length > 0);
+    return !!(doc && doc.isDeleted !== true && Array.isArray(doc.clinics) && doc.clinics.length > 0);
 }
 
 function loadDoctors() {
@@ -803,6 +803,9 @@ function confirmBooking() {
                 throw new Error("العيادة غير موجودة.");
             }
             var docData = docSnap.data();
+            if (docData.isDeleted === true) {
+                throw new Error("العيادة غير موجودة.");
+            }
             var clinics = Array.isArray(docData.clinics) ? docData.clinics.slice() : [];
             var clinicObj = clinics[selectedClinicIndex];
             if (!clinicObj || clinicObj.isClosed === true) {
@@ -1328,7 +1331,23 @@ function loginDoctor() {
         }
 
         return db.collection("doctors").doc(uid).get().then(function(docSnap) {
-            if (!docSnap.exists) {
+            var docData = docSnap.exists ? docSnap.data() : null;
+            if (!docSnap.exists || !docData || docData.isDeleted === true) {
+                var reactivate = confirm("الحساب غير موجود أو تم حذفه سابقاً. هل تريد إعادة تفعيل الحساب والانتقال لإنشاء عيادة جديدة الآن؟");
+                if (reactivate) {
+                    return db.collection("doctors").doc(uid).set({
+                        ownerUid: uid,
+                        email: email,
+                        name: email.split("@")[0],
+                        specialty: "",
+                        phone: "",
+                        clinics: [],
+                        isDeleted: false,
+                        reactivatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }).then(function() {
+                        window.location.href = "admin.html";
+                    });
+                }
                 return auth.signOut().then(function() {
                     alert("الحساب غير موجود");
                 });
@@ -1340,30 +1359,21 @@ function loginDoctor() {
     });
 }
 
-function registerAndSaveDoctor() {
-    var email = (document.getElementById("regEmail") || {}).value || "";
-    var password = (document.getElementById("regPassword") || {}).value || "";
-    var docName = (document.getElementById("docName") || {}).value || "";
-    var specialty = (document.getElementById("docSpecialty") || {}).value || "";
-    var phone = (document.getElementById("docPhone") || {}).value || "";
-    var clinicName = (document.getElementById("docClinicName") || {}).value || "";
-    var city = (document.getElementById("docCity") || {}).value || "";
-    var street = (document.getElementById("docStreet") || {}).value || "";
-    var landmark = (document.getElementById("docLandmark") || {}).value || "";
-    var startTime = (document.getElementById("docStartTime") || {}).value || "09:00";
-    var endTime = (document.getElementById("docEndTime") || {}).value || "17:00";
+function collectRegistrationFormData() {
+    var email = ((document.getElementById("regEmail") || {}).value || "").trim();
+    var password = ((document.getElementById("regPassword") || {}).value || "");
+    var docName = ((document.getElementById("docName") || {}).value || "").trim();
+    var specialty = ((document.getElementById("docSpecialty") || {}).value || "").trim();
+    var phone = ((document.getElementById("docPhone") || {}).value || "").trim();
+    var clinicName = ((document.getElementById("docClinicName") || {}).value || "").trim();
+    var city = ((document.getElementById("docCity") || {}).value || "").trim();
+    var street = ((document.getElementById("docStreet") || {}).value || "").trim();
+    var landmark = ((document.getElementById("docLandmark") || {}).value || "").trim();
+    var startTime = ((document.getElementById("docStartTime") || {}).value || "09:00");
+    var endTime = ((document.getElementById("docEndTime") || {}).value || "17:00");
     var serviceTime = parseInt(((document.getElementById("docServiceTime") || {}).value || "10"), 10) || 10;
-    var lat = parseFloat(((document.getElementById("docLat") || {}).value || "")) || null;
-    var lng = parseFloat(((document.getElementById("docLng") || {}).value || "")) || null;
-
-    email = email.trim();
-    docName = docName.trim();
-    clinicName = clinicName.trim();
-
-    if (!email || !password || !docName || !clinicName) {
-        alert("يرجى تعبئة البريد الإلكتروني وكلمة المرور واسم الطبيب واسم العيادة.");
-        return;
-    }
+    var latRaw = parseFloat(((document.getElementById("docLat") || {}).value || ""));
+    var lngRaw = parseFloat(((document.getElementById("docLng") || {}).value || ""));
 
     var workingDays = [];
     for (var d = 0; d <= 6; d++) {
@@ -1371,37 +1381,85 @@ function registerAndSaveDoctor() {
         if (cb && cb.checked) workingDays.push(d);
     }
 
-    auth.createUserWithEmailAndPassword(email, password).then(function(cred) {
+    return {
+        email: email,
+        password: password,
+        docName: docName,
+        specialty: specialty,
+        phone: phone,
+        clinic: {
+            clinicName: clinicName,
+            city: city,
+            street: street,
+            landmark: landmark,
+            startTime: startTime,
+            endTime: endTime,
+            serviceTime: serviceTime,
+            workingDays: workingDays,
+            lat: isNaN(latRaw) ? null : latRaw,
+            lng: isNaN(lngRaw) ? null : lngRaw,
+            serialNumber: 0,
+            dailyCounters: {},
+            isClosed: false,
+            isOnBreak: false
+        }
+    };
+}
+
+function writeDoctorRecordForUid(uid, formData, isReactivation) {
+    var payload = {
+        ownerUid: uid,
+        email: formData.email,
+        name: formData.docName,
+        specialty: formData.specialty,
+        phone: formData.phone,
+        clinics: [formData.clinic],
+        isDeleted: false
+    };
+    if (isReactivation) {
+        payload.reactivatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    } else {
+        payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    return db.collection("doctors").doc(uid).set(payload, { merge: true });
+}
+
+function registerAndSaveDoctor() {
+    var formData = collectRegistrationFormData();
+
+    if (!formData.email || !formData.password || !formData.docName || !formData.clinic.clinicName) {
+        alert("يرجى تعبئة البريد الإلكتروني وكلمة المرور واسم الطبيب واسم العيادة.");
+        return;
+    }
+
+    auth.createUserWithEmailAndPassword(formData.email, formData.password).then(function(cred) {
         var uid = cred.user.uid;
-        return db.collection("doctors").doc(uid).set({
-            ownerUid: uid,
-            email: email,
-            name: docName,
-            specialty: specialty.trim(),
-            phone: phone.trim(),
-            clinics: [
-                {
-                    clinicName: clinicName,
-                    city: city.trim(),
-                    street: street.trim(),
-                    landmark: landmark.trim(),
-                    startTime: startTime,
-                    endTime: endTime,
-                    serviceTime: serviceTime,
-                    workingDays: workingDays,
-                    lat: lat,
-                    lng: lng,
-                    serialNumber: 0,
-                    dailyCounters: {},
-                    isClosed: false,
-                    isOnBreak: false
-                }
-            ],
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        return writeDoctorRecordForUid(uid, formData, false);
     }).then(function() {
         window.location.href = "admin.html";
     }).catch(function(err) {
+        var errCode = err && err.code ? err.code : "";
+        if (errCode === "auth/email-already-in-use") {
+            return auth.signInWithEmailAndPassword(formData.email, formData.password).then(function(signInCred) {
+                var uid = signInCred.user.uid;
+                return db.collection("doctors").doc(uid).get().then(function(docSnap) {
+                    var existing = docSnap.exists ? docSnap.data() : null;
+                    var hasClinics = existing && existing.isDeleted !== true && Array.isArray(existing.clinics) && existing.clinics.length > 0;
+                    if (hasClinics) {
+                        throw new Error("هذا البريد الإلكتروني مرتبط بحساب طبيب نشط مسبقاً. يرجى تسجيل الدخول من تبويب تسجيل الدخول.");
+                    }
+                    return writeDoctorRecordForUid(uid, formData, true).then(function() {
+                        window.location.href = "admin.html";
+                    });
+                });
+            }).catch(function(reErr) {
+                if (reErr && reErr.code === "auth/wrong-password") {
+                    alert("البريد الإلكتروني مستخدم مسبقاً وكلمة المرور المدخلة غير مطابقة له.");
+                } else {
+                    alert(reErr && reErr.message ? reErr.message : "تعذر إعادة تفعيل الحساب.");
+                }
+            });
+        }
         alert(err && err.message ? err.message : "حدث خطأ أثناء إنشاء الحساب.");
     });
 }
