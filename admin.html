@@ -14,23 +14,24 @@
             <div class="brand-box">
                 <i class="fa-solid fa-stethoscope brand-icon"></i>
                 <div>
-                    <h1 class="app-title" id="activeDoctorName">لوحة الطبيب</h1>
+                    <h1 class="app-title" id="activeDoctorName" data-i18n="admin_default_doctor">لوحة الطبيب</h1>
                     <p class="app-subtitle" data-i18n="admin_subtitle">إدارة طابور الانتظار والعيادات</p>
                 </div>
             </div>
             <div class="header-actions">
                 <button type="button" class="btn-outline" onclick="openAddClinicModal()">
-                    <i class="fa-solid fa-plus"></i> إضافة عيادة
+                    <i class="fa-solid fa-plus"></i> <span data-i18n="add_clinic_btn">إضافة عيادة</span>
                 </button>
                 <button type="button" class="btn-outline" onclick="openEditClinicModal()">
-                    <i class="fa-solid fa-pen-to-square"></i> تعديل / حذف العيادة
+                    <i class="fa-solid fa-pen-to-square"></i> <span data-i18n="edit_delete_clinic_btn">تعديل / حذف العيادة</span>
                 </button>
                 <button type="button" id="toggleClinicBtn" class="status-toggle-btn status-open" onclick="toggleClinicStatus()">
-                    <i class="fa-solid fa-lock"></i> إغلاق العيادة
+                    <i class="fa-solid fa-lock"></i> <span data-i18n="close_clinic">إغلاق العيادة</span>
                 </button>
                 <button type="button" class="btn-danger" onclick="logoutDoctor()">
-                    <i class="fa-solid fa-right-from-bracket"></i> خروج
+                    <i class="fa-solid fa-right-from-bracket"></i> <span data-i18n="logout_btn">خروج</span>
                 </button>
+                <button type="button" id="langToggle" class="btn-outline" onclick="toggleLanguage()">EN</button>
             </div>
         </div>
     </header>
@@ -38,11 +39,11 @@
     <main class="container">
         <div class="admin-controls-bar">
             <div>
-                <label for="clinicSelector">اختر العيادة:</label>
+                <label for="clinicSelector" data-i18n="select_clinic_label">اختر العيادة:</label>
                 <select id="clinicSelector" onchange="changeClinic()"></select>
             </div>
             <div>
-                <label for="adminDate">التاريخ:</label>
+                <label for="adminDate" data-i18n="date_label">التاريخ:</label>
                 <input type="date" id="adminDate" onchange="changeAdminDate()">
             </div>
         </div>
@@ -58,11 +59,11 @@
                 <small id="currentServingSerial" style="display:block; margin-top:4px;"></small>
             </div>
             <button type="button" class="btn-primary next-btn" onclick="callNextPatient()">
-                <i class="fa-solid fa-bullhorn"></i> نداء المريض التالي
+                <i class="fa-solid fa-bullhorn"></i> <span data-i18n="call_next_btn">نداء المريض التالي</span>
             </button>
         </div>
 
-        <h3 style="margin:18px 0 10px 0;">قائمة الانتظار</h3>
+        <h3 style="margin:18px 0 10px 0;" data-i18n="waiting_queue_title">قائمة الانتظار</h3>
         <div id="patientsQueue" class="queue-list"></div>
     </main>
 
@@ -70,50 +71,50 @@
     <div id="addClinicModal" class="modal-backdrop hidden">
         <div class="modal-card modal-wide">
             <div class="modal-header">
-                <h3>إضافة عيادة جديدة</h3>
+                <h3 data-i18n="add_clinic_modal_title">إضافة عيادة جديدة</h3>
                 <button type="button" class="close-btn" onclick="closeAddClinicModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <label>اسم العيادة</label>
-                <input type="text" id="addClinicName" placeholder="اسم العيادة">
+                <label data-i18n="clinic_name_label">اسم العيادة</label>
+                <input type="text" id="addClinicName" placeholder="اسم العيادة" data-i18n-placeholder="clinic_name_placeholder">
 
-                <label>المدينة</label>
-                <input type="text" id="addCity" placeholder="المدينة">
+                <label data-i18n="city_label">المدينة</label>
+                <input type="text" id="addCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
 
-                <label>الشارع / الحي</label>
-                <input type="text" id="addStreet" placeholder="الشارع أو الحي">
+                <label data-i18n="street_label">الشارع / الحي</label>
+                <input type="text" id="addStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
 
-                <label>علامة مميزة</label>
-                <input type="text" id="addLandmark" placeholder="بجوار...">
+                <label data-i18n="landmark_label">علامة مميزة</label>
+                <input type="text" id="addLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
 
-                <label>وقت البدء</label>
+                <label data-i18n="start_time_label">وقت البدء</label>
                 <input type="time" id="addStartTime" value="09:00">
 
-                <label>وقت الانتهاء</label>
+                <label data-i18n="end_time_label">وقت الانتهاء</label>
                 <input type="time" id="addEndTime" value="17:00">
 
-                <label>مدة الكشف لكل مريض (بالدقائق)</label>
+                <label data-i18n="service_time_label">مدة الكشف لكل مريض (بالدقائق)</label>
                 <input type="number" id="addServiceTime" value="10" min="1">
 
-                <label>أيام العمل</label>
+                <label data-i18n="working_days_label">أيام العمل</label>
                 <div class="days-grid">
-                    <label><input type="checkbox" id="add_day_0"> الأحد</label>
-                    <label><input type="checkbox" id="add_day_1"> الإثنين</label>
-                    <label><input type="checkbox" id="add_day_2"> الثلاثاء</label>
-                    <label><input type="checkbox" id="add_day_3"> الأربعاء</label>
-                    <label><input type="checkbox" id="add_day_4"> الخميس</label>
-                    <label><input type="checkbox" id="add_day_5"> الجمعة</label>
-                    <label><input type="checkbox" id="add_day_6"> السبت</label>
+                    <label><input type="checkbox" id="add_day_0"> <span data-i18n="day_0">الأحد</span></label>
+                    <label><input type="checkbox" id="add_day_1"> <span data-i18n="day_1">الإثنين</span></label>
+                    <label><input type="checkbox" id="add_day_2"> <span data-i18n="day_2">الثلاثاء</span></label>
+                    <label><input type="checkbox" id="add_day_3"> <span data-i18n="day_3">الأربعاء</span></label>
+                    <label><input type="checkbox" id="add_day_4"> <span data-i18n="day_4">الخميس</span></label>
+                    <label><input type="checkbox" id="add_day_5"> <span data-i18n="day_5">الجمعة</span></label>
+                    <label><input type="checkbox" id="add_day_6"> <span data-i18n="day_6">السبت</span></label>
                 </div>
 
-                <label>حدد موقع العيادة على الخريطة</label>
+                <label data-i18n="map_pick_label">حدد موقع العيادة على الخريطة</label>
                 <div id="add-map" style="height:220px; border-radius:8px; margin-bottom:8px;"></div>
                 <input type="hidden" id="addLat">
                 <input type="hidden" id="addLng">
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn-primary" onclick="saveNewClinic()">حفظ العيادة</button>
-                <button type="button" class="btn-outline" onclick="closeAddClinicModal()">إغلاق</button>
+                <button type="button" class="btn-primary" onclick="saveNewClinic()" data-i18n="save_clinic_btn">حفظ العيادة</button>
+                <button type="button" class="btn-outline" onclick="closeAddClinicModal()" data-i18n="close_btn">إغلاق</button>
             </div>
         </div>
     </div>
@@ -122,58 +123,61 @@
     <div id="editClinicModal" class="modal-backdrop hidden">
         <div class="modal-card modal-wide">
             <div class="modal-header">
-                <h3>تعديل أو حذف العيادة</h3>
+                <h3 data-i18n="edit_clinic_modal_title">تعديل أو حذف العيادة</h3>
                 <button type="button" class="close-btn" onclick="closeEditClinicModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <label>اسم العيادة</label>
+                <label data-i18n="clinic_name_label">اسم العيادة</label>
                 <input type="text" id="editClinicName">
 
-                <label>المدينة</label>
+                <label data-i18n="city_label">المدينة</label>
                 <input type="text" id="editCity">
 
-                <label>الشارع / الحي</label>
+                <label data-i18n="street_label">الشارع / الحي</label>
                 <input type="text" id="editStreet">
 
-                <label>علامة مميزة</label>
+                <label data-i18n="landmark_label">علامة مميزة</label>
                 <input type="text" id="editLandmark">
 
-                <label>وقت البدء</label>
+                <label data-i18n="start_time_label">وقت البدء</label>
                 <input type="time" id="editStartTime">
 
-                <label>وقت الانتهاء</label>
+                <label data-i18n="end_time_label">وقت الانتهاء</label>
                 <input type="time" id="editEndTime">
 
-                <label>مدة الكشف لكل مريض (بالدقائق)</label>
+                <label data-i18n="service_time_label">مدة الكشف لكل مريض (بالدقائق)</label>
                 <input type="number" id="editServiceTime" min="1">
 
-                <label>أيام العمل</label>
+                <label data-i18n="working_days_label">أيام العمل</label>
                 <div class="days-grid">
-                    <label><input type="checkbox" id="edit_day_0"> الأحد</label>
-                    <label><input type="checkbox" id="edit_day_1"> الإثنين</label>
-                    <label><input type="checkbox" id="edit_day_2"> الثلاثاء</label>
-                    <label><input type="checkbox" id="edit_day_3"> الأربعاء</label>
-                    <label><input type="checkbox" id="edit_day_4"> الخميس</label>
-                    <label><input type="checkbox" id="edit_day_5"> الجمعة</label>
-                    <label><input type="checkbox" id="edit_day_6"> السبت</label>
+                    <label><input type="checkbox" id="edit_day_0"> <span data-i18n="day_0">الأحد</span></label>
+                    <label><input type="checkbox" id="edit_day_1"> <span data-i18n="day_1">الإثنين</span></label>
+                    <label><input type="checkbox" id="edit_day_2"> <span data-i18n="day_2">الثلاثاء</span></label>
+                    <label><input type="checkbox" id="edit_day_3"> <span data-i18n="day_3">الأربعاء</span></label>
+                    <label><input type="checkbox" id="edit_day_4"> <span data-i18n="day_4">الخميس</span></label>
+                    <label><input type="checkbox" id="edit_day_5"> <span data-i18n="day_5">الجمعة</span></label>
+                    <label><input type="checkbox" id="edit_day_6"> <span data-i18n="day_6">السبت</span></label>
                 </div>
 
-                <label>حدد موقع العيادة على الخريطة</label>
+                <label data-i18n="map_pick_label">حدد موقع العيادة على الخريطة</label>
                 <div id="edit-map" style="height:220px; border-radius:8px; margin-bottom:8px;"></div>
                 <input type="hidden" id="editLat">
                 <input type="hidden" id="editLng">
 
-                <button type="button" class="btn-primary" style="width:100%; margin-top:12px;" onclick="saveEditClinic()">حفظ التعديلات</button>
+                <button type="button" class="btn-primary" style="width:100%; margin-top:12px;" onclick="saveEditClinic()" data-i18n="save_edits_btn">حفظ التعديلات</button>
 
                 <div class="danger-zone-box">
-                    <h4 style="margin:0 0 8px 0; color:#dc2626;">إلغاء وحذف العيادة بالكامل</h4>
-                    <p style="margin:0 0 8px 0; font-size:12px;">سيتم حذف العيادة وجميع حجوزاتها نهائياً. لكي يتم الحذف، اكتب العبارة التالية بدقة: <b>إحذف العيادة</b></p>
-                    <input type="text" id="deleteClinicConfirmInput" placeholder="اكتب: إحذف العيادة" style="width:100%; padding:8px; margin-bottom:8px;">
-                    <button type="button" onclick="deleteCurrentClinic()" style="width:100%; padding:9px; background:#dc2626; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">تأكيد حذف العيادة</button>
+                    <h4 style="margin:0 0 8px 0; color:#dc2626;" data-i18n="delete_clinic_heading">إلغاء وحذف العيادة بالكامل</h4>
+                    <p style="margin:0 0 8px 0; font-size:12px;">
+                        <span data-i18n="delete_clinic_warning">سيتم حذف العيادة وجميع حجوزاتها نهائياً. لكي يتم الحذف، اكتب العبارة التالية بدقة:</span>
+                        <b data-i18n="delete_clinic_phrase">إحذف العيادة</b>
+                    </p>
+                    <input type="text" id="deleteClinicConfirmInput" placeholder="اكتب: إحذف العيادة" data-i18n-placeholder="delete_clinic_placeholder" style="width:100%; padding:8px; margin-bottom:8px;">
+                    <button type="button" onclick="deleteCurrentClinic()" style="width:100%; padding:9px; background:#dc2626; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold;" data-i18n="confirm_delete_clinic_btn">تأكيد حذف العيادة</button>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn-outline" onclick="closeEditClinicModal()">إغلاق</button>
+                <button type="button" class="btn-outline" onclick="closeEditClinicModal()" data-i18n="close_btn">إغلاق</button>
             </div>
         </div>
     </div>
