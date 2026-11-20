@@ -248,6 +248,12 @@ function listenToQueue() {
 function callSpecificPatient(bookingId) {
     if (!bookingId || !currentDoctorId) return;
     var dateFilter = currentAdminDate || getTodayStrAdmin();
+    var todayStr = getTodayStrAdmin();
+
+    if (dateFilter > todayStr) {
+        alert("هذا التاريخ (" + dateFilter + ") موعد قادم ولم يحن يومه بعد. لا يمكن نداء أو إدخال المراجعين قبل يوم موعدهم.");
+        return;
+    }
 
     db.collection("bookings")
         .where("doctorId", "==", currentDoctorId)
@@ -270,6 +276,12 @@ function callSpecificPatient(bookingId) {
 function callNextPatient() {
     if (!currentDoctorId) return;
     var dateFilter = currentAdminDate || getTodayStrAdmin();
+    var todayStr = getTodayStrAdmin();
+
+    if (dateFilter > todayStr) {
+        alert("هذا التاريخ (" + dateFilter + ") موعد قادم ولم يحن يومه بعد. لا يمكن نداء المراجعين قبل يوم موعدهم.");
+        return;
+    }
 
     db.collection("bookings")
         .where("doctorId", "==", currentDoctorId)
