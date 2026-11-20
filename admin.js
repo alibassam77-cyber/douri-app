@@ -47,6 +47,23 @@ function logoutDoctor() {
     });
 }
 
+function rejectMissingDoctorAccount() {
+    alert("الحساب غير موجود");
+    if (unsubscribeBookingsAdmin) {
+        unsubscribeBookingsAdmin();
+        unsubscribeBookingsAdmin = null;
+    }
+    if (auth) {
+        auth.signOut().then(function() {
+            window.location.href = "index.html";
+        }).catch(function() {
+            window.location.href = "index.html";
+        });
+    } else {
+        window.location.href = "index.html";
+    }
+}
+
 function deleteBookingsByQuery(query) {
     return query.get().then(function(snapshot) {
         if (snapshot.empty) return Promise.resolve();
@@ -55,6 +72,20 @@ function deleteBookingsByQuery(query) {
             batch.delete(doc.ref);
         });
         return batch.commit();
+    });
+}
+
+function tryDeleteCurrentAuthUser() {
+    if (!auth || !auth.currentUser) {
+        return Promise.resolve({ deletedAuth: false, reason: "no_user" });
+    }
+    return auth.currentUser.delete().then(function() {
+        return { deletedAuth: true };
+    }).catch(function(err) {
+        return {
+            deletedAuth: false,
+            reason: (err && err.code) || "auth_delete_failed"
+        };
     });
 }
 
@@ -77,7 +108,7 @@ function deleteClinicAndBookings(clinicIndex) {
     }).then(function() {
         currentDoctorData.clinics = clinics;
         if (clinics.length === 0) {
-            var deleteAccountConfirm = confirm("لم يتبقَّ أي عيادة للطبيب. هل تريد حذف سجل الطبيب نهائياً من قائمة الأطباء أيضاً؟");
+            var deleteAccountConfirm = confirm("تم حذف جميع عيادات الطبيب. هل تريد حذف حساب الطبيب وجميع مواعيده نهائياً؟");
             if (deleteAccountConfirm) {
                 return deleteDoctorPermanently();
             }
@@ -103,7 +134,13 @@ function deleteDoctorPermanently() {
             unsubscribeBookingsAdmin();
             unsubscribeBookingsAdmin = null;
         }
-        alert("تم حذف الطبيب وجميع مواعيده نهائياً.");
+        return tryDeleteCurrentAuthUser();
+    }).then(function(authResult) {
+        if (authResult && authResult.deletedAuth) {
+            alert("تم حذف حساب الطبيب وبياناته وجميع مواعيده نهائياً.");
+        } else {
+            alert("تم حذف بيانات الطبيب وجميع مواعيده من قاعدة البيانات بنجاح. ملاحظة: إذا بقي حساب البريد في قائمة Authentication بسبب سياسة جلسة الدخول، يمكنك حذفه من Firebase Console → Authentication.");
+        }
         window.location.href = "index.html";
     }).catch(function(err) {
         console.error(err);
@@ -390,7 +427,7 @@ window.onload = function() {
         currentDoctorId = user.uid;
         db.collection("doctors").doc(user.uid).get().then(function(docSnap) {
             if (!docSnap.exists) {
-                window.location.href = "index.html";
+                rejectMissingDoctorAccount();
                 return;
             }
             currentDoctorData = docSnap.data();
