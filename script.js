@@ -1319,8 +1319,22 @@ function loginDoctor() {
         return;
     }
 
-    auth.signInWithEmailAndPassword(email, password).then(function() {
-        window.location.href = "admin.html";
+    auth.signInWithEmailAndPassword(email, password).then(function(cred) {
+        var uid = cred && cred.user ? cred.user.uid : null;
+        if (!uid) {
+            return auth.signOut().then(function() {
+                alert("الحساب غير موجود");
+            });
+        }
+
+        return db.collection("doctors").doc(uid).get().then(function(docSnap) {
+            if (!docSnap.exists) {
+                return auth.signOut().then(function() {
+                    alert("الحساب غير موجود");
+                });
+            }
+            window.location.href = "admin.html";
+        });
     }).catch(function(err) {
         alert(err && err.message ? err.message : "فشل تسجيل الدخول.");
     });
