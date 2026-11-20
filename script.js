@@ -524,6 +524,10 @@ function updateActiveBookingBanner() {
     }).catch(function() {});
 }
 
+function hasValidClinics(doc) {
+    return !!(doc && Array.isArray(doc.clinics) && doc.clinics.length > 0);
+}
+
 function loadDoctors() {
     var listEl = document.getElementById("doctorsList");
     if (unsubscribeDoctors) {
@@ -545,7 +549,7 @@ function loadDoctors() {
             var data = doc.data();
             data.id = doc.id;
             allDoctors.push(data);
-            if (Array.isArray(data.clinics)) {
+            if (hasValidClinics(data)) {
                 data.clinics.forEach(function(c) {
                     if (c && c.city) {
                         citiesSet[c.city.trim()] = true;
@@ -593,21 +597,21 @@ function filterDoctors() {
     var cityQuery = cityInput ? cityInput.value.trim().toLowerCase() : "";
 
     var filtered = allDoctors.filter(function(doc) {
+        if (!hasValidClinics(doc)) return false;
+
         var nameMatch = (doc.name || "").toLowerCase().indexOf(query) !== -1;
         var specMatch = (doc.specialty || "").toLowerCase().indexOf(query) !== -1;
         var clinicNameMatch = false;
         var cityMatch = !cityQuery;
 
-        if (Array.isArray(doc.clinics)) {
-            for (var i = 0; i < doc.clinics.length; i++) {
-                var c = doc.clinics[i];
-                if (!c) continue;
-                if ((c.clinicName || "").toLowerCase().indexOf(query) !== -1) {
-                    clinicNameMatch = true;
-                }
-                if (cityQuery && (c.city || "").toLowerCase().indexOf(cityQuery) !== -1) {
-                    cityMatch = true;
-                }
+        for (var i = 0; i < doc.clinics.length; i++) {
+            var c = doc.clinics[i];
+            if (!c) continue;
+            if ((c.clinicName || "").toLowerCase().indexOf(query) !== -1) {
+                clinicNameMatch = true;
+            }
+            if (cityQuery && (c.city || "").toLowerCase().indexOf(cityQuery) !== -1) {
+                cityMatch = true;
             }
         }
 
@@ -628,14 +632,16 @@ function renderDoctorsList(doctors) {
     var listEl = document.getElementById("doctorsList");
     if (!listEl) return;
 
-    if (!doctors || doctors.length === 0) {
+    var validDoctors = Array.isArray(doctors) ? doctors.filter(hasValidClinics) : [];
+
+    if (validDoctors.length === 0) {
         listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--text-muted);">' + t("no_results") + '</p>';
         return;
     }
 
     var html = "";
-    doctors.forEach(function(doc) {
-        var clinics = Array.isArray(doc.clinics) ? doc.clinics : [];
+    validDoctors.forEach(function(doc) {
+        var clinics = doc.clinics;
         var primaryClinic = clinics[0] || {};
         var isClosed = primaryClinic.isClosed === true;
         var isOnBreak = primaryClinic.isOnBreak === true;
@@ -685,7 +691,7 @@ function renderDoctorsList(doctors) {
 
 function openClinicSelection(doctorId) {
     var doc = allDoctors.find(function(d) { return d.id === doctorId; });
-    if (!doc || !Array.isArray(doc.clinics)) return;
+    if (!doc || !hasValidClinics(doc)) return;
 
     var container = document.getElementById("clinicSelectionList");
     var modal = document.getElementById("clinicSelectionModal");
@@ -718,9 +724,8 @@ function closeClinicSelectionModal() {
 
 function openBookingModal(doctorId, clinicIndex) {
     var doc = allDoctors.find(function(d) { return d.id === doctorId; });
-    if (!doc) return;
-    var clinics = Array.isArray(doc.clinics) ? doc.clinics : [];
-    var clinic = clinics[clinicIndex || 0];
+    if (!doc || !hasValidClinics(doc)) return;
+    var clinic = doc.clinics[clinicIndex || 0];
     if (!clinic || clinic.isClosed === true) return;
 
     selectedDoctor = doc;
