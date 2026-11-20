@@ -111,8 +111,8 @@
                 </div>
 
                 <div id="bookingCredentials" class="credentials-box hidden">
-                    <p><strong>رقم الحجز:</strong> <span id="bookingReference">---</span></p>
-                    <p><strong>الرمز السري:</strong> <span id="bookingSecret">---</span></p>
+                    <p><strong data-i18n="booking_ref_label">رقم الحجز:</strong> <span id="bookingReference">---</span></p>
+                    <p><strong data-i18n="booking_secret_label">الرمز السري:</strong> <span id="bookingSecret">---</span></p>
                     <button type="button" class="btn-outline" onclick="copyPatientCredentials()">
                         <i class="fa-solid fa-copy"></i> <span data-i18n="copy_secret_btn">نسخ الرمز السري</span>
                     </button>
@@ -129,17 +129,17 @@
     <div id="bookingModal" class="modal-backdrop hidden">
         <div class="modal-card">
             <div class="modal-header">
-                <h3 id="modalDoctorName">حجز موعد</h3>
+                <h3 id="modalDoctorName" data-i18n="book_now">حجز موعد</h3>
                 <button type="button" class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <label data-i18n="patient_name_label">اسم المريض</label>
-                <input type="text" id="bookingName" placeholder="أدخل اسم المريض">
+                <input type="text" id="bookingName" placeholder="أدخل اسم المريض" data-i18n-placeholder="patient_name_placeholder">
 
                 <label data-i18n="patient_phone_label">رقم الهاتف</label>
-                <input type="tel" id="bookingPhone" placeholder="أدخل رقم الهاتف">
+                <input type="tel" id="bookingPhone" placeholder="أدخل رقم الهاتف" data-i18n-placeholder="patient_phone_placeholder">
 
-                <label>اختر يوم الحجز</label>
+                <label data-i18n="choose_day_label">اختر يوم الحجز</label>
                 <input type="hidden" id="bookingDate">
                 <div id="customBookingCalendar" class="custom-calendar"></div>
                 <small id="calendarHint" style="display:block; margin-top:6px; color:var(--text-muted); font-size:12px;"></small>
@@ -171,75 +171,75 @@
             </div>
             <div class="modal-body">
                 <div class="auth-tabs">
-                    <button type="button" id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')">تسجيل الدخول</button>
-                    <button type="button" id="tabRegister" class="auth-tab" onclick="switchAuthTab('register')">إنشاء حساب عيادة</button>
+                    <button type="button" id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')" data-i18n="tab_login">تسجيل الدخول</button>
+                    <button type="button" id="tabRegister" class="auth-tab" onclick="switchAuthTab('register')" data-i18n="tab_register">إنشاء حساب عيادة</button>
                 </div>
 
                 <div id="loginSection">
-                    <label>البريد الإلكتروني</label>
+                    <label data-i18n="email_label">البريد الإلكتروني</label>
                     <input type="email" id="loginEmail" placeholder="doctor@example.com">
 
-                    <label>كلمة المرور</label>
+                    <label data-i18n="password_label">كلمة المرور</label>
                     <input type="password" id="loginPassword" placeholder="********">
 
-                    <button type="button" class="btn-primary" style="width:100%; margin-top:12px;" onclick="loginDoctor()">دخول</button>
+                    <button type="button" class="btn-primary" style="width:100%; margin-top:12px;" onclick="loginDoctor()" data-i18n="login_btn">دخول</button>
                 </div>
 
                 <div id="registerSection" class="hidden">
-                    <label>البريد الإلكتروني</label>
+                    <label data-i18n="email_label">البريد الإلكتروني</label>
                     <input type="email" id="regEmail" placeholder="doctor@example.com">
 
-                    <label>كلمة المرور (6 أحرف على الأقل)</label>
+                    <label data-i18n="password_min_label">كلمة المرور (6 أحرف على الأقل)</label>
                     <input type="password" id="regPassword" placeholder="********">
 
-                    <label>رمز التفعيل</label>
-                    <input type="text" id="regActivationCode" placeholder="أدخل رمز التفعيل">
+                    <label data-i18n="activation_code_label">رمز التفعيل</label>
+                    <input type="text" id="regActivationCode" placeholder="أدخل رمز التفعيل" data-i18n-placeholder="activation_code_placeholder">
 
-                    <label>اسم الطبيب</label>
-                    <input type="text" id="docName" placeholder="د. أحمد محمد">
+                    <label data-i18n="doctor_name_label">اسم الطبيب</label>
+                    <input type="text" id="docName" placeholder="د. أحمد محمد" data-i18n-placeholder="doctor_name_placeholder">
 
-                    <label>التخصص</label>
-                    <input type="text" id="docSpecialty" placeholder="باطنية / أطفال / أسنان...">
+                    <label data-i18n="specialty_label">التخصص</label>
+                    <input type="text" id="docSpecialty" placeholder="باطنية / أطفال / أسنان..." data-i18n-placeholder="specialty_placeholder">
 
-                    <label>رقم الهاتف</label>
-                    <input type="tel" id="docPhone" placeholder="رقم التواصل">
+                    <label data-i18n="patient_phone_label">رقم الهاتف</label>
+                    <input type="tel" id="docPhone" placeholder="رقم التواصل" data-i18n-placeholder="phone_placeholder">
 
                     <hr style="margin:14px 0;">
 
-                    <label>اسم العيادة</label>
-                    <input type="text" id="docClinicName" placeholder="عيادة الشفاء">
+                    <label data-i18n="clinic_name_label">اسم العيادة</label>
+                    <input type="text" id="docClinicName" placeholder="عيادة الشفاء" data-i18n-placeholder="clinic_name_placeholder">
 
-                    <label>المدينة</label>
-                    <input type="text" id="docCity" placeholder="المدينة">
+                    <label data-i18n="city_label">المدينة</label>
+                    <input type="text" id="docCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
 
-                    <label>الشارع / الحي</label>
-                    <input type="text" id="docStreet" placeholder="الشارع أو الحي">
+                    <label data-i18n="street_label">الشارع / الحي</label>
+                    <input type="text" id="docStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
 
-                    <label>علامة مميزة</label>
-                    <input type="text" id="docLandmark" placeholder="بجوار...">
+                    <label data-i18n="landmark_label">علامة مميزة</label>
+                    <input type="text" id="docLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
 
-                    <label>وقت البدء</label>
+                    <label data-i18n="start_time_label">وقت البدء</label>
                     <input type="time" id="docStartTime" value="09:00">
 
-                    <label>وقت الانتهاء</label>
+                    <label data-i18n="end_time_label">وقت الانتهاء</label>
                     <input type="time" id="docEndTime" value="17:00">
 
-                    <label>مدة الكشف لكل مريض (بالدقائق)</label>
+                    <label data-i18n="service_time_label">مدة الكشف لكل مريض (بالدقائق)</label>
                     <input type="number" id="docServiceTime" value="10" min="1">
 
-                    <label>أيام العمل</label>
+                    <label data-i18n="working_days_label">أيام العمل</label>
                     <div class="days-grid">
-                        <label><input type="checkbox" id="day_0"> الأحد</label>
-                        <label><input type="checkbox" id="day_1"> الإثنين</label>
-                        <label><input type="checkbox" id="day_2"> الثلاثاء</label>
-                        <label><input type="checkbox" id="day_3"> الأربعاء</label>
-                        <label><input type="checkbox" id="day_4"> الخميس</label>
-                        <label><input type="checkbox" id="day_5"> الجمعة</label>
-                        <label><input type="checkbox" id="day_6"> السبت</label>
+                        <label><input type="checkbox" id="day_0"> <span data-i18n="day_0">الأحد</span></label>
+                        <label><input type="checkbox" id="day_1"> <span data-i18n="day_1">الإثنين</span></label>
+                        <label><input type="checkbox" id="day_2"> <span data-i18n="day_2">الثلاثاء</span></label>
+                        <label><input type="checkbox" id="day_3"> <span data-i18n="day_3">الأربعاء</span></label>
+                        <label><input type="checkbox" id="day_4"> <span data-i18n="day_4">الخميس</span></label>
+                        <label><input type="checkbox" id="day_5"> <span data-i18n="day_5">الجمعة</span></label>
+                        <label><input type="checkbox" id="day_6"> <span data-i18n="day_6">السبت</span></label>
                     </div>
 
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
-                        <label style="margin:0;">حدد موقع العيادة على الخريطة</label>
+                        <label style="margin:0;" data-i18n="map_pick_label">حدد موقع العيادة على الخريطة</label>
                         <button type="button" class="btn-outline" onclick="useCurrentLocationForClinic()">
                             <i class="fa-solid fa-location-crosshairs"></i> <span data-i18n="my_location_btn">تحديد موقعي الحالي</span>
                         </button>
@@ -249,8 +249,8 @@
                     <input type="hidden" id="docLng">
 
                     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                        <button type="button" class="btn-outline" onclick="addAnotherClinicField()">+ إضافة عيادة أخرى</button>
-                        <button type="button" class="btn-primary" onclick="registerAndSaveDoctor()">حفظ وإنشاء الحساب</button>
+                        <button type="button" class="btn-outline" onclick="addAnotherClinicField()" data-i18n="add_another_clinic_btn">+ إضافة عيادة أخرى</button>
+                        <button type="button" class="btn-primary" onclick="registerAndSaveDoctor()" data-i18n="save_create_account_btn">حفظ وإنشاء الحساب</button>
                     </div>
                 </div>
             </div>
