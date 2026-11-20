@@ -1,17 +1,30 @@
-var db = (typeof firebase !== "undefined" && firebase.apps && firebase.apps.length)
-    ? firebase.firestore()
-    : null;
-var auth = (typeof firebase !== "undefined" && firebase.apps && firebase.apps.length)
-    ? firebase.auth()
-    : null;
+var firebaseConfig = {
+    apiKey: "AIzaSyBupRlote48_0GtaelL_a13uYUfFPhCWbE",
+    authDomain: "douri-app-63918.firebaseapp.com",
+    projectId: "douri-app-63918",
+    storageBucket: "douri-app-63918.firebasestorage.app",
+    messagingSenderId: "653080780726",
+    appId: "1:653080780726:web:4f2b3421b905e65af9ab17"
+};
+
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+var db = firebase.firestore();
+var auth = firebase.auth();
 
 var currentDoctorId = null;
 var currentDoctorData = null;
-var selectedClinicIndex = 0;
-var unsubscribeBookingsAdmin = null;
-var adminAddMap = null;
-var adminAddMarker = null;
-var adminLocationControlAdded = false;
+var currentClinicIndex = 0;
+var currentAdminDate = "";
+var unsubscribeQueue = null;
+
+var addMap = null;
+var addMarker = null;
+var editMap = null;
+var editMarker = null;
+var addLocationControlAdded = false;
+var editLocationControlAdded = false;
 
 function getTodayStrAdmin() {
     var now = new Date();
@@ -19,12 +32,6 @@ function getTodayStrAdmin() {
     var m = String(now.getMonth() + 1).padStart(2, "0");
     var d = String(now.getDate()).padStart(2, "0");
     return y + "-" + m + "-" + d;
-}
-
-function toggleTheme() {
-    document.body.classList.toggle("dark-mode");
-    var isDark = document.body.classList.contains("dark-mode");
-    localStorage.setItem("douri_theme", isDark ? "dark" : "light");
 }
 
 function applySavedThemeAdmin() {
@@ -35,10 +42,23 @@ function applySavedThemeAdmin() {
     }
 }
 
-function logoutDoctor() {
-    if (!auth) {
+function rejectMissingDoctorAccount() {
+    if (unsubscribeQueue) {
+        unsubscribeQueue();
+        unsubscribeQueue = null;
+    }
+    alert("الحساب غير موجود");
+    auth.signOut().then(function() {
         window.location.href = "index.html";
-        return;
+    }).catch(function() {
+        window.location.href = "index.html";
+    });
+}
+
+function logoutDoctor() {
+    if (unsubscribeQueue) {
+        unsubscribeQueue();
+        unsubscribeQueue = null;
     }
     auth.signOut().then(function() {
         window.location.href = "index.html";
@@ -47,21 +67,530 @@ function logoutDoctor() {
     });
 }
 
-function rejectMissingDoctorAccount() {
-    alert("الحساب غير موجود");
-    if (unsubscribeBookingsAdmin) {
-        unsubscribeBookingsAdmin();
-        unsubscribeBookingsAdmin = null;
+function populateClinicSelector() {
+    var sel = document.getElementById("clinicSelector");
+    if (!sel || !currentDoctorData) return;
+
+    var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics : [];
+    if (currentClinicIndex >= clinics.length) {
+        currentClinicIndex = 0;
     }
-    if (auth) {
-        auth.signOut().then(function() {
-            window.location.href = "index.html";
-        }).catch(function() {
-            window.location.href = "index.html";
+
+    sel.innerHTML = "";
+    if (clinics.length === 0) {
+        var emptyOpt = document.createElement("option");
+        emptyOpt.value = "";
+        emptyOpt.textContent = "لا توجد عيادات";
+        sel.appendChild(emptyOpt);
+        updateToggleClinicButton(null);
+        return;
+    }
+
+    clinics.forEach(function(c, idx) {
+        var opt = document.createElement("option");
+        opt.value = String(idx);
+        opt.textContent = c.clinicName || ("عيادة " + (idx + 1));
+        if (idx === currentClinicIndex) {
+            opt.selected = true;
+        }
+        sel.appendChild(opt);
+    });
+
+    var activeClinic = clinics[currentClinicIndex] || null;
+    updateToggleClinicButton(activeClinic);
+}
+
+function updateToggleClinicButton(clinic) {
+    var btn = document.getElementById("toggleClinicBtn");
+    if (!btn) return;
+    if (!clinic) {
+        btn.disabled = true;
+        return;
+    }
+    btn.disabled = false;
+    if (clinic.isClosed === true) {
+        btn.className = "status-toggle-btn status-closed";
+        btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> فتح العيادة';
+    } else {
+        btn.className = "status-toggle-btn status-open";
+        btn.innerHTML = '<i class="fa-solid fa-lock"></i> إغلاق العيادة';
+    }
+}
+
+function changeClinic() {
+    var sel = document.getElementById("clinicSelector");
+    if (!sel) return;
+    var idx = parseInt(sel.value, 10);
+    if (isNaN(idx) || idx < 0) idx = 0;
+    currentClinicIndex = idx;
+
+    var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
+    updateToggleClinicButton(clinics[currentClinicIndex] || null);
+    listenToQueue();
+}
+
+function changeAdminDate() {
+    var dateInp = document.getElementById("adminDate");
+    if (!dateInp) return;
+    if (!dateInp.value) {
+        dateInp.value = getTodayStrAdmin();
+    }
+    currentAdminDate = dateInp.value;
+    listenToQueue();
+}
+
+function toggleClinicStatus() {
+    if (!currentDoctorId || !currentDoctorData) return;
+    var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics.slice() : [];
+    if (!clinics[currentClinicIndex]) return;
+
+    clinics[currentClinicIndex].isClosed = !(clinics[currentClinicIndex].isClosed === true);
+    db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics }).then(function() {
+        currentDoctorData.clinics = clinics;
+        updateToggleClinicButton(clinics[currentClinicIndex]);
+        alert(clinics[currentClinicIndex].isClosed ? "تم إغلاق العيادة مؤقتاً." : "تم فتح العيادة لاستقبال المراجعين.");
+    }).catch(function(err) {
+        console.error(err);
+        alert("تعذر تحديث حالة العيادة.");
+    });
+}
+
+function listenToQueue() {
+    var queueEl = document.getElementById("patientsQueue");
+    if (!queueEl || !currentDoctorId) return;
+
+    if (unsubscribeQueue) {
+        unsubscribeQueue();
+        unsubscribeQueue = null;
+    }
+
+    var dateFilter = currentAdminDate || getTodayStrAdmin();
+
+    unsubscribeQueue = db.collection("bookings")
+        .where("doctorId", "==", currentDoctorId)
+        .where("clinicIndex", "==", currentClinicIndex)
+        .where("date", "==", dateFilter)
+        .onSnapshot(function(snapshot) {
+            var allItems = [];
+            snapshot.forEach(function(doc) {
+                var d = doc.data();
+                d.id = doc.id;
+                if (d.status !== "cancelled") {
+                    allItems.push(d);
+                }
+            });
+
+            allItems.sort(function(a, b) {
+                return (parseInt(a.ticketNumber, 10) || 0) - (parseInt(b.ticketNumber, 10) || 0);
+            });
+
+            var servingItem = allItems.find(function(item) { return item.status === "serving"; }) || null;
+            var dispNum = document.getElementById("currentServingDisplay");
+            var dispName = document.getElementById("currentServingName");
+            var dispSerial = document.getElementById("currentServingSerial");
+
+            if (servingItem) {
+                if (dispNum) dispNum.innerText = "#" + (servingItem.ticketNumber || "-");
+                if (dispName) dispName.innerText = servingItem.patientName || "-";
+                if (dispSerial) dispSerial.innerText = servingItem.serialNumber ? ("رقم تسلسلي: " + servingItem.serialNumber) : "";
+            } else {
+                if (dispNum) dispNum.innerText = "-";
+                if (dispName) dispName.innerText = "-";
+                if (dispSerial) dispSerial.innerText = "";
+            }
+
+            var waitingItems = allItems.filter(function(item) { return item.status !== "done"; });
+            if (waitingItems.length === 0) {
+                queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا يوجد مراجعون في قائمة الانتظار لهذا التاريخ.</p>';
+                return;
+            }
+
+            var html = "";
+            waitingItems.forEach(function(item) {
+                var isServing = item.status === "serving";
+                var badgeClass = isServing ? "badge badge-open" : "badge badge-break";
+                var badgeText = isServing ? "قيد الكشف" : "ينتظر";
+
+                html += '<div class="queue-card">' +
+                    '<div class="queue-info">' +
+                        '<span class="queue-number">#' + (item.ticketNumber || "-") + '</span>' +
+                        '<div>' +
+                            '<strong>' + (item.patientName || "") + '</strong>' +
+                            (item.patientPhone ? '<div><small>' + item.patientPhone + '</small></div>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="queue-actions">' +
+                        '<span class="' + badgeClass + '">' + badgeText + '</span>' +
+                        (!isServing ? '<button type="button" class="btn-primary" onclick="callSpecificPatient(\'' + item.id + '\')">نداء</button>' : '') +
+                        '<button type="button" class="btn-outline" onclick="completePatientBooking(\'' + item.id + '\')">إنهاء</button>' +
+                    '</div>' +
+                '</div>';
+            });
+
+            queueEl.innerHTML = html;
+        }, function(err) {
+            console.error(err);
+        });
+}
+
+function callSpecificPatient(bookingId) {
+    if (!bookingId || !currentDoctorId) return;
+    var dateFilter = currentAdminDate || getTodayStrAdmin();
+
+    db.collection("bookings")
+        .where("doctorId", "==", currentDoctorId)
+        .where("clinicIndex", "==", currentClinicIndex)
+        .where("date", "==", dateFilter)
+        .where("status", "==", "serving")
+        .get()
+        .then(function(snap) {
+            var batch = db.batch();
+            snap.forEach(function(doc) {
+                if (doc.id !== bookingId) {
+                    batch.update(doc.ref, { status: "done" });
+                }
+            });
+            batch.update(db.collection("bookings").doc(bookingId), { status: "serving" });
+            return batch.commit();
+        });
+}
+
+function callNextPatient() {
+    if (!currentDoctorId) return;
+    var dateFilter = currentAdminDate || getTodayStrAdmin();
+
+    db.collection("bookings")
+        .where("doctorId", "==", currentDoctorId)
+        .where("clinicIndex", "==", currentClinicIndex)
+        .where("date", "==", dateFilter)
+        .get()
+        .then(function(snap) {
+            var activeList = [];
+            snap.forEach(function(doc) {
+                var d = doc.data();
+                d.id = doc.id;
+                if (d.status !== "cancelled" && d.status !== "done") {
+                    activeList.push(d);
+                }
+            });
+
+            activeList.sort(function(a, b) {
+                return (parseInt(a.ticketNumber, 10) || 0) - (parseInt(b.ticketNumber, 10) || 0);
+            });
+
+            if (activeList.length === 0) {
+                alert("لا يوجد مراجعون بانتظار الدور حالياً.");
+                return;
+            }
+
+            var currentServingIdx = -1;
+            for (var i = 0; i < activeList.length; i++) {
+                if (activeList[i].status === "serving") {
+                    currentServingIdx = i;
+                    break;
+                }
+            }
+
+            var batch = db.batch();
+            if (currentServingIdx >= 0) {
+                batch.update(db.collection("bookings").doc(activeList[currentServingIdx].id), { status: "done" });
+            }
+
+            var nextIdx = currentServingIdx >= 0 ? currentServingIdx + 1 : 0;
+            if (nextIdx < activeList.length) {
+                batch.update(db.collection("bookings").doc(activeList[nextIdx].id), { status: "serving" });
+                return batch.commit().then(function() {
+                    return activeList[nextIdx];
+                });
+            }
+
+            return batch.commit().then(function() {
+                return null;
+            });
+        }).then(function(nextPatient) {
+            if (!nextPatient) {
+                alert("تم إنهاء جميع المراجعين في القائمة.");
+            }
+        }).catch(function(err) {
+            console.error(err);
+        });
+}
+
+function completePatientBooking(bookingId) {
+    if (!bookingId) return;
+    db.collection("bookings").doc(bookingId).update({ status: "done" });
+}
+
+function setMapCoordsForModal(mode, lat, lng, zoom) {
+    var latNum = parseFloat(lat);
+    var lngNum = parseFloat(lng);
+    if (isNaN(latNum) || isNaN(lngNum)) return;
+
+    if (mode === "add") {
+        var latInp = document.getElementById("addLat");
+        var lngInp = document.getElementById("addLng");
+        if (latInp) latInp.value = latNum.toFixed(6);
+        if (lngInp) lngInp.value = lngNum.toFixed(6);
+        initAddMap(latNum, lngNum, zoom || 15);
+    } else {
+        var eLatInp = document.getElementById("editLat");
+        var eLngInp = document.getElementById("editLng");
+        if (eLatInp) eLatInp.value = latNum.toFixed(6);
+        if (eLngInp) eLngInp.value = lngNum.toFixed(6);
+        initEditMap(latNum, lngNum, zoom || 15);
+    }
+}
+
+function attachGeoButtonToMap(mapInstance, mode, alreadyAddedFlagName) {
+    if (!mapInstance || window[alreadyAddedFlagName] || typeof L === "undefined") return;
+    var btnTitle = typeof t === "function" ? t("my_location_btn") : "تحديد موقعي الحالي";
+
+    var GeoControl = L.Control.extend({
+        options: { position: "topright" },
+        onAdd: function() {
+            var btn = L.DomUtil.create("button", "leaflet-bar leaflet-control");
+            btn.type = "button";
+            btn.title = btnTitle;
+            btn.style.background = "#ffffff";
+            btn.style.color = "#111827";
+            btn.style.border = "1px solid rgba(0,0,0,0.2)";
+            btn.style.borderRadius = "6px";
+            btn.style.padding = "6px 10px";
+            btn.style.fontWeight = "600";
+            btn.style.fontSize = "12px";
+            btn.style.cursor = "pointer";
+            btn.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+            btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> ' + btnTitle;
+
+            L.DomEvent.disableClickPropagation(btn);
+            L.DomEvent.on(btn, "click", function(e) {
+                L.DomEvent.stopPropagation(e);
+                L.DomEvent.preventDefault(e);
+                if (!navigator.geolocation) {
+                    alert("المتصفح لا يدعم تحديد الموقع الجغرافي.");
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(function(pos) {
+                    setMapCoordsForModal(mode, pos.coords.latitude, pos.coords.longitude, 16);
+                }, function() {
+                    alert("تعذر الوصول إلى موقعك الحالي.");
+                }, { enableHighAccuracy: true, timeout: 10000 });
+            });
+            return btn;
+        }
+    });
+
+    mapInstance.addControl(new GeoControl());
+    window[alreadyAddedFlagName] = true;
+}
+
+function initAddMap(lat, lng, zoom) {
+    var el = document.getElementById("add-map");
+    if (!el || typeof L === "undefined") return;
+    var centerLat = !isNaN(parseFloat(lat)) ? parseFloat(lat) : 15.3694;
+    var centerLng = !isNaN(parseFloat(lng)) ? parseFloat(lng) : 44.1910;
+    var z = zoom || 12;
+
+    if (!addMap) {
+        addMap = L.map("add-map").setView([centerLat, centerLng], z);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap"
+        }).addTo(addMap);
+        attachGeoButtonToMap(addMap, "add", "addLocationControlAdded");
+        addMap.on("click", function(e) {
+            setMapCoordsForModal("add", e.latlng.lat, e.latlng.lng, addMap.getZoom());
         });
     } else {
-        window.location.href = "index.html";
+        addMap.setView([centerLat, centerLng], z);
     }
+
+    if (!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng))) {
+        if (addMarker) {
+            addMarker.setLatLng([centerLat, centerLng]);
+        } else {
+            addMarker = L.marker([centerLat, centerLng]).addTo(addMap);
+        }
+    }
+
+    setTimeout(function() {
+        if (addMap) addMap.invalidateSize();
+    }, 200);
+}
+
+function initEditMap(lat, lng, zoom) {
+    var el = document.getElementById("edit-map");
+    if (!el || typeof L === "undefined") return;
+    var centerLat = !isNaN(parseFloat(lat)) ? parseFloat(lat) : 15.3694;
+    var centerLng = !isNaN(parseFloat(lng)) ? parseFloat(lng) : 44.1910;
+    var z = zoom || 12;
+
+    if (!editMap) {
+        editMap = L.map("edit-map").setView([centerLat, centerLng], z);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap"
+        }).addTo(editMap);
+        attachGeoButtonToMap(editMap, "edit", "editLocationControlAdded");
+        editMap.on("click", function(e) {
+            setMapCoordsForModal("edit", e.latlng.lat, e.latlng.lng, editMap.getZoom());
+        });
+    } else {
+        editMap.setView([centerLat, centerLng], z);
+    }
+
+    if (!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng))) {
+        if (editMarker) {
+            editMarker.setLatLng([centerLat, centerLng]);
+        } else {
+            editMarker = L.marker([centerLat, centerLng]).addTo(editMap);
+        }
+    }
+
+    setTimeout(function() {
+        if (editMap) editMap.invalidateSize();
+    }, 200);
+}
+
+function openAddClinicModal() {
+    var modal = document.getElementById("addClinicModal");
+    if (modal) modal.classList.remove("hidden");
+    initAddMap(15.3694, 44.1910, 12);
+}
+
+function closeAddClinicModal() {
+    var modal = document.getElementById("addClinicModal");
+    if (modal) modal.classList.add("hidden");
+}
+
+function saveNewClinic() {
+    if (!currentDoctorId || !currentDoctorData) return;
+    var clinicName = ((document.getElementById("addClinicName") || {}).value || "").trim();
+    if (!clinicName) {
+        alert("يرجى إدخال اسم العيادة.");
+        return;
+    }
+
+    var workingDays = [];
+    for (var d = 0; d <= 6; d++) {
+        var cb = document.getElementById("add_day_" + d);
+        if (cb && cb.checked) workingDays.push(d);
+    }
+
+    var latVal = parseFloat(((document.getElementById("addLat") || {}).value || ""));
+    var lngVal = parseFloat(((document.getElementById("addLng") || {}).value || ""));
+
+    var newClinic = {
+        clinicName: clinicName,
+        city: ((document.getElementById("addCity") || {}).value || "").trim(),
+        street: ((document.getElementById("addStreet") || {}).value || "").trim(),
+        landmark: ((document.getElementById("addLandmark") || {}).value || "").trim(),
+        startTime: ((document.getElementById("addStartTime") || {}).value || "09:00"),
+        endTime: ((document.getElementById("addEndTime") || {}).value || "17:00"),
+        serviceTime: parseInt(((document.getElementById("addServiceTime") || {}).value || "10"), 10) || 10,
+        workingDays: workingDays,
+        lat: isNaN(latVal) ? null : latVal,
+        lng: isNaN(lngVal) ? null : lngVal,
+        serialNumber: 0,
+        dailyCounters: {},
+        isClosed: false,
+        isOnBreak: false
+    };
+
+    var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics.slice() : [];
+    clinics.push(newClinic);
+
+    db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics }).then(function() {
+        currentDoctorData.clinics = clinics;
+        currentClinicIndex = clinics.length - 1;
+        populateClinicSelector();
+        closeAddClinicModal();
+        listenToQueue();
+        alert("تمت إضافة العيادة بنجاح.");
+    }).catch(function(err) {
+        console.error(err);
+        alert("تعذر إضافة العيادة.");
+    });
+}
+
+function openEditClinicModal() {
+    var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
+    var c = clinics[currentClinicIndex];
+    if (!c) {
+        alert("لا توجد عيادة محددة للتعديل.");
+        return;
+    }
+
+    document.getElementById("editClinicName").value = c.clinicName || "";
+    document.getElementById("editCity").value = c.city || "";
+    document.getElementById("editStreet").value = c.street || "";
+    document.getElementById("editLandmark").value = c.landmark || "";
+    document.getElementById("editStartTime").value = c.startTime || "09:00";
+    document.getElementById("editEndTime").value = c.endTime || "17:00";
+    document.getElementById("editServiceTime").value = c.serviceTime || 10;
+    document.getElementById("editLat").value = c.lat || "";
+    document.getElementById("editLng").value = c.lng || "";
+
+    var confirmInp = document.getElementById("deleteClinicConfirmInput");
+    if (confirmInp) confirmInp.value = "";
+
+    var days = Array.isArray(c.workingDays) ? c.workingDays : [];
+    for (var d = 0; d <= 6; d++) {
+        var cb = document.getElementById("edit_day_" + d);
+        if (cb) cb.checked = days.indexOf(d) !== -1;
+    }
+
+    var modal = document.getElementById("editClinicModal");
+    if (modal) modal.classList.remove("hidden");
+    initEditMap(c.lat, c.lng, c.lat && c.lng ? 15 : 12);
+}
+
+function closeEditClinicModal() {
+    var modal = document.getElementById("editClinicModal");
+    if (modal) modal.classList.add("hidden");
+}
+
+function saveEditClinic() {
+    if (!currentDoctorId || !currentDoctorData) return;
+    var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics.slice() : [];
+    if (!clinics[currentClinicIndex]) return;
+
+    var clinicName = ((document.getElementById("editClinicName") || {}).value || "").trim();
+    if (!clinicName) {
+        alert("يرجى إدخال اسم العيادة.");
+        return;
+    }
+
+    var workingDays = [];
+    for (var d = 0; d <= 6; d++) {
+        var cb = document.getElementById("edit_day_" + d);
+        if (cb && cb.checked) workingDays.push(d);
+    }
+
+    var latVal = parseFloat(((document.getElementById("editLat") || {}).value || ""));
+    var lngVal = parseFloat(((document.getElementById("editLng") || {}).value || ""));
+
+    var old = clinics[currentClinicIndex];
+    clinics[currentClinicIndex] = Object.assign({}, old, {
+        clinicName: clinicName,
+        city: ((document.getElementById("editCity") || {}).value || "").trim(),
+        street: ((document.getElementById("editStreet") || {}).value || "").trim(),
+        landmark: ((document.getElementById("editLandmark") || {}).value || "").trim(),
+        startTime: ((document.getElementById("editStartTime") || {}).value || "09:00"),
+        endTime: ((document.getElementById("editEndTime") || {}).value || "17:00"),
+        serviceTime: parseInt(((document.getElementById("editServiceTime") || {}).value || "10"), 10) || 10,
+        workingDays: workingDays,
+        lat: isNaN(latVal) ? null : latVal,
+        lng: isNaN(lngVal) ? null : lngVal
+    });
+
+    db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics }).then(function() {
+        currentDoctorData.clinics = clinics;
+        populateClinicSelector();
+        closeEditClinicModal();
+        alert("تم حفظ تعديلات العيادة بنجاح.");
+    }).catch(function(err) {
+        console.error(err);
+        alert("تعذر حفظ التعديلات.");
+    });
 }
 
 function deleteBookingsByQuery(query) {
@@ -75,340 +604,56 @@ function deleteBookingsByQuery(query) {
     });
 }
 
-function tryDeleteCurrentAuthUser() {
-    if (!auth || !auth.currentUser) {
-        return Promise.resolve({ deletedAuth: false, reason: "no_user" });
-    }
-    return auth.currentUser.delete().then(function() {
-        return { deletedAuth: true };
-    }).catch(function(err) {
-        return {
-            deletedAuth: false,
-            reason: (err && err.code) || "auth_delete_failed"
-        };
-    });
-}
-
-function deleteClinicAndBookings(clinicIndex) {
+function deleteCurrentClinic() {
     if (!currentDoctorId || !currentDoctorData) return;
+    var confirmInput = document.getElementById("deleteClinicConfirmInput");
+    var typed = confirmInput ? confirmInput.value.trim() : "";
+
+    if (typed !== "إحذف العيادة") {
+        alert('يرجى كتابة العبارة التالية بدقة لتأكيد الحذف: إحذف العيادة');
+        return;
+    }
+
     var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics.slice() : [];
-    var targetClinic = clinics[clinicIndex];
-    if (!targetClinic) return;
+    if (!clinics[currentClinicIndex]) return;
 
-    var confirmMsg = "هل أنت متأكد من حذف العيادة (" + (targetClinic.clinicName || "") + ") وجميع مواعيدها المحجوزة؟";
-    if (!confirm(confirmMsg)) return;
-
+    var removedClinicIndex = currentClinicIndex;
     var clinicBookingsQuery = db.collection("bookings")
         .where("doctorId", "==", currentDoctorId)
-        .where("clinicIndex", "==", clinicIndex);
+        .where("clinicIndex", "==", removedClinicIndex);
 
     deleteBookingsByQuery(clinicBookingsQuery).then(function() {
-        clinics.splice(clinicIndex, 1);
+        clinics.splice(removedClinicIndex, 1);
         return db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics });
     }).then(function() {
         currentDoctorData.clinics = clinics;
+        closeEditClinicModal();
+
         if (clinics.length === 0) {
-            var deleteAccountConfirm = confirm("تم حذف جميع عيادات الطبيب. هل تريد حذف حساب الطبيب وجميع مواعيده نهائياً؟");
-            if (deleteAccountConfirm) {
-                return deleteDoctorPermanently();
+            var removeDoctorConfirm = confirm("تم حذف جميع عيادات الطبيب ومواعيدها. هل تريد حذف سجل الطبيب وجميع مواعيده نهائياً؟");
+            if (removeDoctorConfirm) {
+                var allDoctorBookingsQuery = db.collection("bookings").where("doctorId", "==", currentDoctorId);
+                return deleteBookingsByQuery(allDoctorBookingsQuery).then(function() {
+                    return db.collection("doctors").doc(currentDoctorId).delete();
+                }).then(function() {
+                    if (auth && auth.currentUser) {
+                        return auth.currentUser.delete().catch(function() {});
+                    }
+                }).then(function() {
+                    alert("تم حذف حساب الطبيب وجميع مواعيده نهائياً.");
+                    window.location.href = "index.html";
+                });
             }
         }
-        selectedClinicIndex = 0;
-        renderAdminDoctorView();
-        alert("تم حذف العيادة ومواعيدها بنجاح.");
+
+        currentClinicIndex = 0;
+        populateClinicSelector();
+        listenToQueue();
+        alert("تم حذف العيادة وجميع حجوزاتها نهائياً.");
     }).catch(function(err) {
         console.error(err);
         alert("حدث خطأ أثناء حذف العيادة.");
     });
-}
-
-function deleteDoctorPermanently() {
-    if (!currentDoctorId) return Promise.resolve();
-    var allDoctorBookingsQuery = db.collection("bookings")
-        .where("doctorId", "==", currentDoctorId);
-
-    return deleteBookingsByQuery(allDoctorBookingsQuery).then(function() {
-        return db.collection("doctors").doc(currentDoctorId).delete();
-    }).then(function() {
-        if (unsubscribeBookingsAdmin) {
-            unsubscribeBookingsAdmin();
-            unsubscribeBookingsAdmin = null;
-        }
-        return tryDeleteCurrentAuthUser();
-    }).then(function(authResult) {
-        if (authResult && authResult.deletedAuth) {
-            alert("تم حذف حساب الطبيب وبياناته وجميع مواعيده نهائياً.");
-        } else {
-            alert("تم حذف بيانات الطبيب وجميع مواعيده من قاعدة البيانات بنجاح. ملاحظة: إذا بقي حساب البريد في قائمة Authentication بسبب سياسة جلسة الدخول، يمكنك حذفه من Firebase Console → Authentication.");
-        }
-        window.location.href = "index.html";
-    }).catch(function(err) {
-        console.error(err);
-        alert("حدث خطأ أثناء الحذف النهائي للطبيب.");
-    });
-}
-
-function setAdminMapLocation(lat, lng, zoomLevel) {
-    var latNum = parseFloat(lat);
-    var lngNum = parseFloat(lng);
-    if (isNaN(latNum) || isNaN(lngNum)) return;
-
-    var latInp = document.getElementById("newClinicLat");
-    var lngInp = document.getElementById("newClinicLng");
-    if (latInp) latInp.value = latNum.toFixed(6);
-    if (lngInp) lngInp.value = lngNum.toFixed(6);
-
-    initAdminAddMapIfNeeded();
-    if (adminAddMap) {
-        adminAddMap.setView([latNum, lngNum], zoomLevel || 15);
-        if (adminAddMarker) {
-            adminAddMarker.setLatLng([latNum, lngNum]);
-        } else {
-            adminAddMarker = L.marker([latNum, lngNum]).addTo(adminAddMap);
-        }
-        setTimeout(function() {
-            if (adminAddMap) adminAddMap.invalidateSize();
-        }, 150);
-    }
-}
-
-function useCurrentLocationInAdmin() {
-    if (!navigator.geolocation) {
-        alert("المتصفح لا يدعم تحديد الموقع الجغرافي.");
-        return;
-    }
-    navigator.geolocation.getCurrentPosition(function(pos) {
-        setAdminMapLocation(pos.coords.latitude, pos.coords.longitude, 16);
-    }, function() {
-        alert("تعذر الوصول إلى موقعك الحالي.");
-    }, {
-        enableHighAccuracy: true,
-        timeout: 10000
-    });
-}
-
-function attachAdminMapLocationControl(mapInstance) {
-    if (!mapInstance || adminLocationControlAdded || typeof L === "undefined") return;
-    var LocationControl = L.Control.extend({
-        options: { position: "topright" },
-        onAdd: function() {
-            var btn = L.DomUtil.create("button", "leaflet-bar leaflet-control");
-            btn.type = "button";
-            btn.title = typeof t === "function" ? t("my_location_btn") : "تحديد موقعي الحالي";
-            btn.style.background = "#ffffff";
-            btn.style.color = "#111827";
-            btn.style.border = "1px solid rgba(0,0,0,0.2)";
-            btn.style.borderRadius = "6px";
-            btn.style.padding = "6px 10px";
-            btn.style.fontWeight = "600";
-            btn.style.fontSize = "12px";
-            btn.style.cursor = "pointer";
-            btn.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
-            btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> ' + (typeof t === "function" ? t("my_location_btn") : "تحديد موقعي الحالي");
-
-            L.DomEvent.disableClickPropagation(btn);
-            L.DomEvent.on(btn, "click", function(e) {
-                L.DomEvent.stopPropagation(e);
-                L.DomEvent.preventDefault(e);
-                useCurrentLocationInAdmin();
-            });
-            return btn;
-        }
-    });
-    mapInstance.addControl(new LocationControl());
-    adminLocationControlAdded = true;
-}
-
-function initAdminAddMapIfNeeded() {
-    var mapEl = document.getElementById("admin-add-map");
-    if (!mapEl || typeof L === "undefined") return;
-    if (!adminAddMap) {
-        adminAddMap = L.map("admin-add-map").setView([15.3694, 44.1910], 12);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: "&copy; OpenStreetMap"
-        }).addTo(adminAddMap);
-        attachAdminMapLocationControl(adminAddMap);
-        adminAddMap.on("click", function(e) {
-            setAdminMapLocation(e.latlng.lat, e.latlng.lng, adminAddMap.getZoom());
-        });
-    }
-    setTimeout(function() {
-        if (adminAddMap) adminAddMap.invalidateSize();
-    }, 200);
-}
-
-function addNewClinicFromAdmin() {
-    if (!currentDoctorId || !currentDoctorData) return;
-    var nameEl = document.getElementById("newClinicName");
-    var cityEl = document.getElementById("newClinicCity");
-    var streetEl = document.getElementById("newClinicStreet");
-    var startEl = document.getElementById("newClinicStart");
-    var endEl = document.getElementById("newClinicEnd");
-    var serviceEl = document.getElementById("newClinicServiceTime");
-    var latEl = document.getElementById("newClinicLat");
-    var lngEl = document.getElementById("newClinicLng");
-
-    var clinicName = nameEl ? nameEl.value.trim() : "";
-    if (!clinicName) {
-        alert("يرجى إدخال اسم العيادة الجديدة.");
-        return;
-    }
-
-    var newClinic = {
-        clinicName: clinicName,
-        city: cityEl ? cityEl.value.trim() : "",
-        street: streetEl ? streetEl.value.trim() : "",
-        landmark: "",
-        startTime: (startEl && startEl.value) ? startEl.value : "09:00",
-        endTime: (endEl && endEl.value) ? endEl.value : "17:00",
-        serviceTime: parseInt((serviceEl && serviceEl.value) || "10", 10) || 10,
-        workingDays: [0, 1, 2, 3, 4, 6],
-        lat: (latEl && latEl.value) ? parseFloat(latEl.value) : null,
-        lng: (lngEl && lngEl.value) ? parseFloat(lngEl.value) : null,
-        serialNumber: 0,
-        dailyCounters: {},
-        isClosed: false,
-        isOnBreak: false
-    };
-
-    var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics.slice() : [];
-    clinics.push(newClinic);
-
-    db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics }).then(function() {
-        currentDoctorData.clinics = clinics;
-        selectedClinicIndex = clinics.length - 1;
-        if (nameEl) nameEl.value = "";
-        renderAdminDoctorView();
-        alert("تمت إضافة العيادة بنجاح.");
-    }).catch(function(err) {
-        console.error(err);
-        alert("تعذر إضافة العيادة.");
-    });
-}
-
-function toggleClinicClosedStatus(clinicIndex) {
-    if (!currentDoctorId || !currentDoctorData) return;
-    var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics.slice() : [];
-    if (!clinics[clinicIndex]) return;
-    clinics[clinicIndex].isClosed = !clinics[clinicIndex].isClosed;
-
-    db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics }).then(function() {
-        currentDoctorData.clinics = clinics;
-        renderAdminDoctorView();
-    });
-}
-
-function callNextPatient(bookingId) {
-    if (!bookingId || !db) return;
-    db.collection("bookings").doc(bookingId).update({ status: "serving" });
-}
-
-function completePatient(bookingId) {
-    if (!bookingId || !db) return;
-    db.collection("bookings").doc(bookingId).update({ status: "done" });
-}
-
-function renderQueueForSelectedClinic() {
-    var queueListEl = document.getElementById("adminQueueList");
-    if (!queueListEl || !currentDoctorId || !db) return;
-
-    if (unsubscribeBookingsAdmin) {
-        unsubscribeBookingsAdmin();
-        unsubscribeBookingsAdmin = null;
-    }
-
-    var todayStr = getTodayStrAdmin();
-    unsubscribeBookingsAdmin = db.collection("bookings")
-        .where("doctorId", "==", currentDoctorId)
-        .where("clinicIndex", "==", selectedClinicIndex)
-        .where("date", "==", todayStr)
-        .onSnapshot(function(snapshot) {
-            var items = [];
-            snapshot.forEach(function(doc) {
-                var d = doc.data();
-                d.id = doc.id;
-                if (d.status !== "cancelled") {
-                    items.push(d);
-                }
-            });
-
-            items.sort(function(a, b) {
-                return (parseInt(a.ticketNumber, 10) || 0) - (parseInt(b.ticketNumber, 10) || 0);
-            });
-
-            if (items.length === 0) {
-                queueListEl.innerHTML = '<p style="text-align:center;">' + (typeof t === "function" ? t("no_patients") : "لا يوجد مرضى في قائمة الانتظار لهذا اليوم.") + '</p>';
-                return;
-            }
-
-            var html = "";
-            items.forEach(function(p) {
-                var statusText = p.status === "serving"
-                    ? (typeof t === "function" ? t("status_serving") : "قيد الكشف الآن")
-                    : (p.status === "done"
-                        ? (typeof t === "function" ? t("booking_done") : "تم إنهاء الموعد")
-                        : (typeof t === "function" ? t("status_waiting_admin") : "ينتظر"));
-
-                html += '<div class="queue-item" style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px; border:1px solid #ddd; border-radius:8px; margin-bottom:8px;">' +
-                    '<div>' +
-                        '<strong>#' + (p.ticketNumber || "-") + ' — ' + (p.patientName || "") + '</strong>' +
-                        '<div><small>' + statusText + (p.patientPhone ? " | " + p.patientPhone : "") + '</small></div>' +
-                    '</div>' +
-                    '<div style="display:flex; gap:6px;">' +
-                        '<button type="button" class="btn-primary" onclick="callNextPatient(\'' + p.id + '\')">نداء</button>' +
-                        '<button type="button" class="btn-outline" onclick="completePatient(\'' + p.id + '\')">إنهاء</button>' +
-                    '</div>' +
-                '</div>';
-            });
-
-            queueListEl.innerHTML = html;
-        });
-}
-
-function renderAdminDoctorView() {
-    if (!currentDoctorData) return;
-    var nameEl = document.getElementById("adminDoctorName");
-    var clinicsContainer = document.getElementById("adminClinicsList");
-    if (nameEl) {
-        nameEl.innerText = currentDoctorData.name || "";
-    }
-
-    var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics : [];
-    if (selectedClinicIndex >= clinics.length) {
-        selectedClinicIndex = 0;
-    }
-
-    if (clinicsContainer) {
-        if (clinics.length === 0) {
-            clinicsContainer.innerHTML = '<p>لا توجد عيادات مسجلة حالياً.</p>';
-        } else {
-            var html = "";
-            clinics.forEach(function(c, idx) {
-                var isSelected = idx === selectedClinicIndex;
-                var closedLabel = c.isClosed
-                    ? (typeof t === "function" ? t("open_clinic") : "فتح العيادة")
-                    : (typeof t === "function" ? t("close_clinic") : "إغلاق العيادة");
-
-                html += '<div class="clinic-card" style="margin-bottom:10px; border:' + (isSelected ? '2px solid #2563eb' : '1px solid #e5e7eb') + ';">' +
-                    '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">' +
-                        '<div>' +
-                            '<strong>' + (c.clinicName || ("عيادة " + (idx + 1))) + '</strong>' +
-                            '<div><small>' + (c.city || "") + (c.street ? " - " + c.street : "") + '</small></div>' +
-                        '</div>' +
-                        '<div style="display:flex; gap:6px; flex-wrap:wrap;">' +
-                            '<button type="button" class="btn-outline" onclick="selectedClinicIndex=' + idx + '; renderAdminDoctorView();">عرض الطابور</button>' +
-                            '<button type="button" class="btn-outline" onclick="toggleClinicClosedStatus(' + idx + ')">' + closedLabel + '</button>' +
-                            '<button type="button" class="btn-danger" onclick="deleteClinicAndBookings(' + idx + ')">حذف العيادة</button>' +
-                        '</div>' +
-                    '</div>' +
-                '</div>';
-            });
-            clinicsContainer.innerHTML = html;
-        }
-    }
-
-    initAdminAddMapIfNeeded();
-    renderQueueForSelectedClinic();
 }
 
 window.onload = function() {
@@ -417,22 +662,35 @@ window.onload = function() {
         applyLanguage();
     }
 
-    if (!auth || !db) return;
+    var dateInp = document.getElementById("adminDate");
+    currentAdminDate = getTodayStrAdmin();
+    if (dateInp) {
+        dateInp.value = currentAdminDate;
+    }
 
     auth.onAuthStateChanged(function(user) {
         if (!user) {
             window.location.href = "index.html";
             return;
         }
+
         currentDoctorId = user.uid;
         db.collection("doctors").doc(user.uid).get().then(function(docSnap) {
             if (!docSnap.exists) {
                 rejectMissingDoctorAccount();
                 return;
             }
+
             currentDoctorData = docSnap.data();
             currentDoctorData.id = docSnap.id;
-            renderAdminDoctorView();
+
+            var nameEl = document.getElementById("activeDoctorName");
+            if (nameEl) {
+                nameEl.innerText = currentDoctorData.name || "لوحة الطبيب";
+            }
+
+            populateClinicSelector();
+            listenToQueue();
         }).catch(function(err) {
             console.error(err);
         });
