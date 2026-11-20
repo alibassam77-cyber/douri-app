@@ -208,10 +208,7 @@ function formatCountdownDuration(diffMs) {
     var hours = Math.floor(totalSeconds / 3600);
     var mins = Math.floor((totalSeconds % 3600) / 60);
     var secs = totalSeconds % 60;
-    if (hours > 0) {
-        return String(hours).padStart(2, "0") + ":" + String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
-    }
-    return String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+    return String(hours).padStart(2, "0") + ":" + String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
 }
 
 function findClinicForTicket(ticketData) {
@@ -229,36 +226,35 @@ function refreshTicketCountdownDisplay() {
     if (!activeTicketContext || !etaEl || !cdEl) return;
 
     var ctx = activeTicketContext;
-    var openDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.openMinutes);
-    var expectedDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.expectedMinutes);
+    var appointmentStartDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.expectedMinutes);
+    var dayMidnightStart = buildDateTimeFromYMDAndMinutes(ctx.dateStr, 0);
 
     if (etaEl) {
         etaEl.innerText = formatExpectedAppointmentText(ctx.dateStr, ctx.expectedMinutes);
     }
 
-    if (!openDateTime || !expectedDateTime) {
-        cdEl.innerText = "--:--";
+    if (!appointmentStartDateTime || !dayMidnightStart) {
+        cdEl.innerText = "--:--:--";
         return;
     }
 
     var nowMs = Date.now();
-    var isSameDay = ctx.dateStr === getTodayStr();
+    var todayStr = getTodayStr();
+    var isAr = getCurrentLang() === "ar";
 
-    if (!isSameDay) {
-        if (nowMs < openDateTime.getTime()) {
-            cdEl.innerText = t("countdown_after_open");
-        } else if (nowMs < expectedDateTime.getTime()) {
-            cdEl.innerText = formatCountdownDuration(expectedDateTime.getTime() - nowMs);
-        } else {
-            cdEl.innerText = t("countdown_due_now");
-        }
+    // إذا لم يحن يوم الكشف بعد، نُظهر البداية من 12:00 صباحاً في يوم الكشف
+    if (ctx.dateStr > todayStr) {
+        var fullDayWindowMs = Math.max(0, appointmentStartDateTime.getTime() - dayMidnightStart.getTime());
+        var prefixFuture = isAr ? "يبدأ 12:00 ص (" : "Starts 12:00 AM (";
+        cdEl.innerText = prefixFuture + formatCountdownDuration(fullDayWindowMs) + ")";
         return;
     }
 
-    if (nowMs < expectedDateTime.getTime()) {
-        cdEl.innerText = formatCountdownDuration(expectedDateTime.getTime() - nowMs);
+    // في يوم الكشف نفسه: يبدأ العد التنازلي من 12:00 صباحاً (00:00:00) حتى موعد الكشف وصولاً إلى 00:00:00
+    if (nowMs < appointmentStartDateTime.getTime()) {
+        cdEl.innerText = formatCountdownDuration(appointmentStartDateTime.getTime() - nowMs);
     } else {
-        cdEl.innerText = t("countdown_due_now");
+        cdEl.innerText = "00:00:00";
     }
 }
 
@@ -1072,7 +1068,7 @@ function listenToQueueForTicket(ticketData) {
                 } else if (!isSameDay) {
                     statusEl.innerText = t("status_upcoming");
                     statusEl.className = "badge badge-open";
-                } else if (currentTicket.status === "serving") {
+                } else if (currentTicket.status === "serving" && isSameDay) {
                     statusEl.innerText = t("status_your_turn");
                     statusEl.className = "badge badge-open";
                 } else if (aheadCount === 1) {
