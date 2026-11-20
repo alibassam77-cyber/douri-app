@@ -80,7 +80,7 @@ function populateClinicSelector() {
     if (clinics.length === 0) {
         var emptyOpt = document.createElement("option");
         emptyOpt.value = "";
-        emptyOpt.textContent = "لا توجد عيادات";
+        emptyOpt.textContent = typeof t === "function" ? t("no_clinics_option") : "لا توجد عيادات";
         sel.appendChild(emptyOpt);
         updateToggleClinicButton(null);
         return;
@@ -89,7 +89,8 @@ function populateClinicSelector() {
     clinics.forEach(function(c, idx) {
         var opt = document.createElement("option");
         opt.value = String(idx);
-        opt.textContent = c.clinicName || ("عيادة " + (idx + 1));
+        var defaultClinicLabel = (typeof t === "function" ? t("clinic_prefix") : "عيادة ") + (idx + 1);
+        opt.textContent = c.clinicName || defaultClinicLabel;
         if (idx === currentClinicIndex) {
             opt.selected = true;
         }
@@ -108,12 +109,14 @@ function updateToggleClinicButton(clinic) {
         return;
     }
     btn.disabled = false;
+    var openLabel = typeof t === "function" ? t("open_clinic") : "فتح العيادة";
+    var closeLabel = typeof t === "function" ? t("close_clinic") : "إغلاق العيادة";
     if (clinic.isClosed === true) {
         btn.className = "status-toggle-btn status-closed";
-        btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> فتح العيادة';
+        btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> ' + openLabel;
     } else {
         btn.className = "status-toggle-btn status-open";
-        btn.innerHTML = '<i class="fa-solid fa-lock"></i> إغلاق العيادة';
+        btn.innerHTML = '<i class="fa-solid fa-lock"></i> ' + closeLabel;
     }
 }
 
@@ -172,7 +175,8 @@ function listenToQueue() {
         if (dispNumEmpty) dispNumEmpty.innerText = "-";
         if (dispNameEmpty) dispNameEmpty.innerText = "-";
         if (dispSerialEmpty) dispSerialEmpty.innerText = "";
-        queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا توجد عيادة محددة حالياً. يمكنك إضافة عيادة جديدة من الأعلى.</p>';
+        var noClinicMsg = typeof t === "function" ? t("no_selected_clinic_msg") : "لا توجد عيادة محددة حالياً.";
+        queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + noClinicMsg + '</p>';
         return;
     }
 
@@ -201,10 +205,11 @@ function listenToQueue() {
             var dispName = document.getElementById("currentServingName");
             var dispSerial = document.getElementById("currentServingSerial");
 
+            var serialPrefix = typeof t === "function" ? t("serial_prefix") : "رقم تسلسلي: ";
             if (servingItem) {
                 if (dispNum) dispNum.innerText = "#" + (servingItem.ticketNumber || "-");
                 if (dispName) dispName.innerText = servingItem.patientName || "-";
-                if (dispSerial) dispSerial.innerText = servingItem.serialNumber ? ("رقم تسلسلي: " + servingItem.serialNumber) : "";
+                if (dispSerial) dispSerial.innerText = servingItem.serialNumber ? (serialPrefix + servingItem.serialNumber) : "";
             } else {
                 if (dispNum) dispNum.innerText = "-";
                 if (dispName) dispName.innerText = "-";
@@ -213,15 +218,21 @@ function listenToQueue() {
 
             var waitingItems = allItems.filter(function(item) { return item.status !== "done"; });
             if (waitingItems.length === 0) {
-                queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا يوجد مراجعون في قائمة الانتظار لهذا التاريخ.</p>';
+                var noPatMsg = typeof t === "function" ? t("no_patients") : "لا يوجد مراجعون في قائمة الانتظار لهذا التاريخ.";
+                queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + noPatMsg + '</p>';
                 return;
             }
+
+            var servingText = typeof t === "function" ? t("status_serving") : "قيد الكشف";
+            var waitingText = typeof t === "function" ? t("status_waiting_admin") : "ينتظر";
+            var callBtnText = typeof t === "function" ? t("call_patient_btn") : "نداء";
+            var finishBtnText = typeof t === "function" ? t("finish_patient_btn") : "إنهاء";
 
             var html = "";
             waitingItems.forEach(function(item) {
                 var isServing = item.status === "serving";
                 var badgeClass = isServing ? "badge badge-open" : "badge badge-break";
-                var badgeText = isServing ? "قيد الكشف" : "ينتظر";
+                var badgeText = isServing ? servingText : waitingText;
 
                 html += '<div class="queue-card">' +
                     '<div class="queue-info">' +
@@ -233,8 +244,8 @@ function listenToQueue() {
                     '</div>' +
                     '<div class="queue-actions">' +
                         '<span class="' + badgeClass + '">' + badgeText + '</span>' +
-                        (!isServing ? '<button type="button" class="btn-primary" onclick="callSpecificPatient(\'' + item.id + '\')">نداء</button>' : '') +
-                        '<button type="button" class="btn-outline" onclick="completePatientBooking(\'' + item.id + '\')">إنهاء</button>' +
+                        (!isServing ? '<button type="button" class="btn-primary" onclick="callSpecificPatient(\'' + item.id + '\')">' + callBtnText + '</button>' : '') +
+                        '<button type="button" class="btn-outline" onclick="completePatientBooking(\'' + item.id + '\')">' + finishBtnText + '</button>' +
                     '</div>' +
                 '</div>';
             });
@@ -738,7 +749,7 @@ window.onload = function() {
 
             var nameEl = document.getElementById("activeDoctorName");
             if (nameEl) {
-                nameEl.innerText = currentDoctorData.name || "لوحة الطبيب";
+                nameEl.innerText = currentDoctorData.name || (typeof t === "function" ? t("admin_default_doctor") : "لوحة الطبيب");
             }
 
             populateClinicSelector();
