@@ -164,6 +164,18 @@ function listenToQueue() {
         unsubscribeQueue = null;
     }
 
+    var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
+    if (!clinics[currentClinicIndex]) {
+        var dispNumEmpty = document.getElementById("currentServingDisplay");
+        var dispNameEmpty = document.getElementById("currentServingName");
+        var dispSerialEmpty = document.getElementById("currentServingSerial");
+        if (dispNumEmpty) dispNumEmpty.innerText = "-";
+        if (dispNameEmpty) dispNameEmpty.innerText = "-";
+        if (dispSerialEmpty) dispSerialEmpty.innerText = "";
+        queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا توجد عيادة محددة حالياً. يمكنك إضافة عيادة جديدة من الأعلى.</p>';
+        return;
+    }
+
     var dateFilter = currentAdminDate || getTodayStrAdmin();
 
     unsubscribeQueue = db.collection("bookings")
@@ -498,8 +510,12 @@ function saveNewClinic() {
     var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics.slice() : [];
     clinics.push(newClinic);
 
-    db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics }).then(function() {
+    db.collection("doctors").doc(currentDoctorId).update({
+        clinics: clinics,
+        isDeleted: false
+    }).then(function() {
         currentDoctorData.clinics = clinics;
+        currentDoctorData.isDeleted = false;
         currentClinicIndex = clinics.length - 1;
         populateClinicSelector();
         closeAddClinicModal();
@@ -604,6 +620,25 @@ function deleteBookingsByQuery(query) {
     });
 }
 
+function shiftSubsequentClinicBookingsIndex(removedIndex) {
+    return db.collection("bookings")
+        .where("doctorId", "==", currentDoctorId)
+        .get()
+        .then(function(snap) {
+            var batch = db.batch();
+            var hasUpdates = false;
+            snap.forEach(function(doc) {
+                var d = doc.data();
+                var idx = parseInt(d.clinicIndex, 10);
+                if (!isNaN(idx) && idx > removedIndex) {
+                    batch.update(doc.ref, { clinicIndex: idx - 1 });
+                    hasUpdates = true;
+                }
+            });
+            return hasUpdates ? batch.commit() : Promise.resolve();
+        });
+}
+
 function deleteCurrentClinic() {
     if (!currentDoctorId || !currentDoctorData) return;
     var confirmInput = document.getElementById("deleteClinicConfirmInput");
@@ -623,6 +658,8 @@ function deleteCurrentClinic() {
         .where("clinicIndex", "==", removedClinicIndex);
 
     deleteBookingsByQuery(clinicBookingsQuery).then(function() {
+        return shiftSubsequentClinicBookingsIndex(removedClinicIndex);
+    }).then(function() {
         clinics.splice(removedClinicIndex, 1);
         return db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics });
     }).then(function() {
@@ -636,12 +673,14 @@ function deleteCurrentClinic() {
                 return deleteBookingsByQuery(allDoctorBookingsQuery).then(function() {
                     return db.collection("doctors").doc(currentDoctorId).delete();
                 }).then(function() {
-                    if (auth && auth.currentUser) {
-                        return auth.currentUser.delete().catch(function() {});
+                    if (unsubscribeQueue) {
+                        unsubscribeQueue();
+                        unsubscribeQueue = null;
                     }
-                }).then(function() {
-                    alert("تم حذف حساب الطبيب وجميع مواعيده نهائياً.");
-                    window.location.href = "index.html";
+                    alert("تم حذف سجل الطبيب وجميع مواعيده بنجاح. يمكنك إعادة تفعيل الحساب أو إنشاء عيادة جديدة في أي وقت بنفس البريد وكلمة المرور.");
+                    return auth.signOut().then(function() {
+                        window.location.href = "index.html";
+                    });
                 });
             }
         }
@@ -676,12 +715,13 @@ window.onload = function() {
 
         currentDoctorId = user.uid;
         db.collection("doctors").doc(user.uid).get().then(function(docSnap) {
-            if (!docSnap.exists) {
+            var docData = docSnap.exists ? docSnap.data() : null;
+            if (!docSnap.exists || !docData || docData.isDeleted === true) {
                 rejectMissingDoctorAccount();
                 return;
             }
 
-            currentDoctorData = docSnap.data();
+            currentDoctorData = docData;
             currentDoctorData.id = docSnap.id;
 
             var nameEl = document.getElementById("activeDoctorName");
