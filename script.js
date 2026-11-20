@@ -23,6 +23,7 @@ var unsubscribeBookings = null;
 var unsubscribeTicketBookings = null;
 var regMap = null;
 var regMarker = null;
+var regLocationControlAdded = false;
 
 var calendarViewYear = null;
 var calendarViewMonth = null;
@@ -143,6 +144,13 @@ function formatDateYMD(year, monthIndex, day) {
     return year + "-" + m + "-" + d;
 }
 
+function formatDateSlashes(dateStr) {
+    if (!dateStr || typeof dateStr !== "string") return "";
+    var parts = dateStr.split("-");
+    if (parts.length !== 3) return dateStr;
+    return parts[0] + "/" + parts[1] + "/" + parts[2];
+}
+
 function parseMinutesFromHHMM(timeStr) {
     if (!timeStr || typeof timeStr !== "string") return null;
     var parts = timeStr.split(":");
@@ -162,6 +170,23 @@ function formatMinutesTo12H(totalMinutes) {
     var h12 = h24 % 12;
     if (h12 === 0) h12 = 12;
     return String(h12).padStart(2, "0") + ":" + String(min).padStart(2, "0") + " " + period;
+}
+
+function formatExpectedAppointmentText(dateStr, expectedMinutes) {
+    var timeFormatted = formatMinutesTo12H(expectedMinutes);
+    var todayStr = getTodayStr();
+    var tomorrowStr = getTomorrowStr();
+    var isAr = getCurrentLang() === "ar";
+
+    if (dateStr === todayStr) {
+        return timeFormatted;
+    }
+
+    var slashDate = formatDateSlashes(dateStr);
+    if (dateStr === tomorrowStr) {
+        return (isAr ? "غداً " : "Tomorrow ") + slashDate + (isAr ? " الساعة " : " at ") + timeFormatted;
+    }
+    return slashDate + (isAr ? " الساعة " : " at ") + timeFormatted;
 }
 
 function buildDateTimeFromYMDAndMinutes(dateStr, totalMinutes) {
@@ -208,7 +233,7 @@ function refreshTicketCountdownDisplay() {
     var expectedDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.expectedMinutes);
 
     if (etaEl) {
-        etaEl.innerText = formatMinutesTo12H(ctx.expectedMinutes);
+        etaEl.innerText = formatExpectedAppointmentText(ctx.dateStr, ctx.expectedMinutes);
     }
 
     if (!openDateTime || !expectedDateTime) {
@@ -217,9 +242,20 @@ function refreshTicketCountdownDisplay() {
     }
 
     var nowMs = Date.now();
-    if (nowMs < openDateTime.getTime()) {
-        cdEl.innerText = t("countdown_after_open");
-    } else if (nowMs < expectedDateTime.getTime()) {
+    var isSameDay = ctx.dateStr === getTodayStr();
+
+    if (!isSameDay) {
+        if (nowMs < openDateTime.getTime()) {
+            cdEl.innerText = t("countdown_after_open");
+        } else if (nowMs < expectedDateTime.getTime()) {
+            cdEl.innerText = formatCountdownDuration(expectedDateTime.getTime() - nowMs);
+        } else {
+            cdEl.innerText = t("countdown_due_now");
+        }
+        return;
+    }
+
+    if (nowMs < expectedDateTime.getTime()) {
         cdEl.innerText = formatCountdownDuration(expectedDateTime.getTime() - nowMs);
     } else {
         cdEl.innerText = t("countdown_due_now");
@@ -984,12 +1020,19 @@ function listenToQueueForTicket(ticketData) {
                 }
             }
 
-            if (lastTicketNumber !== null && myNum !== lastTicketNumber && currentTicket.status !== "cancelled" && currentTicket.status !== "done") {
-                showTicketAlert("تم تحديث رقم دورك في الطابور ليصبح: " + myNum, "reorder");
-            } else if (currentTicket.status === "serving") {
-                showTicketAlert(t("status_your_turn"), "turn");
-            } else if (aheadCount === 1 && lastAheadCount !== 1 && currentTicket.status !== "cancelled" && currentTicket.status !== "done") {
-                showTicketAlert(t("status_one_left"), "turn");
+            var isSameDay = currentTicket.date === getTodayStr();
+            var isTicketActive = currentTicket.status !== "cancelled" && currentTicket.status !== "done";
+
+            if (isSameDay && isTicketActive) {
+                if (lastTicketNumber !== null && myNum !== lastTicketNumber) {
+                    showTicketAlert("تم تحديث رقم دورك في الطابور ليصبح: " + myNum, "reorder");
+                } else if (currentTicket.status === "serving") {
+                    showTicketAlert(t("status_your_turn"), "turn");
+                } else if (aheadCount === 1 && lastAheadCount !== 1) {
+                    showTicketAlert(t("status_one_left"), "turn");
+                }
+            } else {
+                hideTicketAlert();
             }
 
             lastTicketNumber = myNum;
@@ -1018,6 +1061,9 @@ function listenToQueueForTicket(ticketData) {
                 } else if (currentTicket.status === "cancelled") {
                     statusEl.innerText = t("booking_cancelled");
                     statusEl.className = "badge badge-closed";
+                } else if (!isSameDay) {
+                    statusEl.innerText = t("status_upcoming");
+                    statusEl.className = "badge badge-open";
                 } else if (currentTicket.status === "serving") {
                     statusEl.innerText = t("status_your_turn");
                     statusEl.className = "badge badge-open";
@@ -1203,6 +1249,38 @@ function useCurrentLocationForClinic() {
     });
 }
 
+function attachMapLocationControl(mapInstance) {
+    if (!mapInstance || regLocationControlAdded || typeof L === "undefined") return;
+    var LocationControl = L.Control.extend({
+        options: { position: "topright" },
+        onAdd: function() {
+            var btn = L.DomUtil.create("button", "leaflet-bar leaflet-control");
+            btn.type = "button";
+            btn.title = t("my_location_btn");
+            btn.style.background = "#ffffff";
+            btn.style.color = "#111827";
+            btn.style.border = "1px solid rgba(0,0,0,0.2)";
+            btn.style.borderRadius = "6px";
+            btn.style.padding = "6px 10px";
+            btn.style.fontWeight = "600";
+            btn.style.fontSize = "12px";
+            btn.style.cursor = "pointer";
+            btn.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+            btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> ' + t("my_location_btn");
+
+            L.DomEvent.disableClickPropagation(btn);
+            L.DomEvent.on(btn, "click", function(e) {
+                L.DomEvent.stopPropagation(e);
+                L.DomEvent.preventDefault(e);
+                useCurrentLocationForClinic();
+            });
+            return btn;
+        }
+    });
+    mapInstance.addControl(new LocationControl());
+    regLocationControlAdded = true;
+}
+
 function initRegMapIfNeeded() {
     var mapEl = document.getElementById("reg-map");
     if (!mapEl || typeof L === "undefined") return;
@@ -1211,6 +1289,7 @@ function initRegMapIfNeeded() {
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap"
         }).addTo(regMap);
+        attachMapLocationControl(regMap);
         regMap.on("click", function(e) {
             setClinicMapLocation(e.latlng.lat, e.latlng.lng, regMap.getZoom());
         });
