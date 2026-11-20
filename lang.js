@@ -25,8 +25,67 @@ var translations = {
         close_btn: 'إغلاق',
         choose_clinic_title: 'اختر العيادة',
         doctors_portal_title: 'بوابة الأطباء',
+        tab_login: 'تسجيل الدخول',
+        tab_register: 'إنشاء حساب عيادة',
+        email_label: 'البريد الإلكتروني',
+        password_label: 'كلمة المرور',
+        password_min_label: 'كلمة المرور (6 أحرف على الأقل)',
+        login_btn: 'دخول',
+        activation_code_label: 'رمز التفعيل',
+        activation_code_placeholder: 'أدخل رمز التفعيل',
+        doctor_name_label: 'اسم الطبيب',
+        doctor_name_placeholder: 'د. أحمد محمد',
+        specialty_label: 'التخصص',
+        specialty_placeholder: 'باطنية / أطفال / أسنان...',
+        phone_placeholder: 'رقم التواصل',
+        clinic_name_label: 'اسم العيادة',
+        clinic_name_placeholder: 'عيادة الشفاء',
+        city_label: 'المدينة',
+        city_field_placeholder: 'المدينة',
+        street_label: 'الشارع / الحي',
+        street_placeholder: 'الشارع أو الحي',
+        landmark_label: 'علامة مميزة',
+        landmark_placeholder: 'بجوار...',
+        start_time_label: 'وقت البدء',
+        end_time_label: 'وقت الانتهاء',
+        service_time_label: 'مدة الكشف لكل مريض (بالدقائق)',
+        working_days_label: 'أيام العمل',
+        day_0: 'الأحد',
+        day_1: 'الإثنين',
+        day_2: 'الثلاثاء',
+        day_3: 'الأربعاء',
+        day_4: 'الخميس',
+        day_5: 'الجمعة',
+        day_6: 'السبت',
+        map_pick_label: 'حدد موقع العيادة على الخريطة',
+        add_another_clinic_btn: '+ إضافة عيادة أخرى',
+        save_create_account_btn: 'حفظ وإنشاء الحساب',
+        admin_page_title: 'لوحة تحكم العيادة - دوري',
+        admin_default_doctor: 'لوحة الطبيب',
         admin_subtitle: 'إدارة طابور الانتظار والعيادات',
+        add_clinic_btn: 'إضافة عيادة',
+        edit_delete_clinic_btn: 'تعديل / حذف العيادة',
+        logout_btn: 'خروج',
+        select_clinic_label: 'اختر العيادة:',
+        date_label: 'التاريخ:',
         currently_serving_label: 'الدور الحالي',
+        call_next_btn: 'نداء المريض التالي',
+        waiting_queue_title: 'قائمة الانتظار',
+        call_patient_btn: 'نداء',
+        finish_patient_btn: 'إنهاء',
+        serial_prefix: 'رقم تسلسلي: ',
+        no_clinics_option: 'لا توجد عيادات',
+        clinic_prefix: 'عيادة ',
+        no_selected_clinic_msg: 'لا توجد عيادة محددة حالياً. يمكنك إضافة عيادة جديدة من الأعلى.',
+        add_clinic_modal_title: 'إضافة عيادة جديدة',
+        save_clinic_btn: 'حفظ العيادة',
+        edit_clinic_modal_title: 'تعديل أو حذف العيادة',
+        save_edits_btn: 'حفظ التعديلات',
+        delete_clinic_heading: 'إلغاء وحذف العيادة بالكامل',
+        delete_clinic_warning: 'سيتم حذف العيادة وجميع حجوزاتها نهائياً. لكي يتم الحذف، اكتب العبارة التالية بدقة:',
+        delete_clinic_phrase: 'إحذف العيادة',
+        delete_clinic_placeholder: 'اكتب: إحذف العيادة',
+        confirm_delete_clinic_btn: 'تأكيد حذف العيادة',
         no_results: 'لا توجد عيادات مطابقة للبحث.',
         closed_temp: 'مغلق مؤقتاً',
         available: 'متاح',
@@ -56,11 +115,11 @@ var translations = {
         close_clinic: 'إغلاق العيادة',
         open_clinic: 'فتح العيادة',
         serial_label: 'الرقم التسلسلي:',
-        no_patients: 'لا يوجد مرضى في قائمة الانتظار لهذا اليوم.',
-        status_serving: 'قيد الكشف الآن',
+        no_patients: 'لا يوجد مراجعون في قائمة الانتظار لهذا التاريخ.',
+        status_serving: 'قيد الكشف',
         status_waiting_admin: 'ينتظر',
         countdown_after_open: 'يبدأ مع فتح العيادة في يوم الموعد',
-        countdown_due_now: '00:00'
+        countdown_due_now: '00:00:00'
     },
     en: {
         app_title: 'Clinic',
@@ -88,8 +147,67 @@ var translations = {
         close_btn: 'Close',
         choose_clinic_title: 'Choose Clinic',
         doctors_portal_title: 'Doctors Portal',
+        tab_login: 'Sign In',
+        tab_register: 'Create Clinic Account',
+        email_label: 'Email Address',
+        password_label: 'Password',
+        password_min_label: 'Password (at least 6 characters)',
+        login_btn: 'Sign In',
+        activation_code_label: 'Activation Code',
+        activation_code_placeholder: 'Enter activation code',
+        doctor_name_label: 'Doctor Name',
+        doctor_name_placeholder: 'Dr. Ahmed Mohammed',
+        specialty_label: 'Specialty',
+        specialty_placeholder: 'Internal Medicine / Pediatrics / Dental...',
+        phone_placeholder: 'Contact number',
+        clinic_name_label: 'Clinic Name',
+        clinic_name_placeholder: 'Al-Shifa Clinic',
+        city_label: 'City',
+        city_field_placeholder: 'City',
+        street_label: 'Street / District',
+        street_placeholder: 'Street or district',
+        landmark_label: 'Landmark',
+        landmark_placeholder: 'Near...',
+        start_time_label: 'Start Time',
+        end_time_label: 'End Time',
+        service_time_label: 'Consultation Time per Patient (minutes)',
+        working_days_label: 'Working Days',
+        day_0: 'Sunday',
+        day_1: 'Monday',
+        day_2: 'Tuesday',
+        day_3: 'Wednesday',
+        day_4: 'Thursday',
+        day_5: 'Friday',
+        day_6: 'Saturday',
+        map_pick_label: 'Pick clinic location on the map',
+        add_another_clinic_btn: '+ Add Another Clinic',
+        save_create_account_btn: 'Save & Create Account',
+        admin_page_title: 'Clinic Dashboard - Douri',
+        admin_default_doctor: 'Doctor Dashboard',
         admin_subtitle: 'Queue & Clinic Management',
+        add_clinic_btn: 'Add Clinic',
+        edit_delete_clinic_btn: 'Edit / Delete Clinic',
+        logout_btn: 'Logout',
+        select_clinic_label: 'Select Clinic:',
+        date_label: 'Date:',
         currently_serving_label: 'Currently Serving',
+        call_next_btn: 'Call Next Patient',
+        waiting_queue_title: 'Waiting Queue',
+        call_patient_btn: 'Call',
+        finish_patient_btn: 'Finish',
+        serial_prefix: 'Serial #: ',
+        no_clinics_option: 'No clinics',
+        clinic_prefix: 'Clinic ',
+        no_selected_clinic_msg: 'No clinic selected currently. You can add a new clinic from above.',
+        add_clinic_modal_title: 'Add New Clinic',
+        save_clinic_btn: 'Save Clinic',
+        edit_clinic_modal_title: 'Edit or Delete Clinic',
+        save_edits_btn: 'Save Changes',
+        delete_clinic_heading: 'Cancel & Permanently Delete Clinic',
+        delete_clinic_warning: 'The clinic and all its bookings will be permanently deleted. To confirm, type this exact phrase:',
+        delete_clinic_phrase: 'إحذف العيادة',
+        delete_clinic_placeholder: 'Type: إحذف العيادة',
+        confirm_delete_clinic_btn: 'Confirm Clinic Deletion',
         no_results: 'No matching clinics found.',
         closed_temp: 'Temporarily Closed',
         available: 'Available',
@@ -119,11 +237,11 @@ var translations = {
         close_clinic: 'Close Clinic',
         open_clinic: 'Open Clinic',
         serial_label: 'Serial Number:',
-        no_patients: 'No patients in the queue for today.',
+        no_patients: 'No patients in the queue for this date.',
         status_serving: 'Being Seen Now',
         status_waiting_admin: 'Waiting',
         countdown_after_open: 'Starts when clinic opens on appointment day',
-        countdown_due_now: '00:00'
+        countdown_due_now: '00:00:00'
     }
 };
 
@@ -153,15 +271,26 @@ function toggleLanguage() {
     if (typeof refreshTicketCountdownDisplay === 'function') {
         refreshTicketCountdownDisplay();
     }
+    if (typeof populateClinicSelector === 'function' && typeof currentDoctorData !== 'undefined' && currentDoctorData) {
+        populateClinicSelector();
+    }
+    if (typeof listenToQueue === 'function' && typeof currentDoctorId !== 'undefined' && currentDoctorId) {
+        listenToQueue();
+    }
 }
 
 function applyLanguage() {
     var lang = getCurrentLang();
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    document.title = lang === 'ar'
-        ? 'عيادة - نظام حجز وطوابير العيادات'
-        : 'Clinic - Clinic Booking & Queue System';
+
+    if (document.getElementById('adminDate') || document.getElementById('clinicSelector')) {
+        document.title = t('admin_page_title');
+    } else {
+        document.title = lang === 'ar'
+            ? 'عيادة - نظام حجز وطوابير العيادات'
+            : 'Clinic - Clinic Booking & Queue System';
+    }
 
     var textNodes = document.querySelectorAll('[data-i18n]');
     for (var i = 0; i < textNodes.length; i++) {
