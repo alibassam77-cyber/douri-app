@@ -6,6 +6,7 @@ var translations = {
         restore_btn: 'استعادة بالرمز السري',
         doctors_portal_btn: 'الأطباء',
         lang_btn: 'EN',
+        theme_aria_label: 'تبديل المظهر',
         search_placeholder: 'ابحث باسم الطبيب أو التخصص...',
         city_placeholder: 'اختر أو اكتب المدينة...',
         my_bookings_title: 'حجوزاتي النشطة',
@@ -22,7 +23,10 @@ var translations = {
         copy_secret_btn: 'نسخ الرمز السري',
         cancel_booking_btn: 'إلغاء الحجز',
         patient_name_label: 'اسم المريض',
+        patient_name_placeholder: 'أدخل اسم المريض',
         patient_phone_label: 'رقم الهاتف',
+        patient_phone_placeholder: 'أدخل رقم الهاتف',
+        choose_day_label: 'اختر يوم الحجز',
         confirm_booking_btn: 'تأكيد الحجز',
         close_btn: 'إغلاق',
         choose_clinic_title: 'اختر العيادة',
@@ -78,6 +82,7 @@ var translations = {
         serial_prefix: 'رقم تسلسلي: ',
         no_clinics_option: 'لا توجد عيادات',
         clinic_prefix: 'عيادة ',
+        default_doctor_name: 'طبيب',
         no_selected_clinic_msg: 'لا توجد عيادة محددة حالياً. يمكنك إضافة عيادة جديدة من الأعلى.',
         add_clinic_modal_title: 'إضافة عيادة جديدة',
         save_clinic_btn: 'حفظ العيادة',
@@ -121,7 +126,55 @@ var translations = {
         status_serving: 'قيد الكشف',
         status_waiting_admin: 'ينتظر',
         countdown_after_open: 'يبدأ مع فتح العيادة في يوم الموعد',
-        countdown_due_now: '00:00:00'
+        countdown_due_now: '00:00:00',
+        cal_day_full: 'مكتمل العدد',
+        cal_day_unavailable: 'غير متاح',
+        cal_day_available: 'متاح',
+        cal_capacity_hint: 'الطاقة الاستيعابية اليومية للعيادة: {n} مراجع — الأيام الرمادية غير متاحة أو مكتملة.',
+        cal_unavailable_hint: 'الأيام الرمادية غير متاحة للحجز.',
+        alert_45_mins: 'تنبيه: تبقى على موعدك 45 دقيقة بالضبط.',
+        alert_3_ahead: 'تنبيه: أصبح أمامك 3 مراجعين فقط.',
+        err_load_clinics: 'تعذر تحميل قائمة العيادات حالياً. تحقق من الاتصال وأعد المحاولة.',
+        err_fetch_db: 'حدث خطأ أثناء جلب البيانات من قاعدة البيانات.',
+        err_enter_patient_name: 'يرجى إدخال اسم المريض.',
+        err_select_valid_day: 'يرجى اختيار يوم متاح وغير مكتمل من التقويم.',
+        err_clinic_not_found: 'العيادة غير موجودة.',
+        err_clinic_closed_now: 'العيادة مغلقة حالياً.',
+        err_daily_quota_full: 'اكتمل عدد الحجوزات المسموح به لهذا اليوم.',
+        err_booking_failed: 'تعذر إتمام الحجز.',
+        confirm_cancel_booking: 'هل أنت متأكد من إلغاء هذا الحجز؟',
+        err_cancel_booking: 'حدث خطأ أثناء إلغاء الحجز.',
+        err_geo_unsupported: 'المتصفح لا يدعم تحديد الموقع الجغرافي.',
+        err_geo_failed: 'تعذر الوصول إلى موقعك الحالي. يرجى تفعيل خدمة الموقع أو تحديده يدوياً على الخريطة.',
+        err_geo_short: 'تعذر الوصول إلى موقعك الحالي.',
+        info_add_clinic_from_admin: 'يمكنك إضافة عيادات أخرى مباشرة من داخل لوحة الطبيب بعد إنشاء الحساب عبر زر (إضافة عيادة).',
+        err_enter_email_pass: 'يرجى إدخال البريد الإلكتروني وكلمة المرور.',
+        err_account_not_found: 'الحساب غير موجود',
+        confirm_reactivate_account: 'الحساب غير موجود أو تم حذفه سابقاً. هل تريد إعادة تفعيل الحساب والانتقال لإنشاء عيادة جديدة الآن؟',
+        err_login_failed: 'فشل تسجيل الدخول.',
+        err_reg_required_fields: 'يرجى تعبئة البريد الإلكتروني وكلمة المرور واسم الطبيب واسم العيادة.',
+        err_email_active_doctor: 'هذا البريد الإلكتروني مرتبط بحساب طبيب نشط مسبقاً. يرجى تسجيل الدخول من تبويب تسجيل الدخول.',
+        err_wrong_password_existing: 'البريد الإلكتروني مستخدم مسبقاً وكلمة المرور المدخلة غير مطابقة له.',
+        err_reactivate_failed: 'تعذر إعادة تفعيل الحساب.',
+        err_create_account_failed: 'حدث خطأ أثناء إنشاء الحساب.',
+        err_future_date_call: 'هذا التاريخ ({date}) موعد قادم ولم يحن يومه بعد. لا يمكن نداء أو إدخال المراجعين قبل يوم موعدهم.',
+        err_before_open_call: 'لا يمكن نداء المراجعين قبل موعد فتح العيادة ({time}).',
+        msg_clinic_closed_temp: 'تم إغلاق العيادة مؤقتاً.',
+        msg_clinic_opened: 'تم فتح العيادة لاستقبال المراجعين.',
+        err_update_clinic_status: 'تعذر تحديث حالة العيادة.',
+        err_no_waiting_patients: 'لا يوجد مراجعون بانتظار الدور حالياً.',
+        msg_all_patients_done: 'تم إنهاء جميع المراجعين في القائمة.',
+        err_enter_clinic_name: 'يرجى إدخال اسم العيادة.',
+        msg_clinic_added: 'تمت إضافة العيادة بنجاح.',
+        err_add_clinic_failed: 'تعذر إضافة العيادة.',
+        err_no_clinic_to_edit: 'لا توجد عيادة محددة للتعديل.',
+        msg_clinic_updated: 'تم حفظ تعديلات العيادة بنجاح.',
+        err_update_clinic_failed: 'تعذر حفظ التعديلات.',
+        err_delete_phrase_mismatch: 'يرجى كتابة العبارة التالية بدقة لتأكيد الحذف: إحذف العيادة',
+        confirm_delete_doctor_record: 'تم حذف جميع عيادات الطبيب ومواعيدها. هل تريد حذف سجل الطبيب وجميع مواعيده نهائياً؟',
+        msg_doctor_record_deleted: 'تم حذف سجل الطبيب وجميع مواعيده بنجاح. يمكنك إعادة تفعيل الحساب أو إنشاء عيادة جديدة في أي وقت بنفس البريد وكلمة المرور.',
+        msg_clinic_deleted: 'تم حذف العيادة وجميع حجوزاتها نهائياً.',
+        err_delete_clinic_failed: 'حدث خطأ أثناء حذف العيادة.'
     },
     en: {
         app_title: 'Clinic',
@@ -130,6 +183,7 @@ var translations = {
         restore_btn: 'Restore by Secret Code',
         doctors_portal_btn: 'Doctors',
         lang_btn: 'عربي',
+        theme_aria_label: 'Toggle Theme',
         search_placeholder: 'Search by doctor name or specialty...',
         city_placeholder: 'Choose or type a city...',
         my_bookings_title: 'My Active Bookings',
@@ -146,7 +200,10 @@ var translations = {
         copy_secret_btn: 'Copy Secret Code',
         cancel_booking_btn: 'Cancel Booking',
         patient_name_label: 'Patient Name',
+        patient_name_placeholder: 'Enter patient name',
         patient_phone_label: 'Phone Number',
+        patient_phone_placeholder: 'Enter phone number',
+        choose_day_label: 'Choose Booking Day',
         confirm_booking_btn: 'Confirm Booking',
         close_btn: 'Close',
         choose_clinic_title: 'Choose Clinic',
@@ -202,6 +259,7 @@ var translations = {
         serial_prefix: 'Serial #: ',
         no_clinics_option: 'No clinics',
         clinic_prefix: 'Clinic ',
+        default_doctor_name: 'Doctor',
         no_selected_clinic_msg: 'No clinic selected currently. You can add a new clinic from above.',
         add_clinic_modal_title: 'Add New Clinic',
         save_clinic_btn: 'Save Clinic',
@@ -245,7 +303,55 @@ var translations = {
         status_serving: 'Being Seen Now',
         status_waiting_admin: 'Waiting',
         countdown_after_open: 'Starts when clinic opens on appointment day',
-        countdown_due_now: '00:00:00'
+        countdown_due_now: '00:00:00',
+        cal_day_full: 'Fully Booked',
+        cal_day_unavailable: 'Unavailable',
+        cal_day_available: 'Available',
+        cal_capacity_hint: 'Daily clinic capacity: {n} patients — Grey days are unavailable or full.',
+        cal_unavailable_hint: 'Grey days are unavailable for booking.',
+        alert_45_mins: 'Alert: Your appointment is in 45 minutes.',
+        alert_3_ahead: 'Alert: Only 3 patients are ahead of you.',
+        err_load_clinics: 'Unable to load clinics list right now. Check your connection and try again.',
+        err_fetch_db: 'An error occurred while fetching data from the database.',
+        err_enter_patient_name: 'Please enter the patient name.',
+        err_select_valid_day: 'Please select an available, non-full day from the calendar.',
+        err_clinic_not_found: 'Clinic not found.',
+        err_clinic_closed_now: 'Clinic is currently closed.',
+        err_daily_quota_full: 'Daily booking limit for this day has been reached.',
+        err_booking_failed: 'Unable to complete booking.',
+        confirm_cancel_booking: 'Are you sure you want to cancel this booking?',
+        err_cancel_booking: 'An error occurred while cancelling the booking.',
+        err_geo_unsupported: 'Your browser does not support geolocation.',
+        err_geo_failed: 'Unable to access your current location. Please enable location services or pick manually on the map.',
+        err_geo_short: 'Unable to access your current location.',
+        info_add_clinic_from_admin: 'You can add more clinics directly from the doctor dashboard after creating your account using (Add Clinic).',
+        err_enter_email_pass: 'Please enter your email and password.',
+        err_account_not_found: 'Account not found',
+        confirm_reactivate_account: 'Account not found or was previously deleted. Do you want to reactivate the account and create a new clinic now?',
+        err_login_failed: 'Sign in failed.',
+        err_reg_required_fields: 'Please fill in email, password, doctor name, and clinic name.',
+        err_email_active_doctor: 'This email is already linked to an active doctor account. Please sign in from the Sign In tab.',
+        err_wrong_password_existing: 'This email is already in use and the entered password does not match.',
+        err_reactivate_failed: 'Unable to reactivate account.',
+        err_create_account_failed: 'An error occurred while creating the account.',
+        err_future_date_call: 'This date ({date}) is a future appointment and its day has not arrived yet. Patients cannot be called before their appointment day.',
+        err_before_open_call: 'Patients cannot be called before the clinic opening time ({time}).',
+        msg_clinic_closed_temp: 'Clinic has been temporarily closed.',
+        msg_clinic_opened: 'Clinic is now open for patients.',
+        err_update_clinic_status: 'Unable to update clinic status.',
+        err_no_waiting_patients: 'No patients waiting in the queue right now.',
+        msg_all_patients_done: 'All patients in the queue have been completed.',
+        err_enter_clinic_name: 'Please enter the clinic name.',
+        msg_clinic_added: 'Clinic added successfully.',
+        err_add_clinic_failed: 'Unable to add clinic.',
+        err_no_clinic_to_edit: 'No clinic selected to edit.',
+        msg_clinic_updated: 'Clinic changes saved successfully.',
+        err_update_clinic_failed: 'Unable to save changes.',
+        err_delete_phrase_mismatch: 'Please type the exact confirmation phrase to delete: إحذف العيادة',
+        confirm_delete_doctor_record: 'All clinics and appointments for this doctor have been deleted. Do you want to permanently delete the doctor record and all appointments?',
+        msg_doctor_record_deleted: 'Doctor record and all appointments deleted successfully. You can reactivate your account or create a new clinic anytime with the same email and password.',
+        msg_clinic_deleted: 'Clinic and all its bookings have been permanently deleted.',
+        err_delete_clinic_failed: 'An error occurred while deleting the clinic.'
     }
 };
 
@@ -274,6 +380,9 @@ function toggleLanguage() {
     }
     if (typeof refreshTicketCountdownDisplay === 'function') {
         refreshTicketCountdownDisplay();
+    }
+    if (typeof renderCustomBookingCalendar === 'function' && typeof selectedClinic !== 'undefined' && selectedClinic) {
+        renderCustomBookingCalendar();
     }
     if (typeof populateClinicSelector === 'function' && typeof currentDoctorData !== 'undefined' && currentDoctorData) {
         populateClinicSelector();
@@ -308,6 +417,13 @@ function applyLanguage() {
         var inp = placeholders[j];
         var pKey = inp.getAttribute('data-i18n-placeholder');
         if (pKey) inp.setAttribute('placeholder', t(pKey));
+    }
+
+    var ariaNodes = document.querySelectorAll('[data-i18n-aria]');
+    for (var k = 0; k < ariaNodes.length; k++) {
+        var aEl = ariaNodes[k];
+        var aKey = aEl.getAttribute('data-i18n-aria');
+        if (aKey) aEl.setAttribute('aria-label', t(aKey));
     }
 
     var langBtn = document.getElementById('langToggle');
