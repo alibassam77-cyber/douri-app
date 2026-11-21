@@ -35,6 +35,7 @@ var audioCtx = null;
 
 var activeCountdownInterval = null;
 var activeTicketContext = null;
+var lastTicketViewState = null;
 
 function playPatientAlertSound(type) {
     try {
@@ -98,6 +99,71 @@ function stopTicketCountdown() {
         activeCountdownInterval = null;
     }
     activeTicketContext = null;
+}
+
+function renderTicketDetailsFromState(state) {
+    if (!state) return;
+
+    var nameEl = document.getElementById("patientNameDisplay");
+    var statusEl = document.getElementById("ticketStatus");
+    var numEl = document.getElementById("ticketNumber");
+    var docEl = document.getElementById("doctorNameDisplay");
+    var dateEl = document.getElementById("appointmentDateDisplay");
+    var aheadEl = document.getElementById("peopleAhead");
+    var waitEl = document.getElementById("waitTime");
+    var credBox = document.getElementById("bookingCredentials");
+    var refEl = document.getElementById("bookingReference");
+    var secEl = document.getElementById("bookingSecret");
+
+    if (nameEl) nameEl.innerText = state.patientName || "---";
+    if (numEl) numEl.innerText = state.ticketNumber || "-";
+    if (docEl) {
+        docEl.innerText = t("at_doctor") + (state.doctorName || "") + (state.clinicName ? " — " + state.clinicName : "");
+    }
+    if (dateEl) {
+        dateEl.innerText = t("appointment_date") + " " + (state.date || "");
+    }
+
+    if (statusEl) {
+        if (state.status === "done") {
+            statusEl.innerText = t("booking_done");
+            statusEl.className = "badge badge-closed";
+        } else if (state.status === "cancelled") {
+            statusEl.innerText = t("booking_cancelled");
+            statusEl.className = "badge badge-closed";
+        } else if (!state.isSameDay) {
+            statusEl.innerText = t("status_upcoming");
+            statusEl.className = "badge badge-open";
+        } else if (state.status === "serving" && state.isSameDay) {
+            statusEl.innerText = t("status_your_turn");
+            statusEl.className = "badge badge-open";
+        } else if (state.aheadCount === 1) {
+            statusEl.innerText = t("status_one_left");
+            statusEl.className = "badge badge-break";
+        } else {
+            statusEl.innerText = t("status_waiting");
+            statusEl.className = "badge badge-open";
+        }
+    }
+
+    if (aheadEl) aheadEl.innerText = state.aheadCount;
+    if (waitEl) waitEl.innerText = state.totalWaitMins;
+
+    if (credBox) {
+        if (state.patientSecret) {
+            credBox.classList.remove("hidden");
+            if (refEl) refEl.innerText = state.bookingId;
+            if (secEl) secEl.innerText = state.patientSecret;
+        } else {
+            credBox.classList.add("hidden");
+        }
+    }
+}
+
+function refreshCurrentTicketViewLanguage() {
+    var ticketView = document.getElementById("ticket-view");
+    if (!ticketView || ticketView.classList.contains("hidden") || !lastTicketViewState) return;
+    renderTicketDetailsFromState(lastTicketViewState);
 }
 
 function toggleTheme() {
@@ -909,6 +975,7 @@ function goBackToSearch() {
         unsubscribeTicketBookings = null;
     }
     stopTicketCountdown();
+    lastTicketViewState = null;
     currentTicketBookingId = null;
     lastTicketNumber = null;
     lastAheadCount = null;
@@ -929,6 +996,7 @@ function showMyBookingsView() {
         unsubscribeTicketBookings = null;
     }
     stopTicketCountdown();
+    lastTicketViewState = null;
     currentTicketBookingId = null;
     lastTicketNumber = null;
     lastAheadCount = null;
@@ -1005,6 +1073,7 @@ function openTicketView(bookingId) {
     lastTicketNumber = null;
     lastAheadCount = null;
     notified45MinForTicket = false;
+    lastTicketViewState = null;
     stopTicketCountdown();
     hideTicketAlert();
 
@@ -1086,48 +1155,24 @@ function listenToQueueForTicket(ticketData) {
             lastTicketNumber = myNum;
             lastAheadCount = aheadCount;
 
-            var nameEl = document.getElementById("patientNameDisplay");
-            var statusEl = document.getElementById("ticketStatus");
-            var numEl = document.getElementById("ticketNumber");
-            var docEl = document.getElementById("doctorNameDisplay");
-            var dateEl = document.getElementById("appointmentDateDisplay");
-            var aheadEl = document.getElementById("peopleAhead");
-            var waitEl = document.getElementById("waitTime");
-            var credBox = document.getElementById("bookingCredentials");
-            var refEl = document.getElementById("bookingReference");
-            var secEl = document.getElementById("bookingSecret");
-
-            if (nameEl) nameEl.innerText = currentTicket.patientName || "---";
-            if (numEl) numEl.innerText = myNum || "-";
-            if (docEl) docEl.innerText = t("at_doctor") + (currentTicket.doctorName || "") + (currentTicket.clinicName ? " — " + currentTicket.clinicName : "");
-            if (dateEl) dateEl.innerText = t("appointment_date") + " " + (currentTicket.date || "");
-
-            if (statusEl) {
-                if (currentTicket.status === "done") {
-                    statusEl.innerText = t("booking_done");
-                    statusEl.className = "badge badge-closed";
-                } else if (currentTicket.status === "cancelled") {
-                    statusEl.innerText = t("booking_cancelled");
-                    statusEl.className = "badge badge-closed";
-                } else if (!isSameDay) {
-                    statusEl.innerText = t("status_upcoming");
-                    statusEl.className = "badge badge-open";
-                } else if (currentTicket.status === "serving" && isSameDay) {
-                    statusEl.innerText = t("status_your_turn");
-                    statusEl.className = "badge badge-open";
-                } else if (aheadCount === 1) {
-                    statusEl.innerText = t("status_one_left");
-                    statusEl.className = "badge badge-break";
-                } else {
-                    statusEl.innerText = t("status_waiting");
-                    statusEl.className = "badge badge-open";
-                }
-            }
-
-            if (aheadEl) aheadEl.innerText = aheadCount;
             var serviceMins = parseInt(currentTicket.serviceTime, 10) || 10;
             var totalWaitMins = aheadCount * serviceMins;
-            if (waitEl) waitEl.innerText = totalWaitMins;
+
+            lastTicketViewState = {
+                bookingId: currentTicket.id,
+                patientName: currentTicket.patientName || "---",
+                ticketNumber: myNum || "-",
+                doctorName: currentTicket.doctorName || "",
+                clinicName: currentTicket.clinicName || "",
+                date: currentTicket.date || "",
+                status: currentTicket.status || "waiting",
+                isSameDay: isSameDay,
+                aheadCount: aheadCount,
+                totalWaitMins: totalWaitMins,
+                patientSecret: currentTicket.patientSecret || ""
+            };
+
+            renderTicketDetailsFromState(lastTicketViewState);
 
             var linkedClinic = findClinicForTicket(currentTicket);
             var startTimeStr = (linkedClinic && linkedClinic.startTime) || currentTicket.clinicStartTime || "09:00";
@@ -1147,16 +1192,6 @@ function listenToQueueForTicket(ticketData) {
                 isActive: isTicketActive,
                 isWaitingTurn: isWaitingTurn
             });
-
-            if (credBox) {
-                if (currentTicket.patientSecret) {
-                    credBox.classList.remove("hidden");
-                    if (refEl) refEl.innerText = currentTicket.id;
-                    if (secEl) secEl.innerText = currentTicket.patientSecret;
-                } else {
-                    credBox.classList.add("hidden");
-                }
-            }
         });
 }
 
