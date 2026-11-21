@@ -30,6 +30,7 @@ var calendarViewMonth = null;
 var calendarBookingsByDate = {};
 var lastTicketNumber = null;
 var lastAheadCount = null;
+var notified45MinForTicket = false;
 var audioCtx = null;
 
 var activeCountdownInterval = null;
@@ -220,6 +221,24 @@ function findClinicForTicket(ticketData) {
     return doc.clinics[idx] || doc.clinics[0] || null;
 }
 
+function check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime) {
+    if (!ctx || !ctx.isActive || ctx.dateStr !== getTodayStr()) return;
+    if (notified45MinForTicket) return;
+
+    var remainingMs = appointmentStartDateTime.getTime() - nowMs;
+    var fortyFiveMinsMs = 45 * 60 * 1000;
+    var oneMinuteMs = 60 * 1000;
+
+    // تنبيه عند الوصول إلى 45 دقيقة بالضبط قبل الموعد (ضمن نافذة ثانية/دقيقة وصولاً لـ 45 دقيقة)
+    if (remainingMs > 0 && remainingMs <= fortyFiveMinsMs && remainingMs >= (fortyFiveMinsMs - oneMinuteMs)) {
+        notified45MinForTicket = true;
+        var msg = getCurrentLang() === "ar"
+            ? "تنبيه: تبقى على موعدك 45 دقيقة بالضبط."
+            : "Alert: Your appointment is in 45 minutes.";
+        showTicketAlert(msg, "turn");
+    }
+}
+
 function refreshTicketCountdownDisplay() {
     var etaEl = document.getElementById("etaTime");
     var cdEl = document.getElementById("appointmentCountdown");
@@ -242,7 +261,6 @@ function refreshTicketCountdownDisplay() {
     var todayStr = getTodayStr();
     var isAr = getCurrentLang() === "ar";
 
-    // إذا لم يحن يوم الكشف بعد، نُظهر البداية من 12:00 صباحاً في يوم الكشف
     if (ctx.dateStr > todayStr) {
         var fullDayWindowMs = Math.max(0, appointmentStartDateTime.getTime() - dayMidnightStart.getTime());
         var prefixFuture = isAr ? "يبدأ 12:00 ص (" : "Starts 12:00 AM (";
@@ -250,9 +268,9 @@ function refreshTicketCountdownDisplay() {
         return;
     }
 
-    // في يوم الكشف نفسه: يبدأ العد التنازلي من 12:00 صباحاً (00:00:00) حتى موعد الكشف وصولاً إلى 00:00:00
     if (nowMs < appointmentStartDateTime.getTime()) {
         cdEl.innerText = formatCountdownDuration(appointmentStartDateTime.getTime() - nowMs);
+        check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime);
     } else {
         cdEl.innerText = "00:00:00";
     }
@@ -868,6 +886,7 @@ function goBackToSearch() {
     currentTicketBookingId = null;
     lastTicketNumber = null;
     lastAheadCount = null;
+    notified45MinForTicket = false;
     hideTicketAlert();
     var mainView = document.getElementById("main-view");
     var bookingsView = document.getElementById("bookings-view");
@@ -887,6 +906,7 @@ function showMyBookingsView() {
     currentTicketBookingId = null;
     lastTicketNumber = null;
     lastAheadCount = null;
+    notified45MinForTicket = false;
     hideTicketAlert();
     var mainView = document.getElementById("main-view");
     var bookingsView = document.getElementById("bookings-view");
@@ -958,6 +978,7 @@ function openTicketView(bookingId) {
     currentTicketBookingId = bookingId;
     lastTicketNumber = null;
     lastAheadCount = null;
+    notified45MinForTicket = false;
     stopTicketCountdown();
     hideTicketAlert();
 
@@ -1027,13 +1048,13 @@ function listenToQueueForTicket(ticketData) {
             var isSameDay = currentTicket.date === getTodayStr();
             var isTicketActive = currentTicket.status !== "cancelled" && currentTicket.status !== "done";
 
+            // التنبيه بصوت واهتزاز فقط عندما يصبح أمام المريض 3 مرضى (أو عند بلوغ 45 دقيقة قبل الموعد عبر الدالة المخصصة)
             if (isSameDay && isTicketActive) {
-                if (lastTicketNumber !== null && myNum !== lastTicketNumber) {
-                    showTicketAlert("تم تحديث رقم دورك في الطابور ليصبح: " + myNum, "reorder");
-                } else if (currentTicket.status === "serving") {
-                    showTicketAlert(t("status_your_turn"), "turn");
-                } else if (aheadCount === 1 && lastAheadCount !== 1) {
-                    showTicketAlert(t("status_one_left"), "turn");
+                if (aheadCount === 3 && lastAheadCount !== 3) {
+                    var msgThreeAhead = getCurrentLang() === "ar"
+                        ? "تنبيه: أصبح أمامك 3 مراجعين فقط."
+                        : "Alert: Only 3 patients are ahead of you.";
+                    showTicketAlert(msgThreeAhead, "turn");
                 }
             } else {
                 hideTicketAlert();
@@ -1097,7 +1118,8 @@ function listenToQueueForTicket(ticketData) {
                 dateStr: currentTicket.date,
                 openMinutes: openMins,
                 totalWaitMins: totalWaitMins,
-                expectedMinutes: expectedMins
+                expectedMinutes: expectedMins,
+                isActive: isTicketActive
             });
 
             if (credBox) {
