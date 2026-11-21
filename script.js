@@ -185,7 +185,7 @@ function formatExpectedAppointmentText(dateStr, expectedMinutes) {
 
     var slashDate = formatDateSlashes(dateStr);
     if (dateStr === tomorrowStr) {
-        return (isAr ? "غداً " : "Tomorrow ") + slashDate + (isAr ? " الساعة " : " at ") + timeFormatted;
+        return t("tomorrow") + slashDate + (isAr ? " الساعة " : " at ") + timeFormatted;
     }
     return slashDate + (isAr ? " الساعة " : " at ") + timeFormatted;
 }
@@ -230,7 +230,6 @@ function computeEffectiveTargetDateTime(ctx, nowDate) {
         return baseTarget;
     }
 
-    // إذا لم يأتِ دور المريض بعد في يوم الموعد، نضمن وجود وقت مستهدف قادم حتى لو كانت العيادة قد فتحت وتم التسجيل بعدها
     if (ctx.isWaitingTurn && baseTarget.getTime() <= nowDate.getTime()) {
         var serviceMins = parseInt(ctx.serviceTime, 10) || 10;
         var aheadCount = parseInt(ctx.aheadCount, 10) || 0;
@@ -251,10 +250,7 @@ function check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime) {
 
     if (remainingMs > 0 && remainingMs <= fortyFiveMinsMs && remainingMs >= (fortyFiveMinsMs - oneMinuteMs)) {
         notified45MinForTicket = true;
-        var msg = getCurrentLang() === "ar"
-            ? "تنبيه: تبقى على موعدك 45 دقيقة بالضبط."
-            : "Alert: Your appointment is in 45 minutes.";
-        showTicketAlert(msg, "turn");
+        showTicketAlert(t("alert_45_mins"), "turn");
     }
 }
 
@@ -297,7 +293,7 @@ function refreshTicketCountdownDisplay() {
         cdEl.innerText = formatCountdownDuration(targetDateTime.getTime() - nowMs);
         check45MinuteAlertIfNeeded(ctx, nowMs, targetDateTime);
     } else {
-        cdEl.innerText = "00:00:00";
+        cdEl.innerText = t("countdown_due_now");
     }
 }
 
@@ -375,8 +371,13 @@ function renderCustomBookingCalendar() {
     }
 
     var capacity = calculateDailyCapacity(selectedClinic);
-    var monthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
-    var weekDays = ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
+    var isAr = getCurrentLang() === "ar";
+    var monthNames = isAr
+        ? ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+        : ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    var weekDays = isAr
+        ? ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"]
+        : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
     var firstDayOfMonth = new Date(calendarViewYear, calendarViewMonth, 1).getDay();
     var daysInMonth = new Date(calendarViewYear, calendarViewMonth + 1, 0).getDate();
@@ -410,7 +411,7 @@ function renderCustomBookingCalendar() {
         if (!available) cls += " disabled-day";
         if (isSelected) cls += " selected";
 
-        var titleAttr = isFull ? "مكتمل العدد" : (!available ? "غير متاح" : "متاح");
+        var titleAttr = isFull ? t("cal_day_full") : (!available ? t("cal_day_unavailable") : t("cal_day_available"));
         html += '<button type="button" class="' + cls + '" title="' + titleAttr + '" ' +
             (!available ? 'disabled' : 'onclick="selectCalendarDate(\'' + dateStr + '\')"') + '>' +
             day + '</button>';
@@ -421,9 +422,9 @@ function renderCustomBookingCalendar() {
 
     if (hintEl) {
         if (capacity > 0) {
-            hintEl.innerText = "الطاقة الاستيعابية اليومية للعيادة: " + capacity + " مراجع — الأيام الرمادية غير متاحة أو مكتملة.";
+            hintEl.innerText = t("cal_capacity_hint").replace("{n}", capacity);
         } else {
-            hintEl.innerText = "الأيام الرمادية غير متاحة للحجز.";
+            hintEl.innerText = t("cal_unavailable_hint");
         }
     }
 }
@@ -575,7 +576,7 @@ function loadDoctors() {
 
     var fallbackTimer = setTimeout(function() {
         if (listEl && listEl.querySelector(".skeleton-card")) {
-            listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--text-muted);">تعذر تحميل قائمة العيادات حالياً. تحقق من الاتصال وأعد المحاولة.</p>';
+            listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--text-muted);">' + t("err_load_clinics") + '</p>';
         }
     }, 10000);
 
@@ -624,7 +625,7 @@ function loadDoctors() {
         clearTimeout(fallbackTimer);
         console.error(error);
         if (listEl) {
-            listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--danger);">حدث خطأ أثناء جلب البيانات من قاعدة البيانات.</p>';
+            listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--danger);">' + t("err_fetch_db") + '</p>';
         }
     });
 }
@@ -716,7 +717,7 @@ function renderDoctorsList(doctors) {
 
         html += '<div class="clinic-card">' +
             '<div class="clinic-header">' +
-                '<h3>' + (doc.name || "طبيب") + '</h3>' +
+                '<h3>' + (doc.name || t("default_doctor_name")) + '</h3>' +
                 statusBadge +
             '</div>' +
             '<p class="specialty">' + (doc.specialty || "") + (primaryClinic.clinicName ? " — " + primaryClinic.clinicName : "") + '</p>' +
@@ -741,7 +742,7 @@ function openClinicSelection(doctorId) {
         var closed = c.isClosed === true;
         var mapBtn = buildMapLink(c);
         html += '<div class="clinic-card" style="margin-bottom:10px;">' +
-            '<div class="clinic-header"><h3>' + (c.clinicName || ("عيادة " + (idx + 1))) + '</h3>' +
+            '<div class="clinic-header"><h3>' + (c.clinicName || (t("clinic_prefix") + (idx + 1))) + '</h3>' +
             '<span class="badge ' + (closed ? "badge-closed" : "badge-open") + '">' + (closed ? t("closed_temp") : t("available")) + '</span></div>' +
             '<p class="specialty">' + (c.city || "") + (c.street ? " - " + c.street : "") + '</p>' +
             '<div class="clinic-actions">' +
@@ -823,11 +824,11 @@ function confirmBooking() {
     var dateStr = dateInput ? dateInput.value.trim() : "";
 
     if (!patientName) {
-        alert("يرجى إدخال اسم المريض.");
+        alert(t("err_enter_patient_name"));
         return;
     }
     if (!dateStr || !isDateAvailableForClinic(dateStr, selectedClinic)) {
-        alert("يرجى اختيار يوم متاح وغير مكتمل من التقويم.");
+        alert(t("err_select_valid_day"));
         return;
     }
 
@@ -839,16 +840,16 @@ function confirmBooking() {
     db.runTransaction(function(transaction) {
         return transaction.get(docRef).then(function(docSnap) {
             if (!docSnap.exists) {
-                throw new Error("العيادة غير موجودة.");
+                throw new Error(t("err_clinic_not_found"));
             }
             var docData = docSnap.data();
             if (docData.isDeleted === true) {
-                throw new Error("العيادة غير موجودة.");
+                throw new Error(t("err_clinic_not_found"));
             }
             var clinics = Array.isArray(docData.clinics) ? docData.clinics.slice() : [];
             var clinicObj = clinics[selectedClinicIndex];
             if (!clinicObj || clinicObj.isClosed === true) {
-                throw new Error("العيادة مغلقة حالياً.");
+                throw new Error(t("err_clinic_closed_now"));
             }
 
             var currentSerial = parseInt(clinicObj.serialNumber, 10) || 0;
@@ -862,7 +863,7 @@ function confirmBooking() {
                 : {};
             var nextQueueNumber = (parseInt(dailyCounters[dailyKey], 10) || 0) + 1;
             if (capacity > 0 && nextQueueNumber > capacity) {
-                throw new Error("اكتمل عدد الحجوزات المسموح به لهذا اليوم.");
+                throw new Error(t("err_daily_quota_full"));
             }
             dailyCounters[dailyKey] = nextQueueNumber;
             clinicObj.dailyCounters = dailyCounters;
@@ -898,7 +899,7 @@ function confirmBooking() {
         closeModal();
         openTicketView(result.bookingId);
     }).catch(function(err) {
-        alert(err && err.message ? err.message : "تعذر إتمام الحجز.");
+        alert(err && err.message ? err.message : t("err_booking_failed"));
     });
 }
 
@@ -1076,10 +1077,7 @@ function listenToQueueForTicket(ticketData) {
 
             if (isSameDay && isTicketActive) {
                 if (aheadCount === 3 && lastAheadCount !== 3) {
-                    var msgThreeAhead = getCurrentLang() === "ar"
-                        ? "تنبيه: أصبح أمامك 3 مراجعين فقط."
-                        : "Alert: Only 3 patients are ahead of you.";
-                    showTicketAlert(msgThreeAhead, "turn");
+                    showTicketAlert(t("alert_3_ahead"), "turn");
                 }
             } else {
                 hideTicketAlert();
@@ -1180,7 +1178,7 @@ function copyPatientCredentials() {
 
 function cancelCurrentTicket() {
     if (!currentTicketBookingId) return;
-    if (!confirm("هل أنت متأكد من إلغاء هذا الحجز؟")) return;
+    if (!confirm(t("confirm_cancel_booking"))) return;
 
     var bookingRef = db.collection("bookings").doc(currentTicketBookingId);
 
@@ -1198,7 +1196,7 @@ function cancelCurrentTicket() {
         showMyBookingsView();
     }).catch(function(err) {
         console.error(err);
-        alert("حدث خطأ أثناء إلغاء الحجز.");
+        alert(t("err_cancel_booking"));
     });
 }
 
@@ -1290,13 +1288,13 @@ function setClinicMapLocation(lat, lng, zoomLevel) {
 
 function useCurrentLocationForClinic() {
     if (!navigator.geolocation) {
-        alert("المتصفح لا يدعم تحديد الموقع الجغرافي.");
+        alert(t("err_geo_unsupported"));
         return;
     }
     navigator.geolocation.getCurrentPosition(function(pos) {
         setClinicMapLocation(pos.coords.latitude, pos.coords.longitude, 16);
     }, function() {
-        alert("تعذر الوصول إلى موقعك الحالي. يرجى تفعيل خدمة الموقع أو تحديده يدوياً على الخريطة.");
+        alert(t("err_geo_failed"));
     }, {
         enableHighAccuracy: true,
         timeout: 10000
@@ -1354,7 +1352,7 @@ function initRegMapIfNeeded() {
 }
 
 function addAnotherClinicField() {
-    alert("يمكنك إضافة عيادات أخرى مباشرة من داخل لوحة الطبيب بعد إنشاء الحساب عبر زر (إضافة عيادة).");
+    alert(t("info_add_clinic_from_admin"));
 }
 
 function loginDoctor() {
@@ -1364,7 +1362,7 @@ function loginDoctor() {
     var password = passEl ? passEl.value : "";
 
     if (!email || !password) {
-        alert("يرجى إدخال البريد الإلكتروني وكلمة المرور.");
+        alert(t("err_enter_email_pass"));
         return;
     }
 
@@ -1372,14 +1370,14 @@ function loginDoctor() {
         var uid = cred && cred.user ? cred.user.uid : null;
         if (!uid) {
             return auth.signOut().then(function() {
-                alert("الحساب غير موجود");
+                alert(t("err_account_not_found"));
             });
         }
 
         return db.collection("doctors").doc(uid).get().then(function(docSnap) {
             var docData = docSnap.exists ? docSnap.data() : null;
             if (!docSnap.exists || !docData || docData.isDeleted === true) {
-                var reactivate = confirm("الحساب غير موجود أو تم حذفه سابقاً. هل تريد إعادة تفعيل الحساب والانتقال لإنشاء عيادة جديدة الآن؟");
+                var reactivate = confirm(t("confirm_reactivate_account"));
                 if (reactivate) {
                     return db.collection("doctors").doc(uid).set({
                         ownerUid: uid,
@@ -1395,13 +1393,13 @@ function loginDoctor() {
                     });
                 }
                 return auth.signOut().then(function() {
-                    alert("الحساب غير موجود");
+                    alert(t("err_account_not_found"));
                 });
             }
             window.location.href = "admin.html";
         });
     }).catch(function(err) {
-        alert(err && err.message ? err.message : "فشل تسجيل الدخول.");
+        alert(err && err.message ? err.message : t("err_login_failed"));
     });
 }
 
@@ -1474,7 +1472,7 @@ function registerAndSaveDoctor() {
     var formData = collectRegistrationFormData();
 
     if (!formData.email || !formData.password || !formData.docName || !formData.clinic.clinicName) {
-        alert("يرجى تعبئة البريد الإلكتروني وكلمة المرور واسم الطبيب واسم العيادة.");
+        alert(t("err_reg_required_fields"));
         return;
     }
 
@@ -1492,7 +1490,7 @@ function registerAndSaveDoctor() {
                     var existing = docSnap.exists ? docSnap.data() : null;
                     var hasClinics = existing && existing.isDeleted !== true && Array.isArray(existing.clinics) && existing.clinics.length > 0;
                     if (hasClinics) {
-                        throw new Error("هذا البريد الإلكتروني مرتبط بحساب طبيب نشط مسبقاً. يرجى تسجيل الدخول من تبويب تسجيل الدخول.");
+                        throw new Error(t("err_email_active_doctor"));
                     }
                     return writeDoctorRecordForUid(uid, formData, true).then(function() {
                         window.location.href = "admin.html";
@@ -1500,13 +1498,13 @@ function registerAndSaveDoctor() {
                 });
             }).catch(function(reErr) {
                 if (reErr && reErr.code === "auth/wrong-password") {
-                    alert("البريد الإلكتروني مستخدم مسبقاً وكلمة المرور المدخلة غير مطابقة له.");
+                    alert(t("err_wrong_password_existing"));
                 } else {
-                    alert(reErr && reErr.message ? reErr.message : "تعذر إعادة تفعيل الحساب.");
+                    alert(reErr && reErr.message ? reErr.message : t("err_reactivate_failed"));
                 }
             });
         }
-        alert(err && err.message ? err.message : "حدث خطأ أثناء إنشاء الحساب.");
+        alert(err && err.message ? err.message : t("err_create_account_failed"));
     });
 }
 
