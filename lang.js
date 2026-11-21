@@ -378,6 +378,9 @@ function toggleLanguage() {
     if (typeof updateActiveBookingBanner === 'function') {
         updateActiveBookingBanner();
     }
+    if (typeof refreshCurrentTicketViewLanguage === 'function') {
+        refreshCurrentTicketViewLanguage();
+    }
     if (typeof refreshTicketCountdownDisplay === 'function') {
         refreshTicketCountdownDisplay();
     }
