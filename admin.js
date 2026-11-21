@@ -34,6 +34,44 @@ function getTodayStrAdmin() {
     return y + "-" + m + "-" + d;
 }
 
+function parseMinutesAdmin(timeStr) {
+    if (!timeStr || typeof timeStr !== "string") return null;
+    var parts = timeStr.split(":");
+    if (parts.length < 2) return null;
+    var h = parseInt(parts[0], 10);
+    var min = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(min)) return null;
+    return h * 60 + min;
+}
+
+function getCurrentMinutesNowAdmin() {
+    var now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+}
+
+function canCallPatientsForClinicAndDate(dateFilter) {
+    var todayStr = getTodayStrAdmin();
+    if (dateFilter > todayStr) {
+        alert("هذا التاريخ (" + dateFilter + ") موعد قادم ولم يحن يومه بعد. لا يمكن نداء أو إدخال المراجعين قبل يوم موعدهم.");
+        return false;
+    }
+
+    if (dateFilter === todayStr) {
+        var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
+        var activeClinic = clinics[currentClinicIndex] || null;
+        var openMins = activeClinic ? parseMinutesAdmin(activeClinic.startTime) : null;
+        if (openMins !== null) {
+            var nowMins = getCurrentMinutesNowAdmin();
+            if (nowMins < openMins) {
+                alert("لا يمكن نداء المراجعين قبل موعد فتح العيادة (" + activeClinic.startTime + ").");
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 function applySavedThemeAdmin() {
     if (localStorage.getItem("douri_theme") === "dark") {
         document.body.classList.add("dark-mode");
@@ -225,8 +263,6 @@ function listenToQueue() {
 
             var servingText = typeof t === "function" ? t("status_serving") : "قيد الكشف";
             var waitingText = typeof t === "function" ? t("status_waiting_admin") : "ينتظر";
-            var callBtnText = typeof t === "function" ? t("call_patient_btn") : "نداء";
-            var finishBtnText = typeof t === "function" ? t("finish_patient_btn") : "إنهاء";
 
             var html = "";
             waitingItems.forEach(function(item) {
@@ -244,8 +280,6 @@ function listenToQueue() {
                     '</div>' +
                     '<div class="queue-actions">' +
                         '<span class="' + badgeClass + '">' + badgeText + '</span>' +
-                        (!isServing ? '<button type="button" class="btn-primary" onclick="callSpecificPatient(\'' + item.id + '\')">' + callBtnText + '</button>' : '') +
-                        '<button type="button" class="btn-outline" onclick="completePatientBooking(\'' + item.id + '\')">' + finishBtnText + '</button>' +
                     '</div>' +
                 '</div>';
             });
@@ -259,10 +293,8 @@ function listenToQueue() {
 function callSpecificPatient(bookingId) {
     if (!bookingId || !currentDoctorId) return;
     var dateFilter = currentAdminDate || getTodayStrAdmin();
-    var todayStr = getTodayStrAdmin();
 
-    if (dateFilter > todayStr) {
-        alert("هذا التاريخ (" + dateFilter + ") موعد قادم ولم يحن يومه بعد. لا يمكن نداء أو إدخال المراجعين قبل يوم موعدهم.");
+    if (!canCallPatientsForClinicAndDate(dateFilter)) {
         return;
     }
 
@@ -287,10 +319,8 @@ function callSpecificPatient(bookingId) {
 function callNextPatient() {
     if (!currentDoctorId) return;
     var dateFilter = currentAdminDate || getTodayStrAdmin();
-    var todayStr = getTodayStrAdmin();
 
-    if (dateFilter > todayStr) {
-        alert("هذا التاريخ (" + dateFilter + ") موعد قادم ولم يحن يومه بعد. لا يمكن نداء المراجعين قبل يوم موعدهم.");
+    if (!canCallPatientsForClinicAndDate(dateFilter)) {
         return;
     }
 
