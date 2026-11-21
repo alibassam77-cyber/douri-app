@@ -221,6 +221,26 @@ function findClinicForTicket(ticketData) {
     return doc.clinics[idx] || doc.clinics[0] || null;
 }
 
+function computeEffectiveTargetDateTime(ctx, nowDate) {
+    var baseTarget = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.expectedMinutes);
+    if (!baseTarget) return null;
+
+    var todayStr = getTodayStr();
+    if (ctx.dateStr !== todayStr) {
+        return baseTarget;
+    }
+
+    // إذا لم يأتِ دور المريض بعد في يوم الموعد، نضمن وجود وقت مستهدف قادم حتى لو كانت العيادة قد فتحت وتم التسجيل بعدها
+    if (ctx.isWaitingTurn && baseTarget.getTime() <= nowDate.getTime()) {
+        var serviceMins = parseInt(ctx.serviceTime, 10) || 10;
+        var aheadCount = parseInt(ctx.aheadCount, 10) || 0;
+        var fallbackMinsFromNow = aheadCount > 0 ? (aheadCount * serviceMins) : serviceMins;
+        return new Date(nowDate.getTime() + fallbackMinsFromNow * 60 * 1000);
+    }
+
+    return baseTarget;
+}
+
 function check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime) {
     if (!ctx || !ctx.isActive || ctx.dateStr !== getTodayStr()) return;
     if (notified45MinForTicket) return;
@@ -229,7 +249,6 @@ function check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime) {
     var fortyFiveMinsMs = 45 * 60 * 1000;
     var oneMinuteMs = 60 * 1000;
 
-    // تنبيه عند الوصول إلى 45 دقيقة بالضبط قبل الموعد (ضمن نافذة ثانية/دقيقة وصولاً لـ 45 دقيقة)
     if (remainingMs > 0 && remainingMs <= fortyFiveMinsMs && remainingMs >= (fortyFiveMinsMs - oneMinuteMs)) {
         notified45MinForTicket = true;
         var msg = getCurrentLang() === "ar"
@@ -245,32 +264,38 @@ function refreshTicketCountdownDisplay() {
     if (!activeTicketContext || !etaEl || !cdEl) return;
 
     var ctx = activeTicketContext;
-    var appointmentStartDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.expectedMinutes);
+    var nowDate = new Date();
+    var nowMs = nowDate.getTime();
+    var targetDateTime = computeEffectiveTargetDateTime(ctx, nowDate);
     var dayMidnightStart = buildDateTimeFromYMDAndMinutes(ctx.dateStr, 0);
 
-    if (etaEl) {
-        etaEl.innerText = formatExpectedAppointmentText(ctx.dateStr, ctx.expectedMinutes);
+    var displayedMins = ctx.expectedMinutes;
+    if (ctx.dateStr === getTodayStr() && ctx.isWaitingTurn && targetDateTime) {
+        displayedMins = targetDateTime.getHours() * 60 + targetDateTime.getMinutes();
     }
 
-    if (!appointmentStartDateTime || !dayMidnightStart) {
+    if (etaEl) {
+        etaEl.innerText = formatExpectedAppointmentText(ctx.dateStr, displayedMins);
+    }
+
+    if (!targetDateTime || !dayMidnightStart) {
         cdEl.innerText = "--:--:--";
         return;
     }
 
-    var nowMs = Date.now();
     var todayStr = getTodayStr();
     var isAr = getCurrentLang() === "ar";
 
     if (ctx.dateStr > todayStr) {
-        var fullDayWindowMs = Math.max(0, appointmentStartDateTime.getTime() - dayMidnightStart.getTime());
+        var fullDayWindowMs = Math.max(0, targetDateTime.getTime() - dayMidnightStart.getTime());
         var prefixFuture = isAr ? "يبدأ 12:00 ص (" : "Starts 12:00 AM (";
         cdEl.innerText = prefixFuture + formatCountdownDuration(fullDayWindowMs) + ")";
         return;
     }
 
-    if (nowMs < appointmentStartDateTime.getTime()) {
-        cdEl.innerText = formatCountdownDuration(appointmentStartDateTime.getTime() - nowMs);
-        check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime);
+    if (nowMs < targetDateTime.getTime()) {
+        cdEl.innerText = formatCountdownDuration(targetDateTime.getTime() - nowMs);
+        check45MinuteAlertIfNeeded(ctx, nowMs, targetDateTime);
     } else {
         cdEl.innerText = "00:00:00";
     }
@@ -1047,8 +1072,8 @@ function listenToQueueForTicket(ticketData) {
 
             var isSameDay = currentTicket.date === getTodayStr();
             var isTicketActive = currentTicket.status !== "cancelled" && currentTicket.status !== "done";
+            var isWaitingTurn = isTicketActive && currentTicket.status !== "serving";
 
-            // التنبيه بصوت واهتزاز فقط عندما يصبح أمام المريض 3 مرضى (أو عند بلوغ 45 دقيقة قبل الموعد عبر الدالة المخصصة)
             if (isSameDay && isTicketActive) {
                 if (aheadCount === 3 && lastAheadCount !== 3) {
                     var msgThreeAhead = getCurrentLang() === "ar"
@@ -1119,7 +1144,10 @@ function listenToQueueForTicket(ticketData) {
                 openMinutes: openMins,
                 totalWaitMins: totalWaitMins,
                 expectedMinutes: expectedMins,
-                isActive: isTicketActive
+                serviceTime: serviceMins,
+                aheadCount: aheadCount,
+                isActive: isTicketActive,
+                isWaitingTurn: isWaitingTurn
             });
 
             if (credBox) {
