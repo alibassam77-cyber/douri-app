@@ -30,12 +30,148 @@ var calendarViewMonth = null;
 var calendarBookingsByDate = {};
 var lastTicketNumber = null;
 var lastAheadCount = null;
+var lastTicketStatus = null;
 var notified45MinForTicket = false;
 var audioCtx = null;
 
 var activeCountdownInterval = null;
 var activeTicketContext = null;
 var lastTicketViewState = null;
+
+var sortByNearestEnabled = false;
+var patientCurrentCoords = null;
+
+function getLocalizedDoctorName(doc) {
+    if (!doc) return "";
+    if (getCurrentLang() === "en" && doc.nameEn && String(doc.nameEn).trim()) {
+        return String(doc.nameEn).trim();
+    }
+    return doc.name || "";
+}
+
+function getLocalizedSpecialty(doc) {
+    if (!doc) return "";
+    if (getCurrentLang() === "en" && doc.specialtyEn && String(doc.specialtyEn).trim()) {
+        return String(doc.specialtyEn).trim();
+    }
+    return doc.specialty || "";
+}
+
+function getLocalizedClinicName(clinic) {
+    if (!clinic) return "";
+    if (getCurrentLang() === "en" && clinic.clinicNameEn && String(clinic.clinicNameEn).trim()) {
+        return String(clinic.clinicNameEn).trim();
+    }
+    return clinic.clinicName || "";
+}
+
+function getLocalizedCity(clinic) {
+    if (!clinic) return "";
+    if (getCurrentLang() === "en" && clinic.cityEn && String(clinic.cityEn).trim()) {
+        return String(clinic.cityEn).trim();
+    }
+    return clinic.city || "";
+}
+
+function getLocalizedStreet(clinic) {
+    if (!clinic) return "";
+    if (getCurrentLang() === "en" && clinic.streetEn && String(clinic.streetEn).trim()) {
+        return String(clinic.streetEn).trim();
+    }
+    return clinic.street || "";
+}
+
+function calculateDistanceKm(lat1, lng1, lat2, lng2) {
+    var nLat1 = parseFloat(lat1);
+    var nLng1 = parseFloat(lng1);
+    var nLat2 = parseFloat(lat2);
+    var nLng2 = parseFloat(lng2);
+    if (isNaN(nLat1) || isNaN(nLng1) || isNaN(nLat2) || isNaN(nLng2)) {
+        return null;
+    }
+    var toRad = function(deg) { return deg * Math.PI / 180; };
+    var R = 6371;
+    var dLat = toRad(nLat2 - nLat1);
+    var dLng = toRad(nLng2 - nLng1);
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(nLat1)) * Math.cos(toRad(nLat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function formatDistanceText(distanceKm) {
+    if (distanceKm === null || isNaN(distanceKm)) return "";
+    if (distanceKm < 1) {
+        var meters = Math.max(1, Math.round(distanceKm * 1000));
+        return t("distance_m").replace("{m}", meters);
+    }
+    return t("distance_km").replace("{km}", distanceKm.toFixed(1));
+}
+
+function getNearestClinicDistanceForDoctor(doc) {
+    if (!patientCurrentCoords || !doc || !Array.isArray(doc.clinics)) return null;
+    var minDist = null;
+    for (var i = 0; i < doc.clinics.length; i++) {
+        var c = doc.clinics[i];
+        if (!c) continue;
+        var d = calculateDistanceKm(patientCurrentCoords.lat, patientCurrentCoords.lng, c.lat, c.lng);
+        if (d !== null && (minDist === null || d < minDist)) {
+            minDist = d;
+        }
+    }
+    return minDist;
+}
+
+function updateNearestButtonLabel() {
+    var btn = document.getElementById("nearestSortBtn");
+    var span = document.getElementById("nearestSortBtnText");
+    if (!btn || !span) return;
+    span.innerText = sortByNearestEnabled ? t("nearest_active_btn") : t("nearest_btn");
+    if (sortByNearestEnabled) {
+        btn.classList.remove("btn-outline");
+        btn.classList.add("btn-primary");
+    } else {
+        btn.classList.remove("btn-primary");
+        btn.classList.add("btn-outline");
+    }
+}
+
+function toggleNearestSort() {
+    if (sortByNearestEnabled) {
+        sortByNearestEnabled = false;
+        updateNearestButtonLabel();
+        filterDoctors();
+        return;
+    }
+
+    if (patientCurrentCoords) {
+        sortByNearestEnabled = true;
+        updateNearestButtonLabel();
+        filterDoctors();
+        return;
+    }
+
+    if (!navigator.geolocation) {
+        alert(t("err_geo_unsupported"));
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(function(pos) {
+        patientCurrentCoords = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+        };
+        sortByNearestEnabled = true;
+        updateNearestButtonLabel();
+        filterDoctors();
+    }, function() {
+        alert(t("err_geo_failed"));
+    }, {
+        enableHighAccuracy: true,
+        timeout: 10000
+    });
+}
 
 function playPatientAlertSound(type) {
     try {
@@ -48,14 +184,14 @@ function playPatientAlertSound(type) {
             audioCtx.resume();
         }
         var now = audioCtx.currentTime;
-        var notes = type === "turn" ? [880, 1174.66, 1318.51] : [659.25, 783.99];
+        var notes = type === "turn" ? [880, 1174.66, 1318.51, 1567.98] : [659.25, 783.99];
         for (var i = 0; i < notes.length; i++) {
             var osc = audioCtx.createOscillator();
             var gain = audioCtx.createGain();
             osc.type = "sine";
             osc.frequency.setValueAtTime(notes[i], now + i * 0.16);
             gain.gain.setValueAtTime(0.001, now + i * 0.16);
-            gain.gain.exponentialRampToValueAtTime(0.22, now + i * 0.16 + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.16 + 0.03);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.16 + 0.15);
             osc.connect(gain);
             gain.connect(audioCtx.destination);
@@ -69,7 +205,7 @@ function triggerPatientVibration(type) {
     try {
         if (navigator && typeof navigator.vibrate === "function") {
             if (type === "turn") {
-                navigator.vibrate([300, 120, 300, 120, 400]);
+                navigator.vibrate([350, 120, 350, 120, 450]);
             } else {
                 navigator.vibrate([180, 100, 180]);
             }
@@ -91,6 +227,25 @@ function hideTicketAlert() {
     if (!box) return;
     box.innerText = "";
     box.classList.add("hidden");
+}
+
+function updateTicketInactiveState(isInactive) {
+    var noticeEl = document.getElementById("inactiveTicketNotice");
+    var cancelBtn = document.getElementById("cancelTicketBtn");
+    if (noticeEl) {
+        if (isInactive) {
+            noticeEl.classList.remove("hidden");
+        } else {
+            noticeEl.classList.add("hidden");
+        }
+    }
+    if (cancelBtn) {
+        if (isInactive) {
+            cancelBtn.classList.add("hidden");
+        } else {
+            cancelBtn.classList.remove("hidden");
+        }
+    }
 }
 
 function stopTicketCountdown() {
@@ -123,6 +278,9 @@ function renderTicketDetailsFromState(state) {
     if (dateEl) {
         dateEl.innerText = t("appointment_date") + " " + (state.date || "");
     }
+
+    var isInactive = state.status === "done" || state.status === "cancelled";
+    updateTicketInactiveState(isInactive);
 
     if (statusEl) {
         if (state.status === "done") {
@@ -164,6 +322,48 @@ function refreshCurrentTicketViewLanguage() {
     var ticketView = document.getElementById("ticket-view");
     if (!ticketView || ticketView.classList.contains("hidden") || !lastTicketViewState) return;
     renderTicketDetailsFromState(lastTicketViewState);
+}
+
+function buildTicketShareText() {
+    var state = lastTicketViewState || {};
+    var patient = state.patientName || ((document.getElementById("patientNameDisplay") || {}).innerText || "---");
+    var clinic = ((state.doctorName || "") + (state.clinicName ? " — " + state.clinicName : "")) || ((document.getElementById("doctorNameDisplay") || {}).innerText || "---");
+    var date = state.date || ((document.getElementById("appointmentDateDisplay") || {}).innerText || "---");
+    var ticket = state.ticketNumber || ((document.getElementById("ticketNumber") || {}).innerText || "-");
+    var secret = state.patientSecret || ((document.getElementById("bookingSecret") || {}).innerText || "---");
+
+    return t("share_whatsapp_template")
+        .replace("{patient}", patient)
+        .replace("{clinic}", clinic)
+        .replace("{date}", date)
+        .replace("{ticket}", ticket)
+        .replace("{secret}", secret);
+}
+
+function shareTicketViaWhatsApp() {
+    var text = buildTicketShareText();
+    var url = "https://wa.me/?text=" + encodeURIComponent(text);
+    window.open(url, "_blank", "noopener");
+}
+
+function shareTicketDetails() {
+    var text = buildTicketShareText();
+    if (navigator.share) {
+        navigator.share({
+            title: t("ticket_title"),
+            text: text
+        }).catch(function() {});
+        return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+            alert(t("share_copied_msg"));
+        }).catch(function() {
+            alert(text);
+        });
+    } else {
+        alert(text);
+    }
 }
 
 function toggleTheme() {
@@ -657,8 +857,9 @@ function loadDoctors() {
             allDoctors.push(data);
             if (hasValidClinics(data)) {
                 data.clinics.forEach(function(c) {
-                    if (c && c.city) {
-                        citiesSet[c.city.trim()] = true;
+                    var cityLabel = getLocalizedCity(c) || (c && c.city);
+                    if (cityLabel) {
+                        citiesSet[cityLabel.trim()] = true;
                     }
                 });
             }
@@ -705,18 +906,22 @@ function filterDoctors() {
     var filtered = allDoctors.filter(function(doc) {
         if (!hasValidClinics(doc)) return false;
 
-        var nameMatch = (doc.name || "").toLowerCase().indexOf(query) !== -1;
-        var specMatch = (doc.specialty || "").toLowerCase().indexOf(query) !== -1;
+        var docNameAll = ((doc.name || "") + " " + (doc.nameEn || "")).toLowerCase();
+        var specAll = ((doc.specialty || "") + " " + (doc.specialtyEn || "")).toLowerCase();
+        var nameMatch = docNameAll.indexOf(query) !== -1;
+        var specMatch = specAll.indexOf(query) !== -1;
         var clinicNameMatch = false;
         var cityMatch = !cityQuery;
 
         for (var i = 0; i < doc.clinics.length; i++) {
             var c = doc.clinics[i];
             if (!c) continue;
-            if ((c.clinicName || "").toLowerCase().indexOf(query) !== -1) {
+            var clinicAll = ((c.clinicName || "") + " " + (c.clinicNameEn || "")).toLowerCase();
+            var cityAll = ((c.city || "") + " " + (c.cityEn || "")).toLowerCase();
+            if (clinicAll.indexOf(query) !== -1) {
                 clinicNameMatch = true;
             }
-            if (cityQuery && (c.city || "").toLowerCase().indexOf(cityQuery) !== -1) {
+            if (cityQuery && cityAll.indexOf(cityQuery) !== -1) {
                 cityMatch = true;
             }
         }
@@ -724,6 +929,17 @@ function filterDoctors() {
         var textOk = !query || nameMatch || specMatch || clinicNameMatch;
         return textOk && cityMatch;
     });
+
+    if (sortByNearestEnabled && patientCurrentCoords) {
+        filtered = filtered.slice().sort(function(a, b) {
+            var da = getNearestClinicDistanceForDoctor(a);
+            var dbVal = getNearestClinicDistanceForDoctor(b);
+            if (da === null && dbVal === null) return 0;
+            if (da === null) return 1;
+            if (dbVal === null) return -1;
+            return da - dbVal;
+        });
+    }
 
     renderDoctorsList(filtered);
 }
@@ -752,6 +968,12 @@ function renderDoctorsList(doctors) {
         var isClosed = primaryClinic.isClosed === true;
         var isOnBreak = primaryClinic.isOnBreak === true;
 
+        var displayDocName = getLocalizedDoctorName(doc) || t("default_doctor_name");
+        var displaySpec = getLocalizedSpecialty(doc);
+        var displayClinicName = getLocalizedClinicName(primaryClinic);
+        var displayCity = getLocalizedCity(primaryClinic);
+        var displayStreet = getLocalizedStreet(primaryClinic);
+
         var statusBadge = '<span class="badge badge-open">' + t("available") + '</span>';
         if (isClosed) {
             statusBadge = '<span class="badge badge-closed">' + t("closed_temp") + '</span>';
@@ -765,9 +987,15 @@ function renderDoctorsList(doctors) {
         }
 
         var locationText = "";
-        if (primaryClinic.city || primaryClinic.street) {
+        if (displayCity || displayStreet) {
             locationText = "<p><i class=\"fa-solid fa-location-dot\"></i> " +
-                (primaryClinic.city || "") + (primaryClinic.street ? " - " + primaryClinic.street : "") + "</p>";
+                displayCity + (displayStreet ? " - " + displayStreet : "") + "</p>";
+        }
+
+        var nearestDist = getNearestClinicDistanceForDoctor(doc);
+        var distanceText = "";
+        if (nearestDist !== null) {
+            distanceText = "<p><i class=\"fa-solid fa-route\"></i> " + formatDistanceText(nearestDist) + "</p>";
         }
 
         var actionBtn = "";
@@ -783,11 +1011,11 @@ function renderDoctorsList(doctors) {
 
         html += '<div class="clinic-card">' +
             '<div class="clinic-header">' +
-                '<h3>' + (doc.name || t("default_doctor_name")) + '</h3>' +
+                '<h3>' + displayDocName + '</h3>' +
                 statusBadge +
             '</div>' +
-            '<p class="specialty">' + (doc.specialty || "") + (primaryClinic.clinicName ? " — " + primaryClinic.clinicName : "") + '</p>' +
-            '<div class="clinic-info">' + locationText + hoursText + '</div>' +
+            '<p class="specialty">' + displaySpec + (displayClinicName ? " — " + displayClinicName : "") + '</p>' +
+            '<div class="clinic-info">' + locationText + distanceText + hoursText + '</div>' +
             '<div class="clinic-actions">' + actionBtn + mapBtn + '</div>' +
         '</div>';
     });
@@ -807,10 +1035,17 @@ function openClinicSelection(doctorId) {
     doc.clinics.forEach(function(c, idx) {
         var closed = c.isClosed === true;
         var mapBtn = buildMapLink(c);
+        var cName = getLocalizedClinicName(c) || (t("clinic_prefix") + (idx + 1));
+        var cCity = getLocalizedCity(c);
+        var cStreet = getLocalizedStreet(c);
+        var dist = patientCurrentCoords ? calculateDistanceKm(patientCurrentCoords.lat, patientCurrentCoords.lng, c.lat, c.lng) : null;
+        var distHtml = dist !== null ? '<p class="clinic-meta"><i class="fa-solid fa-route"></i> ' + formatDistanceText(dist) + '</p>' : '';
+
         html += '<div class="clinic-card" style="margin-bottom:10px;">' +
-            '<div class="clinic-header"><h3>' + (c.clinicName || (t("clinic_prefix") + (idx + 1))) + '</h3>' +
+            '<div class="clinic-header"><h3>' + cName + '</h3>' +
             '<span class="badge ' + (closed ? "badge-closed" : "badge-open") + '">' + (closed ? t("closed_temp") : t("available")) + '</span></div>' +
-            '<p class="specialty">' + (c.city || "") + (c.street ? " - " + c.street : "") + '</p>' +
+            '<p class="specialty">' + cCity + (cStreet ? " - " + cStreet : "") + '</p>' +
+            distHtml +
             '<div class="clinic-actions">' +
                 '<button type="button" class="btn-primary" ' + (closed ? "disabled" : 'onclick="closeClinicSelectionModal(); openBookingModal(\'' + doc.id + '\', ' + idx + ')"') + '>' +
                 (closed ? t("closed_temp") : t("book_now")) + '</button>' +
@@ -844,8 +1079,10 @@ function openBookingModal(doctorId, clinicIndex) {
     calendarBookingsByDate = {};
 
     var titleEl = document.getElementById("modalDoctorName");
+    var dName = getLocalizedDoctorName(doc);
+    var cName = getLocalizedClinicName(clinic);
     if (titleEl) {
-        titleEl.innerText = t("book_now") + " — " + (doc.name || "") + (clinic.clinicName ? " (" + clinic.clinicName + ")" : "");
+        titleEl.innerText = t("book_now") + " — " + dName + (cName ? " (" + cName + ")" : "");
     }
 
     var nameInput = document.getElementById("bookingName");
@@ -939,9 +1176,12 @@ function confirmBooking() {
             transaction.set(newBookingRef, {
                 doctorId: selectedDoctor.id,
                 doctorName: docData.name || "",
+                doctorNameEn: docData.nameEn || "",
                 specialty: docData.specialty || "",
+                specialtyEn: docData.specialtyEn || "",
                 clinicIndex: selectedClinicIndex,
                 clinicName: clinicObj.clinicName || "",
+                clinicNameEn: clinicObj.clinicNameEn || "",
                 clinicStartTime: clinicObj.startTime || "09:00",
                 serviceTime: parseInt(clinicObj.serviceTime, 10) || 10,
                 patientName: patientName,
@@ -979,7 +1219,9 @@ function goBackToSearch() {
     currentTicketBookingId = null;
     lastTicketNumber = null;
     lastAheadCount = null;
+    lastTicketStatus = null;
     notified45MinForTicket = false;
+    updateTicketInactiveState(false);
     hideTicketAlert();
     var mainView = document.getElementById("main-view");
     var bookingsView = document.getElementById("bookings-view");
@@ -1000,7 +1242,9 @@ function showMyBookingsView() {
     currentTicketBookingId = null;
     lastTicketNumber = null;
     lastAheadCount = null;
+    lastTicketStatus = null;
     notified45MinForTicket = false;
+    updateTicketInactiveState(false);
     hideTicketAlert();
     var mainView = document.getElementById("main-view");
     var bookingsView = document.getElementById("bookings-view");
@@ -1028,9 +1272,11 @@ function showMyBookingsView() {
             if (!doc.exists) return;
             var b = doc.data();
             var statusLabel = b.status === "done" ? t("booking_done") : (b.status === "cancelled" ? t("booking_cancelled") : t("status_waiting"));
+            var docDisp = (getCurrentLang() === "en" && b.doctorNameEn) ? b.doctorNameEn : (b.doctorName || "");
+            var clinDisp = (getCurrentLang() === "en" && b.clinicNameEn) ? b.clinicNameEn : (b.clinicName || "");
             html += '<div class="clinic-card">' +
                 '<div class="clinic-header"><h3>' + (b.patientName || "") + '</h3><span class="badge badge-open">' + statusLabel + '</span></div>' +
-                '<p class="specialty">' + (b.doctorName || "") + (b.clinicName ? " — " + b.clinicName : "") + '</p>' +
+                '<p class="specialty">' + docDisp + (clinDisp ? " — " + clinDisp : "") + '</p>' +
                 '<div class="clinic-info">' +
                     '<p><strong>' + t("appointment_date") + '</strong> ' + (b.date || "") + '</p>' +
                     '<p><strong>' + t("your_number") + '</strong> ' + (b.ticketNumber || "-") + '</p>' +
@@ -1072,8 +1318,10 @@ function openTicketView(bookingId) {
     currentTicketBookingId = bookingId;
     lastTicketNumber = null;
     lastAheadCount = null;
+    lastTicketStatus = null;
     notified45MinForTicket = false;
     lastTicketViewState = null;
+    updateTicketInactiveState(false);
     stopTicketCountdown();
     hideTicketAlert();
 
@@ -1145,7 +1393,9 @@ function listenToQueueForTicket(ticketData) {
             var isWaitingTurn = isTicketActive && currentTicket.status !== "serving";
 
             if (isSameDay && isTicketActive) {
-                if (aheadCount === 3 && lastAheadCount !== 3) {
+                if (currentTicket.status === "serving" && lastTicketStatus !== "serving") {
+                    showTicketAlert(t("alert_your_turn"), "turn");
+                } else if (aheadCount === 3 && lastAheadCount !== 3) {
                     showTicketAlert(t("alert_3_ahead"), "turn");
                 }
             } else {
@@ -1154,16 +1404,26 @@ function listenToQueueForTicket(ticketData) {
 
             lastTicketNumber = myNum;
             lastAheadCount = aheadCount;
+            lastTicketStatus = currentTicket.status;
 
             var serviceMins = parseInt(currentTicket.serviceTime, 10) || 10;
             var totalWaitMins = aheadCount * serviceMins;
+
+            var linkedClinic = findClinicForTicket(currentTicket);
+            var linkedDoc = allDoctors.find(function(d) { return d.id === currentTicket.doctorId; });
+            var docNameLocalized = (getCurrentLang() === "en" && ((linkedDoc && linkedDoc.nameEn) || currentTicket.doctorNameEn))
+                ? ((linkedDoc && linkedDoc.nameEn) || currentTicket.doctorNameEn)
+                : (currentTicket.doctorName || (linkedDoc && linkedDoc.name) || "");
+            var clinicNameLocalized = (getCurrentLang() === "en" && ((linkedClinic && linkedClinic.clinicNameEn) || currentTicket.clinicNameEn))
+                ? ((linkedClinic && linkedClinic.clinicNameEn) || currentTicket.clinicNameEn)
+                : (currentTicket.clinicName || (linkedClinic && linkedClinic.clinicName) || "");
 
             lastTicketViewState = {
                 bookingId: currentTicket.id,
                 patientName: currentTicket.patientName || "---",
                 ticketNumber: myNum || "-",
-                doctorName: currentTicket.doctorName || "",
-                clinicName: currentTicket.clinicName || "",
+                doctorName: docNameLocalized,
+                clinicName: clinicNameLocalized,
                 date: currentTicket.date || "",
                 status: currentTicket.status || "waiting",
                 isSameDay: isSameDay,
@@ -1174,7 +1434,6 @@ function listenToQueueForTicket(ticketData) {
 
             renderTicketDetailsFromState(lastTicketViewState);
 
-            var linkedClinic = findClinicForTicket(currentTicket);
             var startTimeStr = (linkedClinic && linkedClinic.startTime) || currentTicket.clinicStartTime || "09:00";
             var openMins = parseMinutesFromHHMM(startTimeStr);
             if (openMins === null) openMins = 540;
@@ -1442,11 +1701,16 @@ function collectRegistrationFormData() {
     var email = ((document.getElementById("regEmail") || {}).value || "").trim();
     var password = ((document.getElementById("regPassword") || {}).value || "");
     var docName = ((document.getElementById("docName") || {}).value || "").trim();
+    var docNameEn = ((document.getElementById("docNameEn") || {}).value || "").trim();
     var specialty = ((document.getElementById("docSpecialty") || {}).value || "").trim();
+    var specialtyEn = ((document.getElementById("docSpecialtyEn") || {}).value || "").trim();
     var phone = ((document.getElementById("docPhone") || {}).value || "").trim();
     var clinicName = ((document.getElementById("docClinicName") || {}).value || "").trim();
+    var clinicNameEn = ((document.getElementById("docClinicNameEn") || {}).value || "").trim();
     var city = ((document.getElementById("docCity") || {}).value || "").trim();
+    var cityEn = ((document.getElementById("docCityEn") || {}).value || "").trim();
     var street = ((document.getElementById("docStreet") || {}).value || "").trim();
+    var streetEn = ((document.getElementById("docStreetEn") || {}).value || "").trim();
     var landmark = ((document.getElementById("docLandmark") || {}).value || "").trim();
     var startTime = ((document.getElementById("docStartTime") || {}).value || "09:00");
     var endTime = ((document.getElementById("docEndTime") || {}).value || "17:00");
@@ -1464,12 +1728,17 @@ function collectRegistrationFormData() {
         email: email,
         password: password,
         docName: docName,
+        docNameEn: docNameEn,
         specialty: specialty,
+        specialtyEn: specialtyEn,
         phone: phone,
         clinic: {
             clinicName: clinicName,
+            clinicNameEn: clinicNameEn,
             city: city,
+            cityEn: cityEn,
             street: street,
+            streetEn: streetEn,
             landmark: landmark,
             startTime: startTime,
             endTime: endTime,
@@ -1490,7 +1759,9 @@ function writeDoctorRecordForUid(uid, formData, isReactivation) {
         ownerUid: uid,
         email: formData.email,
         name: formData.docName,
+        nameEn: formData.docNameEn || "",
         specialty: formData.specialty,
+        specialtyEn: formData.specialtyEn || "",
         phone: formData.phone,
         clinics: [formData.clinic],
         isDeleted: false
@@ -1548,5 +1819,6 @@ window.onload = function() {
     if (typeof applyLanguage === "function") {
         applyLanguage();
     }
+    updateNearestButtonLabel();
     loadDoctors();
 };
