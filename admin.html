@@ -48,6 +48,21 @@
             </div>
         </div>
 
+        <div class="ticket-stats" style="margin-bottom:14px;">
+            <div>
+                <span data-i18n="stat_waiting_label">المنتظرون</span>
+                <strong id="adminWaitingCount">0</strong>
+            </div>
+            <div>
+                <span data-i18n="stat_done_label">المنجزون</span>
+                <strong id="adminDoneCount">0</strong>
+            </div>
+            <div>
+                <span data-i18n="stat_status_label">حالة العيادة</span>
+                <strong id="adminClinicStatusText">-</strong>
+            </div>
+        </div>
+
         <div class="serving-banner">
             <div>
                 <span data-i18n="currently_serving_label">الدور الحالي</span>
@@ -78,11 +93,20 @@
                 <label data-i18n="clinic_name_label">اسم العيادة</label>
                 <input type="text" id="addClinicName" placeholder="اسم العيادة" data-i18n-placeholder="clinic_name_placeholder">
 
+                <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
+                <input type="text" id="addClinicNameEn" placeholder="Al-Shifa Clinic" data-i18n-placeholder="clinic_name_en_placeholder">
+
                 <label data-i18n="city_label">المدينة</label>
                 <input type="text" id="addCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
 
+                <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
+                <input type="text" id="addCityEn" placeholder="City in English" data-i18n-placeholder="city_en_placeholder">
+
                 <label data-i18n="street_label">الشارع / الحي</label>
                 <input type="text" id="addStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
+
+                <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
+                <input type="text" id="addStreetEn" placeholder="Street or district in English" data-i18n-placeholder="street_en_placeholder">
 
                 <label data-i18n="landmark_label">علامة مميزة</label>
                 <input type="text" id="addLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
@@ -130,11 +154,20 @@
                 <label data-i18n="clinic_name_label">اسم العيادة</label>
                 <input type="text" id="editClinicName" placeholder="اسم العيادة" data-i18n-placeholder="clinic_name_placeholder">
 
+                <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
+                <input type="text" id="editClinicNameEn" placeholder="Al-Shifa Clinic" data-i18n-placeholder="clinic_name_en_placeholder">
+
                 <label data-i18n="city_label">المدينة</label>
                 <input type="text" id="editCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
 
+                <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
+                <input type="text" id="editCityEn" placeholder="City in English" data-i18n-placeholder="city_en_placeholder">
+
                 <label data-i18n="street_label">الشارع / الحي</label>
                 <input type="text" id="editStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
+
+                <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
+                <input type="text" id="editStreetEn" placeholder="Street or district in English" data-i18n-placeholder="street_en_placeholder">
 
                 <label data-i18n="landmark_label">علامة مميزة</label>
                 <input type="text" id="editLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
