@@ -26,6 +26,10 @@ var editMarker = null;
 var addLocationControlAdded = false;
 var editLocationControlAdded = false;
 
+function tr(key) {
+    return typeof t === "function" ? t(key) : key;
+}
+
 function getTodayStrAdmin() {
     var now = new Date();
     var y = now.getFullYear();
@@ -52,7 +56,7 @@ function getCurrentMinutesNowAdmin() {
 function canCallPatientsForClinicAndDate(dateFilter) {
     var todayStr = getTodayStrAdmin();
     if (dateFilter > todayStr) {
-        alert("هذا التاريخ (" + dateFilter + ") موعد قادم ولم يحن يومه بعد. لا يمكن نداء أو إدخال المراجعين قبل يوم موعدهم.");
+        alert(tr("err_future_date_call").replace("{date}", dateFilter));
         return false;
     }
 
@@ -63,7 +67,7 @@ function canCallPatientsForClinicAndDate(dateFilter) {
         if (openMins !== null) {
             var nowMins = getCurrentMinutesNowAdmin();
             if (nowMins < openMins) {
-                alert("لا يمكن نداء المراجعين قبل موعد فتح العيادة (" + activeClinic.startTime + ").");
+                alert(tr("err_before_open_call").replace("{time}", activeClinic.startTime));
                 return false;
             }
         }
@@ -85,7 +89,7 @@ function rejectMissingDoctorAccount() {
         unsubscribeQueue();
         unsubscribeQueue = null;
     }
-    alert("الحساب غير موجود");
+    alert(tr("err_account_not_found"));
     auth.signOut().then(function() {
         window.location.href = "index.html";
     }).catch(function() {
@@ -118,7 +122,7 @@ function populateClinicSelector() {
     if (clinics.length === 0) {
         var emptyOpt = document.createElement("option");
         emptyOpt.value = "";
-        emptyOpt.textContent = typeof t === "function" ? t("no_clinics_option") : "لا توجد عيادات";
+        emptyOpt.textContent = tr("no_clinics_option");
         sel.appendChild(emptyOpt);
         updateToggleClinicButton(null);
         return;
@@ -127,7 +131,7 @@ function populateClinicSelector() {
     clinics.forEach(function(c, idx) {
         var opt = document.createElement("option");
         opt.value = String(idx);
-        var defaultClinicLabel = (typeof t === "function" ? t("clinic_prefix") : "عيادة ") + (idx + 1);
+        var defaultClinicLabel = tr("clinic_prefix") + (idx + 1);
         opt.textContent = c.clinicName || defaultClinicLabel;
         if (idx === currentClinicIndex) {
             opt.selected = true;
@@ -147,8 +151,8 @@ function updateToggleClinicButton(clinic) {
         return;
     }
     btn.disabled = false;
-    var openLabel = typeof t === "function" ? t("open_clinic") : "فتح العيادة";
-    var closeLabel = typeof t === "function" ? t("close_clinic") : "إغلاق العيادة";
+    var openLabel = tr("open_clinic");
+    var closeLabel = tr("close_clinic");
     if (clinic.isClosed === true) {
         btn.className = "status-toggle-btn status-closed";
         btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> ' + openLabel;
@@ -189,10 +193,10 @@ function toggleClinicStatus() {
     db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics }).then(function() {
         currentDoctorData.clinics = clinics;
         updateToggleClinicButton(clinics[currentClinicIndex]);
-        alert(clinics[currentClinicIndex].isClosed ? "تم إغلاق العيادة مؤقتاً." : "تم فتح العيادة لاستقبال المراجعين.");
+        alert(clinics[currentClinicIndex].isClosed ? tr("msg_clinic_closed_temp") : tr("msg_clinic_opened"));
     }).catch(function(err) {
         console.error(err);
-        alert("تعذر تحديث حالة العيادة.");
+        alert(tr("err_update_clinic_status"));
     });
 }
 
@@ -213,8 +217,7 @@ function listenToQueue() {
         if (dispNumEmpty) dispNumEmpty.innerText = "-";
         if (dispNameEmpty) dispNameEmpty.innerText = "-";
         if (dispSerialEmpty) dispSerialEmpty.innerText = "";
-        var noClinicMsg = typeof t === "function" ? t("no_selected_clinic_msg") : "لا توجد عيادة محددة حالياً.";
-        queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + noClinicMsg + '</p>';
+        queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + tr("no_selected_clinic_msg") + '</p>';
         return;
     }
 
@@ -243,7 +246,7 @@ function listenToQueue() {
             var dispName = document.getElementById("currentServingName");
             var dispSerial = document.getElementById("currentServingSerial");
 
-            var serialPrefix = typeof t === "function" ? t("serial_prefix") : "رقم تسلسلي: ";
+            var serialPrefix = tr("serial_prefix");
             if (servingItem) {
                 if (dispNum) dispNum.innerText = "#" + (servingItem.ticketNumber || "-");
                 if (dispName) dispName.innerText = servingItem.patientName || "-";
@@ -256,13 +259,12 @@ function listenToQueue() {
 
             var waitingItems = allItems.filter(function(item) { return item.status !== "done"; });
             if (waitingItems.length === 0) {
-                var noPatMsg = typeof t === "function" ? t("no_patients") : "لا يوجد مراجعون في قائمة الانتظار لهذا التاريخ.";
-                queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + noPatMsg + '</p>';
+                queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + tr("no_patients") + '</p>';
                 return;
             }
 
-            var servingText = typeof t === "function" ? t("status_serving") : "قيد الكشف";
-            var waitingText = typeof t === "function" ? t("status_waiting_admin") : "ينتظر";
+            var servingText = tr("status_serving");
+            var waitingText = tr("status_waiting_admin");
 
             var html = "";
             waitingItems.forEach(function(item) {
@@ -344,7 +346,7 @@ function callNextPatient() {
             });
 
             if (activeList.length === 0) {
-                alert("لا يوجد مراجعون بانتظار الدور حالياً.");
+                alert(tr("err_no_waiting_patients"));
                 return;
             }
 
@@ -374,7 +376,7 @@ function callNextPatient() {
             });
         }).then(function(nextPatient) {
             if (!nextPatient) {
-                alert("تم إنهاء جميع المراجعين في القائمة.");
+                alert(tr("msg_all_patients_done"));
             }
         }).catch(function(err) {
             console.error(err);
@@ -408,7 +410,7 @@ function setMapCoordsForModal(mode, lat, lng, zoom) {
 
 function attachGeoButtonToMap(mapInstance, mode, alreadyAddedFlagName) {
     if (!mapInstance || window[alreadyAddedFlagName] || typeof L === "undefined") return;
-    var btnTitle = typeof t === "function" ? t("my_location_btn") : "تحديد موقعي الحالي";
+    var btnTitle = tr("my_location_btn");
 
     var GeoControl = L.Control.extend({
         options: { position: "topright" },
@@ -432,13 +434,13 @@ function attachGeoButtonToMap(mapInstance, mode, alreadyAddedFlagName) {
                 L.DomEvent.stopPropagation(e);
                 L.DomEvent.preventDefault(e);
                 if (!navigator.geolocation) {
-                    alert("المتصفح لا يدعم تحديد الموقع الجغرافي.");
+                    alert(tr("err_geo_unsupported"));
                     return;
                 }
                 navigator.geolocation.getCurrentPosition(function(pos) {
                     setMapCoordsForModal(mode, pos.coords.latitude, pos.coords.longitude, 16);
                 }, function() {
-                    alert("تعذر الوصول إلى موقعك الحالي.");
+                    alert(tr("err_geo_short"));
                 }, { enableHighAccuracy: true, timeout: 10000 });
             });
             return btn;
@@ -530,7 +532,7 @@ function saveNewClinic() {
     if (!currentDoctorId || !currentDoctorData) return;
     var clinicName = ((document.getElementById("addClinicName") || {}).value || "").trim();
     if (!clinicName) {
-        alert("يرجى إدخال اسم العيادة.");
+        alert(tr("err_enter_clinic_name"));
         return;
     }
 
@@ -573,10 +575,10 @@ function saveNewClinic() {
         populateClinicSelector();
         closeAddClinicModal();
         listenToQueue();
-        alert("تمت إضافة العيادة بنجاح.");
+        alert(tr("msg_clinic_added"));
     }).catch(function(err) {
         console.error(err);
-        alert("تعذر إضافة العيادة.");
+        alert(tr("err_add_clinic_failed"));
     });
 }
 
@@ -584,7 +586,7 @@ function openEditClinicModal() {
     var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
     var c = clinics[currentClinicIndex];
     if (!c) {
-        alert("لا توجد عيادة محددة للتعديل.");
+        alert(tr("err_no_clinic_to_edit"));
         return;
     }
 
@@ -624,7 +626,7 @@ function saveEditClinic() {
 
     var clinicName = ((document.getElementById("editClinicName") || {}).value || "").trim();
     if (!clinicName) {
-        alert("يرجى إدخال اسم العيادة.");
+        alert(tr("err_enter_clinic_name"));
         return;
     }
 
@@ -655,10 +657,10 @@ function saveEditClinic() {
         currentDoctorData.clinics = clinics;
         populateClinicSelector();
         closeEditClinicModal();
-        alert("تم حفظ تعديلات العيادة بنجاح.");
+        alert(tr("msg_clinic_updated"));
     }).catch(function(err) {
         console.error(err);
-        alert("تعذر حفظ التعديلات.");
+        alert(tr("err_update_clinic_failed"));
     });
 }
 
@@ -698,7 +700,7 @@ function deleteCurrentClinic() {
     var typed = confirmInput ? confirmInput.value.trim() : "";
 
     if (typed !== "إحذف العيادة") {
-        alert('يرجى كتابة العبارة التالية بدقة لتأكيد الحذف: إحذف العيادة');
+        alert(tr("err_delete_phrase_mismatch"));
         return;
     }
 
@@ -720,7 +722,7 @@ function deleteCurrentClinic() {
         closeEditClinicModal();
 
         if (clinics.length === 0) {
-            var removeDoctorConfirm = confirm("تم حذف جميع عيادات الطبيب ومواعيدها. هل تريد حذف سجل الطبيب وجميع مواعيده نهائياً؟");
+            var removeDoctorConfirm = confirm(tr("confirm_delete_doctor_record"));
             if (removeDoctorConfirm) {
                 var allDoctorBookingsQuery = db.collection("bookings").where("doctorId", "==", currentDoctorId);
                 return deleteBookingsByQuery(allDoctorBookingsQuery).then(function() {
@@ -730,7 +732,7 @@ function deleteCurrentClinic() {
                         unsubscribeQueue();
                         unsubscribeQueue = null;
                     }
-                    alert("تم حذف سجل الطبيب وجميع مواعيده بنجاح. يمكنك إعادة تفعيل الحساب أو إنشاء عيادة جديدة في أي وقت بنفس البريد وكلمة المرور.");
+                    alert(tr("msg_doctor_record_deleted"));
                     return auth.signOut().then(function() {
                         window.location.href = "index.html";
                     });
@@ -741,10 +743,10 @@ function deleteCurrentClinic() {
         currentClinicIndex = 0;
         populateClinicSelector();
         listenToQueue();
-        alert("تم حذف العيادة وجميع حجوزاتها نهائياً.");
+        alert(tr("msg_clinic_deleted"));
     }).catch(function(err) {
         console.error(err);
-        alert("حدث خطأ أثناء حذف العيادة.");
+        alert(tr("err_delete_clinic_failed"));
     });
 }
 
@@ -779,7 +781,7 @@ window.onload = function() {
 
             var nameEl = document.getElementById("activeDoctorName");
             if (nameEl) {
-                nameEl.innerText = currentDoctorData.name || (typeof t === "function" ? t("admin_default_doctor") : "لوحة الطبيب");
+                nameEl.innerText = currentDoctorData.name || tr("admin_default_doctor");
             }
 
             populateClinicSelector();
