@@ -525,6 +525,14 @@ function callNextPatient() {
 
 function completePatientBooking(bookingId) {
     if (!bookingId) return;
+    var dateFilter = currentAdminDate || getTodayStrAdmin();
+    var todayStr = getTodayStrAdmin();
+
+    if (dateFilter > todayStr) {
+        alert(tr("err_future_date_call").replace("{date}", dateFilter));
+        return;
+    }
+
     db.collection("bookings").doc(bookingId).update({ status: "done" });
 }
 
