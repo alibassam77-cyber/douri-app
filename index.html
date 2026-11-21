@@ -47,6 +47,9 @@
                 <input type="text" id="searchInput" oninput="filterDoctors()" placeholder="ابحث باسم الطبيب أو التخصص..." data-i18n-placeholder="search_placeholder">
                 <input type="text" id="cityFilter" list="citiesList" oninput="filterDoctors()" placeholder="اختر أو اكتب المدينة..." data-i18n-placeholder="city_placeholder">
                 <datalist id="citiesList"></datalist>
+                <button type="button" id="nearestSortBtn" class="btn-outline" onclick="toggleNearestSort()">
+                    <i class="fa-solid fa-location-dot"></i> <span id="nearestSortBtnText" data-i18n="nearest_btn">الأقرب إليّ</span>
+                </button>
             </div>
 
             <div id="doctorsList" class="clinics-grid">
@@ -75,6 +78,7 @@
             </div>
 
             <div id="ticketAlertBox" class="ticket-alert-box hidden"></div>
+            <div id="inactiveTicketNotice" class="ticket-alert-box hidden" data-i18n="inactive_ticket_notice">هذه التذكرة لم تعد نشطة لأن الموعد تم إنهاؤه أو إلغاؤه.</div>
 
             <div class="ticket-card">
                 <div class="ticket-top">
@@ -113,12 +117,20 @@
                 <div id="bookingCredentials" class="credentials-box hidden">
                     <p><strong data-i18n="booking_ref_label">رقم الحجز:</strong> <span id="bookingReference">---</span></p>
                     <p><strong data-i18n="booking_secret_label">الرمز السري:</strong> <span id="bookingSecret">---</span></p>
-                    <button type="button" class="btn-outline" onclick="copyPatientCredentials()">
-                        <i class="fa-solid fa-copy"></i> <span data-i18n="copy_secret_btn">نسخ الرمز السري</span>
-                    </button>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                        <button type="button" class="btn-outline" onclick="copyPatientCredentials()">
+                            <i class="fa-solid fa-copy"></i> <span data-i18n="copy_secret_btn">نسخ الرمز السري</span>
+                        </button>
+                        <button type="button" class="btn-outline" onclick="shareTicketViaWhatsApp()">
+                            <i class="fa-brands fa-whatsapp"></i> <span data-i18n="share_whatsapp_btn">إرسال عبر واتساب</span>
+                        </button>
+                        <button type="button" class="btn-outline" onclick="shareTicketDetails()">
+                            <i class="fa-solid fa-share-nodes"></i> <span data-i18n="share_ticket_btn">مشاركة التذكرة</span>
+                        </button>
+                    </div>
                 </div>
 
-                <button type="button" class="btn-danger" style="width:100%; margin-top:15px;" onclick="cancelCurrentTicket()">
+                <button type="button" id="cancelTicketBtn" class="btn-danger" style="width:100%; margin-top:15px;" onclick="cancelCurrentTicket()">
                     <i class="fa-solid fa-xmark"></i> <span data-i18n="cancel_booking_btn">إلغاء الحجز</span>
                 </button>
             </div>
@@ -198,8 +210,14 @@
                     <label data-i18n="doctor_name_label">اسم الطبيب</label>
                     <input type="text" id="docName" placeholder="د. أحمد محمد" data-i18n-placeholder="doctor_name_placeholder">
 
+                    <label data-i18n="doctor_name_en_label">اسم الطبيب بالإنجليزية (اختياري)</label>
+                    <input type="text" id="docNameEn" placeholder="Dr. Ahmed Mohammed" data-i18n-placeholder="doctor_name_en_placeholder">
+
                     <label data-i18n="specialty_label">التخصص</label>
                     <input type="text" id="docSpecialty" placeholder="باطنية / أطفال / أسنان..." data-i18n-placeholder="specialty_placeholder">
+
+                    <label data-i18n="specialty_en_label">التخصص بالإنجليزية (اختياري)</label>
+                    <input type="text" id="docSpecialtyEn" placeholder="Internal Medicine / Pediatrics..." data-i18n-placeholder="specialty_en_placeholder">
 
                     <label data-i18n="patient_phone_label">رقم الهاتف</label>
                     <input type="tel" id="docPhone" placeholder="رقم التواصل" data-i18n-placeholder="phone_placeholder">
@@ -209,11 +227,20 @@
                     <label data-i18n="clinic_name_label">اسم العيادة</label>
                     <input type="text" id="docClinicName" placeholder="عيادة الشفاء" data-i18n-placeholder="clinic_name_placeholder">
 
+                    <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
+                    <input type="text" id="docClinicNameEn" placeholder="Al-Shifa Clinic" data-i18n-placeholder="clinic_name_en_placeholder">
+
                     <label data-i18n="city_label">المدينة</label>
                     <input type="text" id="docCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
 
+                    <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
+                    <input type="text" id="docCityEn" placeholder="City in English" data-i18n-placeholder="city_en_placeholder">
+
                     <label data-i18n="street_label">الشارع / الحي</label>
                     <input type="text" id="docStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
+
+                    <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
+                    <input type="text" id="docStreetEn" placeholder="Street or district in English" data-i18n-placeholder="street_en_placeholder">
 
                     <label data-i18n="landmark_label">علامة مميزة</label>
                     <input type="text" id="docLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
