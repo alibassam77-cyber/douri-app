@@ -487,23 +487,20 @@ function findClinicForTicket(ticketData) {
     return doc.clinics[idx] || doc.clinics[0] || null;
 }
 
+function computeClampedExpectedMinutes(ctx) {
+    var openMins = typeof ctx.openMinutes === "number" ? ctx.openMinutes : 540;
+    var waitMins = typeof ctx.totalWaitMins === "number" ? ctx.totalWaitMins : 0;
+    var candidateMins = openMins + waitMins;
+
+    if (typeof ctx.closeMinutes === "number" && ctx.closeMinutes > openMins && candidateMins > ctx.closeMinutes) {
+        return ctx.closeMinutes;
+    }
+    return candidateMins;
+}
+
 function computeEffectiveTargetDateTime(ctx, nowDate) {
-    var baseTarget = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.expectedMinutes);
-    if (!baseTarget) return null;
-
-    var todayStr = getTodayStr();
-    if (ctx.dateStr !== todayStr) {
-        return baseTarget;
-    }
-
-    if (ctx.isWaitingTurn && baseTarget.getTime() <= nowDate.getTime()) {
-        var serviceMins = parseInt(ctx.serviceTime, 10) || 10;
-        var aheadCount = parseInt(ctx.aheadCount, 10) || 0;
-        var fallbackMinsFromNow = aheadCount > 0 ? (aheadCount * serviceMins) : serviceMins;
-        return new Date(nowDate.getTime() + fallbackMinsFromNow * 60 * 1000);
-    }
-
-    return baseTarget;
+    var clampedMins = computeClampedExpectedMinutes(ctx);
+    return buildDateTimeFromYMDAndMinutes(ctx.dateStr, clampedMins);
 }
 
 function check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime) {
@@ -528,13 +525,9 @@ function refreshTicketCountdownDisplay() {
     var ctx = activeTicketContext;
     var nowDate = new Date();
     var nowMs = nowDate.getTime();
-    var targetDateTime = computeEffectiveTargetDateTime(ctx, nowDate);
+    var displayedMins = computeClampedExpectedMinutes(ctx);
+    var targetDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, displayedMins);
     var dayMidnightStart = buildDateTimeFromYMDAndMinutes(ctx.dateStr, 0);
-
-    var displayedMins = ctx.expectedMinutes;
-    if (ctx.dateStr === getTodayStr() && ctx.isWaitingTurn && targetDateTime) {
-        displayedMins = targetDateTime.getHours() * 60 + targetDateTime.getMinutes();
-    }
 
     if (etaEl) {
         etaEl.innerText = formatExpectedAppointmentText(ctx.dateStr, displayedMins);
@@ -598,6 +591,15 @@ function getClinicWorkingDays(clinic) {
     return days;
 }
 
+function isShiftEndedForToday(dateStr, clinic) {
+    if (!dateStr || !clinic || dateStr !== getTodayStr()) return false;
+    var endMin = parseMinutesFromHHMM(clinic.endTime);
+    if (endMin === null) return false;
+    var now = new Date();
+    var nowMin = now.getHours() * 60 + now.getMinutes();
+    return nowMin >= endMin;
+}
+
 function isDateAvailableForClinic(dateStr, clinic) {
     if (!dateStr || !clinic) return false;
     var todayStr = getTodayStr();
@@ -613,12 +615,15 @@ function isDateAvailableForClinic(dateStr, clinic) {
         return false;
     }
 
+    var bookedCount = calendarBookingsByDate[dateStr] || 0;
+
+    if (isShiftEndedForToday(dateStr, clinic) && bookedCount <= 0) {
+        return false;
+    }
+
     var capacity = calculateDailyCapacity(clinic);
-    if (capacity > 0) {
-        var bookedCount = calendarBookingsByDate[dateStr] || 0;
-        if (bookedCount >= capacity) {
-            return false;
-        }
+    if (capacity > 0 && bookedCount >= capacity) {
+        return false;
     }
 
     return true;
@@ -879,13 +884,17 @@ function loadDoctors() {
         updateActiveBookingBanner();
         if (activeTicketContext) {
             var clinicObj = findClinicForTicket(activeTicketContext);
-            if (clinicObj && clinicObj.startTime) {
+            if (clinicObj) {
                 var parsedOpen = parseMinutesFromHHMM(clinicObj.startTime);
+                var parsedClose = parseMinutesFromHHMM(clinicObj.endTime);
                 if (parsedOpen !== null) {
                     activeTicketContext.openMinutes = parsedOpen;
-                    activeTicketContext.expectedMinutes = parsedOpen + activeTicketContext.totalWaitMins;
-                    refreshTicketCountdownDisplay();
                 }
+                if (parsedClose !== null) {
+                    activeTicketContext.closeMinutes = parsedClose;
+                }
+                activeTicketContext.expectedMinutes = computeClampedExpectedMinutes(activeTicketContext);
+                refreshTicketCountdownDisplay();
             }
         }
     }, function(error) {
@@ -1183,6 +1192,7 @@ function confirmBooking() {
                 clinicName: clinicObj.clinicName || "",
                 clinicNameEn: clinicObj.clinicNameEn || "",
                 clinicStartTime: clinicObj.startTime || "09:00",
+                clinicEndTime: clinicObj.endTime || "17:00",
                 serviceTime: parseInt(clinicObj.serviceTime, 10) || 10,
                 patientName: patientName,
                 patientPhone: patientPhone,
@@ -1435,22 +1445,27 @@ function listenToQueueForTicket(ticketData) {
             renderTicketDetailsFromState(lastTicketViewState);
 
             var startTimeStr = (linkedClinic && linkedClinic.startTime) || currentTicket.clinicStartTime || "09:00";
+            var endTimeStr = (linkedClinic && linkedClinic.endTime) || currentTicket.clinicEndTime || null;
             var openMins = parseMinutesFromHHMM(startTimeStr);
             if (openMins === null) openMins = 540;
-            var expectedMins = openMins + totalWaitMins;
+            var closeMins = endTimeStr ? parseMinutesFromHHMM(endTimeStr) : null;
 
-            startTicketCountdownLoop({
+            var ctx = {
                 doctorId: currentTicket.doctorId,
                 clinicIndex: currentTicket.clinicIndex,
                 dateStr: currentTicket.date,
                 openMinutes: openMins,
+                closeMinutes: closeMins,
                 totalWaitMins: totalWaitMins,
-                expectedMinutes: expectedMins,
+                expectedMinutes: openMins + totalWaitMins,
                 serviceTime: serviceMins,
                 aheadCount: aheadCount,
                 isActive: isTicketActive,
                 isWaitingTurn: isWaitingTurn
-            });
+            };
+            ctx.expectedMinutes = computeClampedExpectedMinutes(ctx);
+
+            startTicketCountdownLoop(ctx);
         });
 }
 
