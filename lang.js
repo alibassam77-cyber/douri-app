@@ -161,11 +161,14 @@ var translations = {
         err_load_clinics: 'تعذر تحميل قائمة العيادات حالياً. تحقق من الاتصال وأعد المحاولة.',
         err_fetch_db: 'حدث خطأ أثناء جلب البيانات من قاعدة البيانات.',
         err_enter_patient_name: 'يرجى إدخال اسم المريض.',
+        err_name_too_long: 'اسم المريض طويل جداً.',
+        err_duplicate_booking_phone: 'لديك حجز نشط بالفعل في هذه العيادة لهذا اليوم بنفس رقم الهاتف.',
         err_select_valid_day: 'يرجى اختيار يوم متاح وغير مكتمل من التقويم.',
         err_clinic_not_found: 'العيادة غير موجودة.',
         err_clinic_closed_now: 'العيادة مغلقة حالياً.',
         err_daily_quota_full: 'اكتمل عدد الحجوزات المسموح به لهذا اليوم.',
         err_booking_failed: 'تعذر إتمام الحجز.',
+        err_activation_code: 'رمز التفعيل غير صحيح. يرجى التواصل مع إدارة التطبيق للحصول على رمز صحيح.',
         confirm_cancel_booking: 'هل أنت متأكد من إلغاء هذا الحجز؟',
         err_cancel_booking: 'حدث خطأ أثناء إلغاء الحجز.',
         err_geo_unsupported: 'المتصفح لا يدعم تحديد الموقع الجغرافي.',
@@ -362,11 +365,14 @@ var translations = {
         err_load_clinics: 'Unable to load clinics list right now. Check your connection and try again.',
         err_fetch_db: 'An error occurred while fetching data from the database.',
         err_enter_patient_name: 'Please enter the patient name.',
+        err_name_too_long: 'Patient name is too long.',
+        err_duplicate_booking_phone: 'You already have an active booking for this clinic on this day with this phone number.',
         err_select_valid_day: 'Please select an available, non-full day from the calendar.',
         err_clinic_not_found: 'Clinic not found.',
         err_clinic_closed_now: 'Clinic is currently closed.',
         err_daily_quota_full: 'Daily booking limit for this day has been reached.',
         err_booking_failed: 'Unable to complete booking.',
+        err_activation_code: 'Invalid activation code. Please contact the app admin to get a valid code.',
         confirm_cancel_booking: 'Are you sure you want to cancel this booking?',
         err_cancel_booking: 'An error occurred while cancelling the booking.',
         err_geo_unsupported: 'Your browser does not support geolocation.',
@@ -450,7 +456,6 @@ function applyLanguage() {
     var lang = getCurrentLang();
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-
     if (document.getElementById('adminDate') || document.getElementById('clinicSelector')) {
         document.title = t('admin_page_title');
     } else {
@@ -458,28 +463,24 @@ function applyLanguage() {
             ? 'عيادة - نظام حجز وطوابير العيادات'
             : 'Clinic - Clinic Booking & Queue System';
     }
-
     var textNodes = document.querySelectorAll('[data-i18n]');
     for (var i = 0; i < textNodes.length; i++) {
         var el = textNodes[i];
         var key = el.getAttribute('data-i18n');
         if (key) el.innerText = t(key);
     }
-
     var placeholders = document.querySelectorAll('[data-i18n-placeholder]');
     for (var j = 0; j < placeholders.length; j++) {
         var inp = placeholders[j];
         var pKey = inp.getAttribute('data-i18n-placeholder');
         if (pKey) inp.setAttribute('placeholder', t(pKey));
     }
-
     var ariaNodes = document.querySelectorAll('[data-i18n-aria]');
     for (var k = 0; k < ariaNodes.length; k++) {
         var aEl = ariaNodes[k];
         var aKey = aEl.getAttribute('data-i18n-aria');
         if (aKey) aEl.setAttribute('aria-label', t(aKey));
     }
-
     var langBtn = document.getElementById('langToggle');
     if (langBtn) {
         langBtn.innerText = t('lang_btn');
