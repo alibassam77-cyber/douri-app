@@ -1,225 +1,233 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة تحكم العيادة - دوري</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم العيادة - دوري</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-    <header class="app-header">
-        <div class="header-inner">
-            <div class="brand-box">
-                <i class="fa-solid fa-stethoscope brand-icon"></i>
-                <div>
-                    <h1 class="app-title" id="activeDoctorName" data-i18n="admin_default_doctor">لوحة الطبيب</h1>
-                    <p class="app-subtitle" data-i18n="admin_subtitle">إدارة طابور الانتظار والعيادات</p>
-                </div>
-            </div>
-            <div class="header-actions">
-                <button type="button" class="btn-outline" onclick="openAddClinicModal()">
-                    <i class="fa-solid fa-plus"></i> <span data-i18n="add_clinic_btn">إضافة عيادة</span>
-                </button>
-                <button type="button" class="btn-outline" onclick="openEditClinicModal()">
-                    <i class="fa-solid fa-pen-to-square"></i> <span data-i18n="edit_delete_clinic_btn">تعديل / حذف العيادة</span>
-                </button>
-                <button type="button" id="toggleClinicBtn" class="status-toggle-btn status-open" onclick="toggleClinicStatus()">
-                    <i class="fa-solid fa-lock"></i> <span data-i18n="close_clinic">إغلاق العيادة</span>
-                </button>
-                <button type="button" class="btn-danger" onclick="logoutDoctor()">
-                    <i class="fa-solid fa-right-from-bracket"></i> <span data-i18n="logout_btn">خروج</span>
-                </button>
-                <button type="button" id="langToggle" class="btn-outline" onclick="toggleLanguage()">EN</button>
-            </div>
-        </div>
-    </header>
 
-    <main class="container">
-        <div class="admin-controls-bar">
-            <div>
-                <label for="clinicSelector" data-i18n="select_clinic_label">اختر العيادة:</label>
-                <select id="clinicSelector" onchange="changeClinic()"></select>
-            </div>
-            <div>
-                <label for="adminDate" data-i18n="date_label">التاريخ:</label>
-                <input type="date" id="adminDate" onchange="changeAdminDate()">
-            </div>
-        </div>
-
-        <div class="ticket-stats" style="margin-bottom:14px;">
-            <div>
-                <span data-i18n="stat_waiting_label">المنتظرون</span>
-                <strong id="adminWaitingCount">0</strong>
-            </div>
-            <div>
-                <span data-i18n="stat_done_label">المنجزون</span>
-                <strong id="adminDoneCount">0</strong>
-            </div>
-            <div>
-                <span data-i18n="stat_status_label">حالة العيادة</span>
-                <strong id="adminClinicStatusText">-</strong>
-            </div>
-        </div>
-
-        <div class="serving-banner">
-            <div>
-                <span data-i18n="currently_serving_label">الدور الحالي</span>
-                <strong id="currentServingDisplay">-</strong>
-            </div>
-            <div>
-                <span data-i18n="patient_name_label">اسم المريض</span>
-                <strong id="currentServingName">-</strong>
-                <small id="currentServingSerial" style="display:block; margin-top:4px;"></small>
-            </div>
-            <button type="button" class="btn-primary next-btn" onclick="callNextPatient()">
-                <i class="fa-solid fa-bullhorn"></i> <span data-i18n="call_next_btn">نداء المريض التالي</span>
-            </button>
-        </div>
-
-        <h3 style="margin:18px 0 10px 0;" data-i18n="waiting_queue_title">قائمة الانتظار</h3>
-        <div id="patientsQueue" class="queue-list"></div>
-    </main>
-
-    <!-- نافذة إضافة عيادة جديدة -->
-    <div id="addClinicModal" class="modal-backdrop hidden">
-        <div class="modal-card modal-wide">
-            <div class="modal-header">
-                <h3 data-i18n="add_clinic_modal_title">إضافة عيادة جديدة</h3>
-                <button type="button" class="close-btn" onclick="closeAddClinicModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <label data-i18n="clinic_name_label">اسم العيادة</label>
-                <input type="text" id="addClinicName" placeholder="اسم العيادة" data-i18n-placeholder="clinic_name_placeholder">
-
-                <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
-                <input type="text" id="addClinicNameEn" placeholder="Al-Shifa Clinic" data-i18n-placeholder="clinic_name_en_placeholder">
-
-                <label data-i18n="city_label">المدينة</label>
-                <input type="text" id="addCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
-
-                <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
-                <input type="text" id="addCityEn" placeholder="City in English" data-i18n-placeholder="city_en_placeholder">
-
-                <label data-i18n="street_label">الشارع / الحي</label>
-                <input type="text" id="addStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
-
-                <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
-                <input type="text" id="addStreetEn" placeholder="Street or district in English" data-i18n-placeholder="street_en_placeholder">
-
-                <label data-i18n="landmark_label">علامة مميزة</label>
-                <input type="text" id="addLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
-
-                <label data-i18n="start_time_label">وقت البدء</label>
-                <input type="time" id="addStartTime" value="09:00">
-
-                <label data-i18n="end_time_label">وقت الانتهاء</label>
-                <input type="time" id="addEndTime" value="17:00">
-
-                <label data-i18n="service_time_label">مدة الكشف لكل مريض (بالدقائق)</label>
-                <input type="number" id="addServiceTime" value="10" min="1">
-
-                <label data-i18n="working_days_label">أيام العمل</label>
-                <div class="days-grid">
-                    <label><input type="checkbox" id="add_day_0"> <span data-i18n="day_0">الأحد</span></label>
-                    <label><input type="checkbox" id="add_day_1"> <span data-i18n="day_1">الإثنين</span></label>
-                    <label><input type="checkbox" id="add_day_2"> <span data-i18n="day_2">الثلاثاء</span></label>
-                    <label><input type="checkbox" id="add_day_3"> <span data-i18n="day_3">الأربعاء</span></label>
-                    <label><input type="checkbox" id="add_day_4"> <span data-i18n="day_4">الخميس</span></label>
-                    <label><input type="checkbox" id="add_day_5"> <span data-i18n="day_5">الجمعة</span></label>
-                    <label><input type="checkbox" id="add_day_6"> <span data-i18n="day_6">السبت</span></label>
-                </div>
-
-                <label data-i18n="map_pick_label">حدد موقع العيادة على الخريطة</label>
-                <div id="add-map" style="height:220px; border-radius:8px; margin-bottom:8px;"></div>
-                <input type="hidden" id="addLat">
-                <input type="hidden" id="addLng">
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-primary" onclick="saveNewClinic()" data-i18n="save_clinic_btn">حفظ العيادة</button>
-                <button type="button" class="btn-outline" onclick="closeAddClinicModal()" data-i18n="close_btn">إغلاق</button>
-            </div>
-        </div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-icon"><i class="fa-solid fa-stethoscope"></i></div>
+      <div>
+        <h1 id="adminDoctorName" data-i18n="admin_default_doctor">لوحة الطبيب</h1>
+        <p data-i18n="admin_subtitle">إدارة طابور الانتظار والعيادات</p>
+      </div>
     </div>
-
-    <!-- نافذة تعديل أو حذف العيادة -->
-    <div id="editClinicModal" class="modal-backdrop hidden">
-        <div class="modal-card modal-wide">
-            <div class="modal-header">
-                <h3 data-i18n="edit_clinic_modal_title">تعديل أو حذف العيادة</h3>
-                <button type="button" class="close-btn" onclick="closeEditClinicModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <label data-i18n="clinic_name_label">اسم العيادة</label>
-                <input type="text" id="editClinicName" placeholder="اسم العيادة" data-i18n-placeholder="clinic_name_placeholder">
-
-                <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
-                <input type="text" id="editClinicNameEn" placeholder="Al-Shifa Clinic" data-i18n-placeholder="clinic_name_en_placeholder">
-
-                <label data-i18n="city_label">المدينة</label>
-                <input type="text" id="editCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
-
-                <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
-                <input type="text" id="editCityEn" placeholder="City in English" data-i18n-placeholder="city_en_placeholder">
-
-                <label data-i18n="street_label">الشارع / الحي</label>
-                <input type="text" id="editStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
-
-                <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
-                <input type="text" id="editStreetEn" placeholder="Street or district in English" data-i18n-placeholder="street_en_placeholder">
-
-                <label data-i18n="landmark_label">علامة مميزة</label>
-                <input type="text" id="editLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
-
-                <label data-i18n="start_time_label">وقت البدء</label>
-                <input type="time" id="editStartTime">
-
-                <label data-i18n="end_time_label">وقت الانتهاء</label>
-                <input type="time" id="editEndTime">
-
-                <label data-i18n="service_time_label">مدة الكشف لكل مريض (بالدقائق)</label>
-                <input type="number" id="editServiceTime" min="1">
-
-                <label data-i18n="working_days_label">أيام العمل</label>
-                <div class="days-grid">
-                    <label><input type="checkbox" id="edit_day_0"> <span data-i18n="day_0">الأحد</span></label>
-                    <label><input type="checkbox" id="edit_day_1"> <span data-i18n="day_1">الإثنين</span></label>
-                    <label><input type="checkbox" id="edit_day_2"> <span data-i18n="day_2">الثلاثاء</span></label>
-                    <label><input type="checkbox" id="edit_day_3"> <span data-i18n="day_3">الأربعاء</span></label>
-                    <label><input type="checkbox" id="edit_day_4"> <span data-i18n="day_4">الخميس</span></label>
-                    <label><input type="checkbox" id="edit_day_5"> <span data-i18n="day_5">الجمعة</span></label>
-                    <label><input type="checkbox" id="edit_day_6"> <span data-i18n="day_6">السبت</span></label>
-                </div>
-
-                <label data-i18n="map_pick_label">حدد موقع العيادة على الخريطة</label>
-                <div id="edit-map" style="height:220px; border-radius:8px; margin-bottom:8px;"></div>
-                <input type="hidden" id="editLat">
-                <input type="hidden" id="editLng">
-
-                <button type="button" class="btn-primary" style="width:100%; margin-top:12px;" onclick="saveEditClinic()" data-i18n="save_edits_btn">حفظ التعديلات</button>
-
-                <div class="danger-zone-box">
-                    <h4 style="margin:0 0 8px 0; color:#dc2626;" data-i18n="delete_clinic_heading">إلغاء وحذف العيادة بالكامل</h4>
-                    <p style="margin:0 0 8px 0; font-size:12px;">
-                        <span data-i18n="delete_clinic_warning">سيتم حذف العيادة وجميع حجوزاتها نهائياً. لكي يتم الحذف، اكتب العبارة التالية بدقة:</span>
-                        <b data-i18n="delete_clinic_phrase">إحذف العيادة</b>
-                    </p>
-                    <input type="text" id="deleteClinicConfirmInput" placeholder="اكتب: إحذف العيادة" data-i18n-placeholder="delete_clinic_placeholder" style="width:100%; padding:8px; margin-bottom:8px;">
-                    <button type="button" onclick="deleteCurrentClinic()" style="width:100%; padding:9px; background:#dc2626; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold;" data-i18n="confirm_delete_clinic_btn">تأكيد حذف العيادة</button>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-outline" onclick="closeEditClinicModal()" data-i18n="close_btn">إغلاق</button>
-            </div>
-        </div>
+    <div class="topbar-actions">
+      <button type="button" id="langToggle" class="btn-lang" onclick="toggleLanguage()">EN</button>
+      <button type="button" class="btn-icon" data-i18n-aria="theme_aria_label" aria-label="تبديل المظهر" onclick="toggleThemeAdmin()"><i class="fa-solid fa-moon"></i></button>
+      <button type="button" class="btn-outline small" onclick="logoutAdmin()"><i class="fa-solid fa-right-from-bracket"></i> <span data-i18n="logout_btn">خروج</span></button>
     </div>
+  </div>
+</header>
 
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="lang.js"></script>
-    <script src="admin.js"></script>
+<main class="container admin-container">
+
+  <div class="admin-toolbar">
+    <button type="button" class="btn-primary" onclick="openAddClinicModal()"><i class="fa-solid fa-plus"></i> <span data-i18n="add_clinic_btn">إضافة عيادة</span></button>
+    <button type="button" class="btn-outline" onclick="openEditClinicModal()"><i class="fa-solid fa-pen-to-square"></i> <span data-i18n="edit_delete_clinic_btn">تعديل / حذف العيادة</span></button>
+  </div>
+
+  <section class="admin-filters">
+    <div class="filter-group">
+      <label for="clinicSelector" data-i18n="select_clinic_label">اختر العيادة:</label>
+      <select id="clinicSelector" onchange="onClinicSelectorChange()"></select>
+    </div>
+    <div class="filter-group">
+      <label for="adminDate" data-i18n="date_label">التاريخ:</label>
+      <input type="date" id="adminDate" onchange="onAdminDateChange()">
+    </div>
+  </section>
+
+  <section class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-num" id="waitingCount">0</span>
+      <span class="stat-label" data-i18n="stat_waiting_label">المنتظرون</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num" id="doneCount">0</span>
+      <span class="stat-label" data-i18n="stat_done_label">المنجزون</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num" id="clinicStatusText" data-i18n="available">متاح</span>
+      <span class="stat-label" data-i18n="stat_status_label">حالة العيادة</span>
+    </div>
+    <div class="stat-card highlight">
+      <span class="stat-num" id="servingNumber">-</span>
+      <span class="stat-label" data-i18n="currently_serving_label">الدور الحالي</span>
+    </div>
+  </section>
+
+  <section class="admin-actions">
+    <button type="button" id="toggleClinicStatusBtn" class="btn-outline status-toggle-btn hidden" onclick="toggleClinicStatus()"><span data-i18n="close_clinic">إغلاق العيادة</span></button>
+    <button type="button" class="btn-primary large" onclick="callNextPatient()"><i class="fa-solid fa-bullhorn"></i> <span data-i18n="call_next_btn">نداء المريض التالي</span></button>
+    <button type="button" class="btn-outline" onclick="finishAllPatients()"><span data-i18n="finish_patient_btn">إنهاء الكشف</span> - <span>الكل</span></button>
+  </section>
+
+  <section class="queue-section">
+    <h2 data-i18n="waiting_queue_title">قائمة الانتظار</h2>
+    <div id="queueList" class="queue-list"></div>
+  </section>
+
+</main>
+
+<!-- نافذة إضافة عيادة -->
+<div id="addClinicModal" class="modal hidden">
+  <div class="modal-content large">
+    <div class="modal-head">
+      <h3 data-i18n="add_clinic_modal_title">إضافة عيادة جديدة</h3>
+      <button type="button" class="modal-close" onclick="closeAddClinicModal()">&times;</button>
+    </div>
+    <div class="booking-form">
+      <label data-i18n="clinic_name_label">اسم العيادة</label>
+      <input type="text" id="newClinicName" data-i18n-placeholder="clinic_name_placeholder" placeholder="عيادة الشفاء">
+
+      <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
+      <input type="text" id="newClinicNameEn" dir="ltr" style="text-align:left;" data-i18n-placeholder="clinic_name_en_placeholder" placeholder="Al-Shifa Clinic">
+
+      <label data-i18n="city_label">المدينة</label>
+      <input type="text" id="newCity" data-i18n-placeholder="city_field_placeholder" placeholder="المدينة">
+
+      <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
+      <input type="text" id="newCityEn" dir="ltr" style="text-align:left;" data-i18n-placeholder="city_en_placeholder" placeholder="City in English">
+
+      <label data-i18n="street_label">الشارع / الحي</label>
+      <input type="text" id="newStreet" data-i18n-placeholder="street_placeholder" placeholder="الشارع أو الحي">
+
+      <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
+      <input type="text" id="newStreetEn" dir="ltr" style="text-align:left;" data-i18n-placeholder="street_en_placeholder" placeholder="Street or district in English">
+
+      <label data-i18n="landmark_label">علامة مميزة</label>
+      <input type="text" id="newLandmark" data-i18n-placeholder="landmark_placeholder" placeholder="بجوار...">
+
+      <div class="time-row">
+        <div>
+          <label data-i18n="start_time_label">وقت البدء</label>
+          <input type="time" id="newStartTime" value="09:00">
+        </div>
+        <div>
+          <label data-i18n="end_time_label">وقت الانتهاء</label>
+          <input type="time" id="newEndTime" value="17:00">
+        </div>
+        <div>
+          <label data-i18n="service_time_label">مدة الكشف لكل مريض (بالدقائق)</label>
+          <input type="number" id="newServiceTime" value="10" min="1" max="120">
+        </div>
+      </div>
+
+      <label data-i18n="working_days_label">أيام العمل</label>
+      <div class="days-grid">
+        <label><input type="checkbox" id="newDay_0" checked> <span data-i18n="day_0">الأحد</span></label>
+        <label><input type="checkbox" id="newDay_1" checked> <span data-i18n="day_1">الإثنين</span></label>
+        <label><input type="checkbox" id="newDay_2" checked> <span data-i18n="day_2">الثلاثاء</span></label>
+        <label><input type="checkbox" id="newDay_3" checked> <span data-i18n="day_3">الأربعاء</span></label>
+        <label><input type="checkbox" id="newDay_4" checked> <span data-i18n="day_4">الخميس</span></label>
+        <label><input type="checkbox" id="newDay_5" checked> <span data-i18n="day_5">الجمعة</span></label>
+        <label><input type="checkbox" id="newDay_6" checked> <span data-i18n="day_6">السبت</span></label>
+      </div>
+
+      <label data-i18n="map_pick_label">حدد موقع العيادة على الخريطة</label>
+      <div id="admin-add-map" style="height:280px; width:100%; border-radius:12px; margin-bottom:12px;"></div>
+      <div class="coords-row">
+        <input type="text" id="newLat" placeholder="Latitude" dir="ltr" style="text-align:left;">
+        <input type="text" id="newLng" placeholder="Longitude" dir="ltr" style="text-align:left;">
+        <button type="button" class="btn-outline small" onclick="useCurrentLocationForAdminClinic(false)"><span data-i18n="my_location_btn">تحديد موقعي الحالي</span></button>
+      </div>
+
+      <button type="button" class="btn-primary full" onclick="saveNewClinic()"><span data-i18n="save_clinic_btn">حفظ العيادة</span></button>
+      <button type="button" class="btn-outline full" onclick="closeAddClinicModal()"><span data-i18n="close_btn">إغلاق</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة تعديل / حذف عيادة -->
+<div id="editClinicModal" class="modal hidden">
+  <div class="modal-content large">
+    <div class="modal-head">
+      <h3 data-i18n="edit_clinic_modal_title">تعديل أو حذف العيادة</h3>
+      <button type="button" class="modal-close" onclick="closeEditClinicModal()">&times;</button>
+    </div>
+    <div class="booking-form">
+      <label data-i18n="clinic_name_label">اسم العيادة</label>
+      <input type="text" id="editClinicName" data-i18n-placeholder="clinic_name_placeholder" placeholder="عيادة الشفاء">
+
+      <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
+      <input type="text" id="editClinicNameEn" dir="ltr" style="text-align:left;" data-i18n-placeholder="clinic_name_en_placeholder" placeholder="Al-Shifa Clinic">
+
+      <label data-i18n="city_label">المدينة</label>
+      <input type="text" id="editCity" data-i18n-placeholder="city_field_placeholder" placeholder="المدينة">
+
+      <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
+      <input type="text" id="editCityEn" dir="ltr" style="text-align:left;" data-i18n-placeholder="city_en_placeholder" placeholder="City in English">
+
+      <label data-i18n="street_label">الشارع / الحي</label>
+      <input type="text" id="editStreet" data-i18n-placeholder="street_placeholder" placeholder="الشارع أو الحي">
+
+      <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
+      <input type="text" id="editStreetEn" dir="ltr" style="text-align:left;" data-i18n-placeholder="street_en_placeholder" placeholder="Street or district in English">
+
+      <label data-i18n="landmark_label">علامة مميزة</label>
+      <input type="text" id="editLandmark" data-i18n-placeholder="landmark_placeholder" placeholder="بجوار...">
+
+      <div class="time-row">
+        <div>
+          <label data-i18n="start_time_label">وقت البدء</label>
+          <input type="time" id="editStartTime" value="09:00">
+        </div>
+        <div>
+          <label data-i18n="end_time_label">وقت الانتهاء</label>
+          <input type="time" id="editEndTime" value="17:00">
+        </div>
+        <div>
+          <label data-i18n="service_time_label">مدة الكشف لكل مريض (بالدقائق)</label>
+          <input type="number" id="editServiceTime" value="10" min="1" max="120">
+        </div>
+      </div>
+
+      <label data-i18n="working_days_label">أيام العمل</label>
+      <div class="days-grid">
+        <label><input type="checkbox" id="editDay_0"> <span data-i18n="day_0">الأحد</span></label>
+        <label><input type="checkbox" id="editDay_1"> <span data-i18n="day_1">الإثنين</span></label>
+        <label><input type="checkbox" id="editDay_2"> <span data-i18n="day_2">الثلاثاء</span></label>
+        <label><input type="checkbox" id="editDay_3"> <span data-i18n="day_3">الأربعاء</span></label>
+        <label><input type="checkbox" id="editDay_4"> <span data-i18n="day_4">الخميس</span></label>
+        <label><input type="checkbox" id="editDay_5"> <span data-i18n="day_5">الجمعة</span></label>
+        <label><input type="checkbox" id="editDay_6"> <span data-i18n="day_6">السبت</span></label>
+      </div>
+
+      <label data-i18n="map_pick_label">حدد موقع العيادة على الخريطة</label>
+      <div id="admin-edit-map" style="height:280px; width:100%; border-radius:12px; margin-bottom:12px;"></div>
+      <div class="coords-row">
+        <input type="text" id="editLat" placeholder="Latitude" dir="ltr" style="text-align:left;">
+        <input type="text" id="editLng" placeholder="Longitude" dir="ltr" style="text-align:left;">
+        <button type="button" class="btn-outline small" onclick="useCurrentLocationForAdminClinic(true)"><span data-i18n="my_location_btn">تحديد موقعي الحالي</span></button>
+      </div>
+
+      <button type="button" class="btn-primary full" onclick="saveEditedClinic()"><span data-i18n="save_edits_btn">حفظ التعديلات</span></button>
+
+      <hr style="margin:20px 0;">
+
+      <h4 style="color:var(--danger);" data-i18n="delete_clinic_heading">إلغاء وحذف العيادة بالكامل</h4>
+      <p class="warning-text" data-i18n="delete_clinic_warning">سيتم حذف العيادة وجميع حجوزاتها نهائياً. لكي يتم الحذف، اكتب العبارة التالية بدقة:</p>
+      <p style="text-align:center; font-weight:800; font-size:18px;">إحذف العيادة</p>
+      <input type="text" id="deleteClinicPhraseInput" data-i18n-placeholder="delete_clinic_placeholder" placeholder="اكتب: إحذف العيادة">
+      <button type="button" class="btn-danger full" onclick="deleteCurrentClinic()"><span data-i18n="confirm_delete_clinic_btn">تأكيد حذف العيادة</span></button>
+      <button type="button" class="btn-outline full" onclick="closeEditClinicModal()"><span data-i18n="close_btn">إغلاق</span></button>
+    </div>
+  </div>
+</div>
+
+<script src="lang.js"></script>
+<script src="admin.js"></script>
 </body>
 </html>
