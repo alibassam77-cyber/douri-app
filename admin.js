@@ -371,8 +371,9 @@ function listenToQueue() {
             var deferBtnText = tr("defer_patient_btn");
 
             var html = "";
-            waitingItems.forEach(function(item) {
+            waitingItems.forEach(function(item, idx) {
                 var isServing = item.status === "serving";
+                var isNextEligible = idx === 0 && !isServing;
                 var badgeClass = isServing ? "badge badge-open" : "badge badge-break";
                 var badgeText = isServing ? servingText : waitingText;
 
@@ -386,7 +387,7 @@ function listenToQueue() {
                     '</div>' +
                     '<div class="queue-actions" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">' +
                         '<span class="' + badgeClass + '">' + badgeText + '</span>' +
-                        (!isServing ? '<button type="button" class="btn-outline" onclick="callSpecificPatient(\'' + item.id + '\')"><i class="fa-solid fa-bullhorn"></i> ' + callBtnText + '</button>' : '') +
+                        (!isServing ? '<button type="button" class="btn-outline" ' + (isNextEligible ? '' : 'disabled') + ' onclick="callSpecificPatient(\'' + item.id + '\')"><i class="fa-solid fa-bullhorn"></i> ' + callBtnText + '</button>' : '') +
                         '<button type="button" class="btn-outline" onclick="deferPatientBooking(\'' + item.id + '\')"><i class="fa-solid fa-forward"></i> ' + deferBtnText + '</button>' +
                         '<button type="button" class="btn-primary" onclick="completePatientBooking(\'' + item.id + '\')"><i class="fa-solid fa-check"></i> ' + finishBtnText + '</button>' +
                     '</div>' +
@@ -411,15 +412,45 @@ function callSpecificPatient(bookingId) {
         .where("doctorId", "==", currentDoctorId)
         .where("clinicIndex", "==", currentClinicIndex)
         .where("date", "==", dateFilter)
-        .where("status", "==", "serving")
         .get()
         .then(function(snap) {
-            var batch = db.batch();
+            var activeList = [];
             snap.forEach(function(doc) {
-                if (doc.id !== bookingId) {
-                    batch.update(doc.ref, { status: "done" });
+                var d = doc.data();
+                d.id = doc.id;
+                if (d.status !== "cancelled" && d.status !== "done") {
+                    activeList.push({
+                        ref: doc.ref,
+                        id: doc.id,
+                        num: parseInt(d.ticketNumber, 10) || 0,
+                        status: d.status || "waiting"
+                    });
                 }
             });
+
+            activeList.sort(function(a, b) { return a.num - b.num; });
+
+            var targetIdx = -1;
+            for (var i = 0; i < activeList.length; i++) {
+                if (activeList[i].id === bookingId) {
+                    targetIdx = i;
+                    break;
+                }
+            }
+
+            if (targetIdx === -1) return;
+
+            if (targetIdx > 0) {
+                alert(tr("err_must_call_in_order"));
+                return;
+            }
+
+            var batch = db.batch();
+            for (var j = 0; j < activeList.length; j++) {
+                if (activeList[j].id !== bookingId && activeList[j].status === "serving") {
+                    batch.update(activeList[j].ref, { status: "done" });
+                }
+            }
             batch.update(db.collection("bookings").doc(bookingId), { status: "serving" });
             return batch.commit();
         }).catch(function(err) {
