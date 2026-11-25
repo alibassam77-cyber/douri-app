@@ -21,6 +21,8 @@ var unsubscribeQueue = null;
 var adminAudioCtx = null;
 var hasLoadedInitialQueueSnapshot = false;
 var knownBookingIdsForDate = {};
+var currentQueueExportItems = [];
+var currentQueueExportDate = "";
 
 var adminStatsState = {
     waitingCount: 0,
@@ -37,6 +39,15 @@ var editLocationControlAdded = false;
 
 function tr(key) {
     return typeof t === "function" ? t(key) : key;
+}
+
+function escapeHtmlAdmin(str) {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 function playNewBookingTone() {
@@ -176,6 +187,192 @@ function updateAdminStatsDisplay(waitingCount, doneCount, clinic) {
     }
 }
 
+function updateQueueExportButtonsState(hasBookings) {
+    var enabled = Boolean(hasBookings);
+    var txtBtn = document.getElementById("exportQueueTxtBtn");
+    var pdfBtn = document.getElementById("printQueuePdfBtn");
+
+    [txtBtn, pdfBtn].forEach(function(btn) {
+        if (!btn) return;
+        btn.disabled = !enabled;
+        if (enabled) {
+            btn.classList.remove("export-btn-disabled");
+        } else {
+            btn.classList.add("export-btn-disabled");
+        }
+    });
+}
+
+function getBookingStatusLabelAdmin(status) {
+    if (status === "serving") return tr("status_serving");
+    if (status === "done") return tr("booking_done");
+    return tr("status_waiting_admin");
+}
+
+function getActiveClinicNameAdmin() {
+    var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
+    var activeClinic = clinics[currentClinicIndex] || null;
+    if (!activeClinic) return tr("no_clinics_option");
+    return activeClinic.clinicName || (tr("clinic_prefix") + (currentClinicIndex + 1));
+}
+
+function buildQueuePlainTextReport(items, dateStr) {
+    var lang = typeof getCurrentLang === "function" ? getCurrentLang() : "ar";
+    var doctorName = (currentDoctorData && currentDoctorData.name) || tr("default_doctor_name");
+    var clinicName = getActiveClinicNameAdmin();
+    var lines = [];
+
+    if (lang === "en") {
+        lines.push("========================================");
+        lines.push("DAILY PATIENT QUEUE LIST");
+        lines.push("========================================");
+        lines.push("Doctor: " + doctorName);
+        lines.push("Clinic: " + clinicName);
+        lines.push("Date: " + dateStr);
+        lines.push("Total Patients: " + items.length);
+        lines.push("----------------------------------------");
+        items.forEach(function(item, idx) {
+            var num = item.ticketNumber || (idx + 1);
+            var pName = item.patientName || "-";
+            var pPhone = item.patientPhone ? (" | Tel: " + item.patientPhone) : "";
+            var st = getBookingStatusLabelAdmin(item.status);
+            lines.push("#" + num + " - " + pName + pPhone + " [" + st + "]");
+        });
+        lines.push("----------------------------------------");
+        lines.push("Note: Order reflects queue status at export time.");
+    } else {
+        lines.push("========================================");
+        lines.push("كشف أسماء المرضى الحاجزين بالترتيب");
+        lines.push("========================================");
+        lines.push("الطبيب: " + doctorName);
+        lines.push("العيادة: " + clinicName);
+        lines.push("التاريخ: " + dateStr);
+        lines.push("إجمالي المرضى: " + items.length);
+        lines.push("----------------------------------------");
+        items.forEach(function(item, idx) {
+            var num = item.ticketNumber || (idx + 1);
+            var pName = item.patientName || "-";
+            var pPhone = item.patientPhone ? (" | هاتف: " + item.patientPhone) : "";
+            var st = getBookingStatusLabelAdmin(item.status);
+            lines.push("#" + num + " - " + pName + pPhone + " [" + st + "]");
+        });
+        lines.push("----------------------------------------");
+        lines.push("ملاحظة: يوضح الكشف ترتيب الحجوزات وقت التصدير.");
+    }
+
+    return lines.join("\r\n");
+}
+
+function sanitizeFileSegmentAdmin(text) {
+    return String(text || "queue")
+        .trim()
+        .replace(/[\\/:*?"<>|]+/g, "_")
+        .replace(/\s+/g, "_");
+}
+
+function exportQueueTxtFile() {
+    var dateStr = currentQueueExportDate || currentAdminDate || getTodayStrAdmin();
+    if (!Array.isArray(currentQueueExportItems) || currentQueueExportItems.length === 0) {
+        alert(tr("err_no_bookings_to_export"));
+        return;
+    }
+
+    try {
+        var content = buildQueuePlainTextReport(currentQueueExportItems, dateStr);
+        var bom = "\uFEFF";
+        var blob = new Blob([bom + content], { type: "text/plain;charset=utf-8" });
+        var safeClinic = sanitizeFileSegmentAdmin(getActiveClinicNameAdmin());
+        var fileName = "queue_" + safeClinic + "_" + dateStr + ".txt";
+        var fileObj = new File([blob], fileName, { type: "text/plain;charset=utf-8" });
+
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [fileObj] })) {
+            navigator.share({
+                title: fileName,
+                text: getActiveClinicNameAdmin() + " - " + dateStr,
+                files: [fileObj]
+            }).catch(function(err) {
+                if (err && err.name === "AbortError") return;
+                downloadBlobFileAdmin(blob, fileName);
+            });
+            return;
+        }
+
+        downloadBlobFileAdmin(blob, fileName);
+    } catch (e) {
+        console.error(e);
+        alert(tr("err_export_failed"));
+    }
+}
+
+function downloadBlobFileAdmin(blob, fileName) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function() {
+        URL.revokeObjectURL(url);
+    }, 1500);
+}
+
+function renderPrintableQueueSheet(items, dateStr) {
+    var sheetEl = document.getElementById("printableQueueSheet");
+    if (!sheetEl) return;
+
+    var doctorName = (currentDoctorData && currentDoctorData.name) || tr("default_doctor_name");
+    var clinicName = getActiveClinicNameAdmin();
+    var lang = typeof getCurrentLang === "function" ? getCurrentLang() : "ar";
+
+    var rowsHtml = "";
+    items.forEach(function(item, idx) {
+        var num = item.ticketNumber || (idx + 1);
+        var pName = escapeHtmlAdmin(item.patientName || "-");
+        var pPhone = escapeHtmlAdmin(item.patientPhone || "-");
+        var st = escapeHtmlAdmin(getBookingStatusLabelAdmin(item.status));
+
+        rowsHtml += "<tr>" +
+            "<td>#" + escapeHtmlAdmin(num) + "</td>" +
+            "<td>" + pName + "</td>" +
+            "<td>" + pPhone + "</td>" +
+            "<td>" + st + "</td>" +
+            '<td class="print-pay-col"></td>' +
+        "</tr>";
+    });
+
+    sheetEl.innerHTML =
+        '<div class="print-sheet-header">' +
+            "<h2>" + escapeHtmlAdmin(clinicName) + "</h2>" +
+            "<p><strong>" + escapeHtmlAdmin(lang === "en" ? "Doctor" : "الطبيب") + ":</strong> " + escapeHtmlAdmin(doctorName) + "</p>" +
+            "<p><strong>" + escapeHtmlAdmin(lang === "en" ? "Date" : "التاريخ") + ":</strong> " + escapeHtmlAdmin(dateStr) +
+            " &nbsp;|&nbsp; <strong>" + escapeHtmlAdmin(lang === "en" ? "Total" : "الإجمالي") + ":</strong> " + items.length + "</p>" +
+        "</div>" +
+        '<table class="print-queue-table">' +
+            "<thead>" +
+                "<tr>" +
+                    "<th>" + escapeHtmlAdmin(lang === "en" ? "#" : "الدور") + "</th>" +
+                    "<th>" + escapeHtmlAdmin(lang === "en" ? "Patient Name" : "اسم المريض") + "</th>" +
+                    "<th>" + escapeHtmlAdmin(lang === "en" ? "Phone" : "رقم الهاتف") + "</th>" +
+                    "<th>" + escapeHtmlAdmin(lang === "en" ? "Status" : "الحالة") + "</th>" +
+                    "<th>" + escapeHtmlAdmin(lang === "en" ? "Payment" : "الدفع / تأكيد") + "</th>" +
+                "</tr>" +
+            "</thead>" +
+            "<tbody>" + rowsHtml + "</tbody>" +
+        "</table>";
+}
+
+function printQueueSheetPdf() {
+    var dateStr = currentQueueExportDate || currentAdminDate || getTodayStrAdmin();
+    if (!Array.isArray(currentQueueExportItems) || currentQueueExportItems.length === 0) {
+        alert(tr("err_no_bookings_to_export"));
+        return;
+    }
+
+    renderPrintableQueueSheet(currentQueueExportItems, dateStr);
+    window.print();
+}
+
 function populateClinicSelector() {
     var sel = document.getElementById("clinicSelector");
     if (!sel || !currentDoctorData) return;
@@ -193,6 +390,8 @@ function populateClinicSelector() {
         sel.appendChild(emptyOpt);
         updateToggleClinicButton(null);
         updateAdminStatsDisplay(0, 0, null);
+        currentQueueExportItems = [];
+        updateQueueExportButtonsState(false);
         return;
     }
 
@@ -241,6 +440,8 @@ function changeClinic() {
     var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
     updateToggleClinicButton(clinics[currentClinicIndex] || null);
     updateAdminStatsDisplay(0, 0, clinics[currentClinicIndex] || null);
+    currentQueueExportItems = [];
+    updateQueueExportButtonsState(false);
     listenToQueue();
 }
 
@@ -251,6 +452,8 @@ function changeAdminDate() {
         dateInp.value = getTodayStrAdmin();
     }
     currentAdminDate = dateInp.value;
+    currentQueueExportItems = [];
+    updateQueueExportButtonsState(false);
     listenToQueue();
 }
 
@@ -289,6 +492,8 @@ function listenToQueue() {
 
     hasLoadedInitialQueueSnapshot = false;
     knownBookingIdsForDate = {};
+    currentQueueExportItems = [];
+    updateQueueExportButtonsState(false);
 
     var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
     var activeClinic = clinics[currentClinicIndex] || null;
@@ -300,11 +505,14 @@ function listenToQueue() {
         if (dispNameEmpty) dispNameEmpty.innerText = "-";
         if (dispSerialEmpty) dispSerialEmpty.innerText = "";
         updateAdminStatsDisplay(0, 0, null);
+        currentQueueExportItems = [];
+        updateQueueExportButtonsState(false);
         queueEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + tr("no_selected_clinic_msg") + '</p>';
         return;
     }
 
     var dateFilter = currentAdminDate || getTodayStrAdmin();
+    currentQueueExportDate = dateFilter;
     var todayStr = getTodayStrAdmin();
 
     unsubscribeQueue = db.collection("bookings")
@@ -338,6 +546,13 @@ function listenToQueue() {
             allItems.sort(function(a, b) {
                 return (parseInt(a.ticketNumber, 10) || 0) - (parseInt(b.ticketNumber, 10) || 0);
             });
+
+            currentQueueExportItems = allItems.slice();
+            currentQueueExportDate = dateFilter;
+            updateQueueExportButtonsState(allItems.length > 0);
+            if (allItems.length > 0) {
+                renderPrintableQueueSheet(allItems, dateFilter);
+            }
 
             var doneCount = allItems.filter(function(item) { return item.status === "done"; }).length;
             var waitingItems = allItems.filter(function(item) { return item.status !== "done"; });
@@ -978,6 +1193,7 @@ window.onload = function() {
     if (typeof applyLanguage === "function") {
         applyLanguage();
     }
+    updateQueueExportButtonsState(false);
 
     var dateInp = document.getElementById("adminDate");
     currentAdminDate = getTodayStrAdmin();
