@@ -1124,7 +1124,14 @@ function openBookingModal(doctorId, clinicIndex) {
     renderCustomBookingCalendar();
 
     var modal = document.getElementById("bookingModal");
-    if (modal) modal.classList.remove("hidden");
+    if (modal) {
+        modal.classList.remove("hidden");
+        modal.scrollTop = 0;
+        var card = modal.querySelector(".modal-card");
+        if (card) card.scrollTop = 0;
+        var body = modal.querySelector(".modal-body");
+        if (body) body.scrollTop = 0;
+    }
 }
 
 function closeModal() {
