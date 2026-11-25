@@ -13,6 +13,8 @@ if (!firebase.apps.length) {
 var db = firebase.firestore();
 var auth = firebase.auth();
 
+var DOCTOR_ACTIVATION_CODE = "DOCTOR@2024";
+
 var allDoctors = [];
 var selectedDoctor = null;
 var selectedClinic = null;
@@ -40,6 +42,11 @@ var lastTicketViewState = null;
 
 var sortByNearestEnabled = false;
 var patientCurrentCoords = null;
+
+function isValidDoctorActivationCode(code) {
+    if (!code) return false;
+    return String(code).trim() === DOCTOR_ACTIVATION_CODE;
+}
 
 function getLocalizedDoctorName(doc) {
     if (!doc) return "";
@@ -1781,6 +1788,11 @@ function registerAndSaveDoctor() {
 
     if (!formData.activationCode) {
         alert(t("err_enter_activation_code"));
+        return;
+    }
+
+    if (!isValidDoctorActivationCode(formData.activationCode)) {
+        alert(t("err_invalid_activation_code"));
         return;
     }
 
