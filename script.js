@@ -492,15 +492,18 @@ function computeClampedExpectedMinutes(ctx) {
     var waitMins = typeof ctx.totalWaitMins === "number" ? ctx.totalWaitMins : 0;
     var candidateMins = openMins + waitMins;
 
+    if (ctx.dateStr === getTodayStr()) {
+        var now = new Date();
+        var nowMins = now.getHours() * 60 + now.getMinutes();
+        if (nowMins > openMins && nowMins + waitMins > candidateMins) {
+            candidateMins = nowMins + waitMins;
+        }
+    }
+
     if (typeof ctx.closeMinutes === "number" && ctx.closeMinutes > openMins && candidateMins > ctx.closeMinutes) {
         return ctx.closeMinutes;
     }
     return candidateMins;
-}
-
-function computeEffectiveTargetDateTime(ctx, nowDate) {
-    var clampedMins = computeClampedExpectedMinutes(ctx);
-    return buildDateTimeFromYMDAndMinutes(ctx.dateStr, clampedMins);
 }
 
 function check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime) {
@@ -527,13 +530,13 @@ function refreshTicketCountdownDisplay() {
     var nowMs = nowDate.getTime();
     var displayedMins = computeClampedExpectedMinutes(ctx);
     var targetDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, displayedMins);
-    var dayMidnightStart = buildDateTimeFromYMDAndMinutes(ctx.dateStr, 0);
+    var openDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.openMinutes);
 
     if (etaEl) {
         etaEl.innerText = formatExpectedAppointmentText(ctx.dateStr, displayedMins);
     }
 
-    if (!targetDateTime || !dayMidnightStart) {
+    if (!targetDateTime) {
         cdEl.innerText = "--:--:--";
         return;
     }
@@ -542,9 +545,18 @@ function refreshTicketCountdownDisplay() {
     var isAr = getCurrentLang() === "ar";
 
     if (ctx.dateStr > todayStr) {
-        var fullDayWindowMs = Math.max(0, targetDateTime.getTime() - dayMidnightStart.getTime());
-        var prefixFuture = isAr ? "يبدأ 12:00 ص (" : "Starts 12:00 AM (";
-        cdEl.innerText = prefixFuture + formatCountdownDuration(fullDayWindowMs) + ")";
+        var openTimeStr = formatMinutesTo12H(ctx.openMinutes);
+        var untilTargetMs = Math.max(0, targetDateTime.getTime() - nowMs);
+        var prefixFuture = isAr
+            ? ("يبدأ الدوام " + openTimeStr + " — متبقي ")
+            : ("Opens " + openTimeStr + " — ");
+        cdEl.innerText = prefixFuture + formatCountdownDuration(untilTargetMs);
+        return;
+    }
+
+    if (openDateTime && nowMs < openDateTime.getTime()) {
+        cdEl.innerText = formatCountdownDuration(targetDateTime.getTime() - nowMs);
+        check45MinuteAlertIfNeeded(ctx, nowMs, targetDateTime);
         return;
     }
 
@@ -1493,12 +1505,8 @@ function cancelCurrentTicket() {
 
     bookingRef.get().then(function(docSnap) {
         if (!docSnap.exists) return;
-        var targetData = docSnap.data();
-        var cancelledNum = parseInt(targetData.ticketNumber, 10) || 0;
-
         return bookingRef.update({ status: "cancelled" }).then(function() {
             removeBookingIdLocally(currentTicketBookingId);
-            return reorderRemainingQueue(targetData.doctorId, targetData.clinicIndex, targetData.date, cancelledNum);
         });
     }).then(function() {
         alert(t("booking_cancelled"));
@@ -1507,34 +1515,6 @@ function cancelCurrentTicket() {
         console.error(err);
         alert(t("err_cancel_booking"));
     });
-}
-
-function reorderRemainingQueue(doctorId, clinicIndex, dateStr, removedTicketNumber) {
-    return db.collection("bookings")
-        .where("doctorId", "==", doctorId)
-        .where("clinicIndex", "==", clinicIndex)
-        .where("date", "==", dateStr)
-        .get()
-        .then(function(snap) {
-            var remaining = [];
-            snap.forEach(function(doc) {
-                var d = doc.data();
-                if (d.status === "cancelled" || d.status === "done") return;
-                var num = parseInt(d.ticketNumber, 10) || 0;
-                if (removedTicketNumber > 0 && num > removedTicketNumber) {
-                    remaining.push({ ref: doc.ref, num: num });
-                }
-            });
-
-            remaining.sort(function(a, b) { return a.num - b.num; });
-
-            var batch = db.batch();
-            for (var i = 0; i < remaining.length; i++) {
-                var newNum = remaining[i].num - 1;
-                batch.update(remaining[i].ref, { ticketNumber: newNum });
-            }
-            return batch.commit();
-        });
 }
 
 function openDoctorModal() {
@@ -1713,6 +1693,7 @@ function loginDoctor() {
 }
 
 function collectRegistrationFormData() {
+    var activationCode = ((document.getElementById("regActivationCode") || {}).value || "").trim();
     var email = ((document.getElementById("regEmail") || {}).value || "").trim();
     var password = ((document.getElementById("regPassword") || {}).value || "");
     var docName = ((document.getElementById("docName") || {}).value || "").trim();
@@ -1740,6 +1721,7 @@ function collectRegistrationFormData() {
     }
 
     return {
+        activationCode: activationCode,
         email: email,
         password: password,
         docName: docName,
@@ -1794,6 +1776,11 @@ function registerAndSaveDoctor() {
 
     if (!formData.email || !formData.password || !formData.docName || !formData.clinic.clinicName) {
         alert(t("err_reg_required_fields"));
+        return;
+    }
+
+    if (!formData.activationCode) {
+        alert(t("err_enter_activation_code"));
         return;
     }
 
