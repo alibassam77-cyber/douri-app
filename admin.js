@@ -22,6 +22,12 @@ var adminAudioCtx = null;
 var hasLoadedInitialQueueSnapshot = false;
 var knownBookingIdsForDate = {};
 
+var adminStatsState = {
+    waitingCount: 0,
+    doneCount: 0,
+    clinicStatusKey: null
+};
+
 var addMap = null;
 var addMarker = null;
 var editMap = null;
@@ -140,24 +146,33 @@ function logoutDoctor() {
     });
 }
 
+function resolveClinicStatusKey(clinic) {
+    if (!clinic) return null;
+    if (clinic.isClosed === true) return "closed_temp";
+    if (clinic.isOnBreak === true) return "on_break";
+    return "available";
+}
+
 function updateAdminStatsDisplay(waitingCount, doneCount, clinic) {
+    if (typeof waitingCount === "number" && !isNaN(waitingCount)) {
+        adminStatsState.waitingCount = waitingCount;
+    }
+    if (typeof doneCount === "number" && !isNaN(doneCount)) {
+        adminStatsState.doneCount = doneCount;
+    }
+    if (clinic !== undefined) {
+        adminStatsState.clinicStatusKey = resolveClinicStatusKey(clinic);
+    }
+
     var waitEl = document.getElementById("adminWaitingCount");
     var doneEl = document.getElementById("adminDoneCount");
     var statusEl = document.getElementById("adminClinicStatusText");
 
-    if (waitEl) waitEl.innerText = waitingCount;
-    if (doneEl) doneEl.innerText = doneCount;
+    if (waitEl) waitEl.innerText = String(adminStatsState.waitingCount);
+    if (doneEl) doneEl.innerText = String(adminStatsState.doneCount);
 
     if (statusEl) {
-        if (!clinic) {
-            statusEl.innerText = "-";
-        } else if (clinic.isClosed === true) {
-            statusEl.innerText = tr("closed_temp");
-        } else if (clinic.isOnBreak === true) {
-            statusEl.innerText = tr("on_break");
-        } else {
-            statusEl.innerText = tr("available");
-        }
+        statusEl.innerText = adminStatsState.clinicStatusKey ? tr(adminStatsState.clinicStatusKey) : "-";
     }
 }
 
@@ -194,7 +209,7 @@ function populateClinicSelector() {
 
     var activeClinic = clinics[currentClinicIndex] || null;
     updateToggleClinicButton(activeClinic);
-    updateAdminStatsDisplay(0, 0, activeClinic);
+    updateAdminStatsDisplay(adminStatsState.waitingCount, adminStatsState.doneCount, activeClinic);
 }
 
 function updateToggleClinicButton(clinic) {
@@ -225,6 +240,7 @@ function changeClinic() {
 
     var clinics = Array.isArray(currentDoctorData && currentDoctorData.clinics) ? currentDoctorData.clinics : [];
     updateToggleClinicButton(clinics[currentClinicIndex] || null);
+    updateAdminStatsDisplay(0, 0, clinics[currentClinicIndex] || null);
     listenToQueue();
 }
 
@@ -243,13 +259,16 @@ function toggleClinicStatus() {
     var clinics = Array.isArray(currentDoctorData.clinics) ? currentDoctorData.clinics.slice() : [];
     if (!clinics[currentClinicIndex]) return;
 
-    clinics[currentClinicIndex].isClosed = !(clinics[currentClinicIndex].isClosed === true);
+    clinics[currentClinicIndex] = Object.assign({}, clinics[currentClinicIndex], {
+        isClosed: !(clinics[currentClinicIndex].isClosed === true)
+    });
+
     db.collection("doctors").doc(currentDoctorId).update({ clinics: clinics }).then(function() {
         currentDoctorData.clinics = clinics;
         updateToggleClinicButton(clinics[currentClinicIndex]);
         updateAdminStatsDisplay(
-            parseInt((document.getElementById("adminWaitingCount") || {}).innerText || "0", 10) || 0,
-            parseInt((document.getElementById("adminDoneCount") || {}).innerText || "0", 10) || 0,
+            adminStatsState.waitingCount,
+            adminStatsState.doneCount,
             clinics[currentClinicIndex]
         );
         alert(clinics[currentClinicIndex].isClosed ? tr("msg_clinic_closed_temp") : tr("msg_clinic_opened"));
@@ -357,7 +376,7 @@ function listenToQueue() {
                 var badgeClass = isServing ? "badge badge-open" : "badge badge-break";
                 var badgeText = isServing ? servingText : waitingText;
 
-                html += '<div class="queue-card">' +
+                html += '<div class="queue-card' + (isServing ? ' serving' : '') + '">' +
                     '<div class="queue-info">' +
                         '<span class="queue-number">#' + (item.ticketNumber || "-") + '</span>' +
                         '<div>' +
@@ -403,6 +422,8 @@ function callSpecificPatient(bookingId) {
             });
             batch.update(db.collection("bookings").doc(bookingId), { status: "serving" });
             return batch.commit();
+        }).catch(function(err) {
+            console.error(err);
         });
 }
 
@@ -533,7 +554,9 @@ function completePatientBooking(bookingId) {
         return;
     }
 
-    db.collection("bookings").doc(bookingId).update({ status: "done" });
+    db.collection("bookings").doc(bookingId).update({ status: "done" }).catch(function(err) {
+        console.error(err);
+    });
 }
 
 function setMapCoordsForModal(mode, lat, lng, zoom) {
@@ -554,6 +577,26 @@ function setMapCoordsForModal(mode, lat, lng, zoom) {
         if (eLngInp) eLngInp.value = lngNum.toFixed(6);
         initEditMap(latNum, lngNum, zoom || 15);
     }
+}
+
+function locateUserForMode(mode) {
+    if (!navigator.geolocation) {
+        alert(tr("err_geo_unsupported"));
+        return;
+    }
+    navigator.geolocation.getCurrentPosition(function(pos) {
+        setMapCoordsForModal(mode, pos.coords.latitude, pos.coords.longitude, 16);
+    }, function() {
+        alert(tr("err_geo_short"));
+    }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+function useCurrentLocationForAddClinic() {
+    locateUserForMode("add");
+}
+
+function useCurrentLocationForEditClinic() {
+    locateUserForMode("edit");
 }
 
 function attachGeoButtonToMap(mapInstance, mode, alreadyAddedFlagName) {
@@ -581,15 +624,7 @@ function attachGeoButtonToMap(mapInstance, mode, alreadyAddedFlagName) {
             L.DomEvent.on(btn, "click", function(e) {
                 L.DomEvent.stopPropagation(e);
                 L.DomEvent.preventDefault(e);
-                if (!navigator.geolocation) {
-                    alert(tr("err_geo_unsupported"));
-                    return;
-                }
-                navigator.geolocation.getCurrentPosition(function(pos) {
-                    setMapCoordsForModal(mode, pos.coords.latitude, pos.coords.longitude, 16);
-                }, function() {
-                    alert(tr("err_geo_short"));
-                }, { enableHighAccuracy: true, timeout: 10000 });
+                locateUserForMode(mode);
             });
             return btn;
         }
