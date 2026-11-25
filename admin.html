@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
-    <header class="app-header">
+    <header class="app-header no-print">
         <div class="header-inner">
             <div class="brand-box">
                 <i class="fa-solid fa-stethoscope brand-icon"></i>
@@ -36,7 +36,7 @@
         </div>
     </header>
 
-    <main class="container">
+    <main class="container no-print">
         <div class="admin-controls-bar">
             <div>
                 <label for="clinicSelector" data-i18n="select_clinic_label">اختر العيادة:</label>
@@ -78,12 +78,26 @@
             </button>
         </div>
 
-        <h3 style="margin:18px 0 10px 0;" data-i18n="waiting_queue_title">قائمة الانتظار</h3>
+        <div class="queue-section-header">
+            <h3 style="margin:0;" data-i18n="waiting_queue_title">قائمة الانتظار</h3>
+            <div class="queue-export-actions">
+                <button type="button" id="exportQueueTxtBtn" class="btn-outline export-btn-disabled" disabled onclick="exportQueueTxtFile()">
+                    <i class="fa-solid fa-file-lines"></i> <span data-i18n="export_txt_btn">تصدير ملف نصي (.txt)</span>
+                </button>
+                <button type="button" id="printQueuePdfBtn" class="btn-primary export-btn-disabled" disabled onclick="printQueueSheetPdf()">
+                    <i class="fa-solid fa-print"></i> <span data-i18n="print_pdf_btn">طباعة / حفظ PDF</span>
+                </button>
+            </div>
+        </div>
+
         <div id="patientsQueue" class="queue-list"></div>
     </main>
 
+    <!-- كشف الطباعة / حفظ PDF الخاص بالاستقبال -->
+    <section id="printableQueueSheet" class="printable-queue-sheet" aria-hidden="true"></section>
+
     <!-- نافذة إضافة عيادة جديدة -->
-    <div id="addClinicModal" class="modal-backdrop hidden">
+    <div id="addClinicModal" class="modal-backdrop hidden no-print">
         <div class="modal-card modal-wide">
             <div class="modal-header">
                 <h3 data-i18n="add_clinic_modal_title">إضافة عيادة جديدة</h3>
@@ -149,7 +163,7 @@
     </div>
 
     <!-- نافذة تعديل أو حذف العيادة -->
-    <div id="editClinicModal" class="modal-backdrop hidden">
+    <div id="editClinicModal" class="modal-backdrop hidden no-print">
         <div class="modal-card modal-wide">
             <div class="modal-header">
                 <h3 data-i18n="edit_clinic_modal_title">تعديل أو حذف العيادة</h3>
