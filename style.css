@@ -434,6 +434,7 @@ body.dark-mode .export-btn-disabled:disabled {
     border-radius: 10px;
     padding: 10px;
     text-align: center;
+    min-width: 0;
 }
 
 .ticket-stats span {
@@ -681,19 +682,19 @@ body.dark-mode .export-btn-disabled:disabled {
     background-color: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 14px;
+    padding: 12px 14px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 14px;
-    margin-bottom: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
     box-shadow: var(--shadow);
 }
 
 .admin-controls-bar label {
     display: block;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
     color: var(--text-muted);
 }
 
@@ -702,32 +703,36 @@ body.dark-mode .export-btn-disabled:disabled {
     border: 1px solid var(--border);
     border-right: 5px solid var(--primary);
     border-radius: 12px;
-    padding: 16px;
+    padding: 14px 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     flex-wrap: wrap;
     box-shadow: var(--shadow);
 }
 
+.serving-banner > div {
+    min-width: 90px;
+}
+
 .serving-banner span {
     display: block;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--text-muted);
 }
 
 .serving-banner strong {
-    font-size: 20px;
+    font-size: 18px;
 }
 
 .queue-section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
-    margin: 18px 0 10px 0;
+    margin: 16px 0 10px 0;
 }
 
 .queue-export-actions {
@@ -747,11 +752,11 @@ body.dark-mode .export-btn-disabled:disabled {
     background-color: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 14px 16px;
+    padding: 12px 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
     box-shadow: var(--shadow);
 }
@@ -764,14 +769,15 @@ body.dark-mode .export-btn-disabled:disabled {
 .queue-info {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    min-width: 0;
 }
 
 .queue-number {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 800;
     color: var(--primary);
-    min-width: 42px;
+    min-width: 36px;
 }
 
 .status-toggle-btn {
@@ -813,7 +819,44 @@ body.dark-mode .export-btn-disabled:disabled {
     }
 
     .ticket-stats {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 7px;
+    }
+
+    .ticket-stats > div {
+        padding: 8px 6px;
+    }
+
+    .ticket-stats span {
+        font-size: 11px;
+    }
+
+    .ticket-stats strong {
+        font-size: 15px;
+    }
+
+    .serving-banner {
+        padding: 12px 14px;
+        gap: 10px;
+    }
+
+    .serving-banner .next-btn {
+        width: 100%;
+    }
+
+    .queue-card {
+        align-items: stretch;
+    }
+
+    .queue-actions {
+        width: 100%;
+    }
+
+    .queue-actions .btn-outline,
+    .queue-actions .btn-primary {
+        flex: 1 1 auto;
+        font-size: 12.5px;
+        padding: 7px 9px;
     }
 
     .header-inner {
@@ -821,7 +864,9 @@ body.dark-mode .export-btn-disabled:disabled {
     }
 
     .header-actions .btn-outline,
-    .header-actions .btn-primary {
+    .header-actions .btn-primary,
+    .header-actions .btn-danger,
+    .header-actions .status-toggle-btn {
         padding: 7px 10px;
         font-size: 12.5px;
     }
