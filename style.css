@@ -613,7 +613,8 @@ body.dark-mode .cal-day-btn:disabled {
     gap: 10px;
 }
 
-.queue-item {
+.queue-item,
+.queue-card {
     background-color: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 10px;
@@ -623,20 +624,39 @@ body.dark-mode .cal-day-btn:disabled {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    box-shadow: var(--shadow);
 }
 
-.queue-item.serving {
+.queue-item.serving,
+.queue-card.serving {
     border-color: var(--primary);
     background-color: #eff6ff;
 }
 
-body.dark-mode .queue-item.serving {
+body.dark-mode .queue-item.serving,
+body.dark-mode .queue-card.serving {
     background-color: #172554;
+}
+
+.queue-number {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+    min-width: 54px;
+    text-align: center;
+}
+
+.queue-info {
+    flex: 1 1 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .queue-actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
 .danger-zone-box {
