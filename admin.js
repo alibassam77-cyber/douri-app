@@ -1024,12 +1024,7 @@ function applySavedTheme() {
     }
 }
 
-function initAdminPage() {
-    applySavedTheme();
-    if (typeof applyLanguage === "function") {
-        applyLanguage();
-    }
-
+function ensureAdminDateInitialized() {
     var dateInput = document.getElementById("adminDate");
     if (dateInput) {
         if (!dateInput.value) {
@@ -1037,8 +1032,17 @@ function initAdminPage() {
         }
         currentDateStr = dateInput.value;
     }
+}
+
+function initAdminPage() {
+    applySavedTheme();
+    if (typeof applyLanguage === "function") {
+        applyLanguage();
+    }
+    ensureAdminDateInitialized();
 
     auth.onAuthStateChanged(function(user) {
+        ensureAdminDateInitialized();
         if (!user) {
             window.location.href = "index.html";
             return;
@@ -1049,11 +1053,15 @@ function initAdminPage() {
                 window.location.href = "index.html";
                 return;
             }
-            currentDoctorData = docSnap.data();
+            currentDoctorData = docSnap.data() || {};
+            if (!Array.isArray(currentDoctorData.clinics)) {
+                currentDoctorData.clinics = [];
+            }
             setDoctorHeaderTitle();
             populateClinicSelector();
         }).catch(function(err) {
             console.error(err);
+            alert(t("err_fetch_db"));
         });
     });
 }
