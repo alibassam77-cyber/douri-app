@@ -560,35 +560,22 @@ function callNextPatient() {
         }
     }
 
-    var nextPatient = null;
     if (currentServing) {
-        var idx = activeQueue.indexOf(currentServing);
-        if (idx !== -1 && idx + 1 < activeQueue.length) {
-            nextPatient = activeQueue[idx + 1];
-        }
-    } else {
-        nextPatient = activeQueue[0];
+        alert(t("err_must_finish_in_order"));
+        return;
     }
 
-    var batch = db.batch();
-    if (currentServing && (!nextPatient || currentServing.id !== nextPatient.id)) {
-        batch.update(db.collection("bookings").doc(currentServing.id), { status: "done" });
+    var nextPatient = activeQueue[0];
+    if (!nextPatient) {
+        alert(t("msg_all_patients_done"));
+        return;
     }
 
-    if (nextPatient) {
-        batch.update(db.collection("bookings").doc(nextPatient.id), { status: "serving" });
-        batch.commit().then(function() {
-            playCallAlertTone();
-        }).catch(function(err) {
-            console.error(err);
-        });
-    } else {
-        batch.commit().then(function() {
-            alert(t("msg_all_patients_done"));
-        }).catch(function(err) {
-            console.error(err);
-        });
-    }
+    db.collection("bookings").doc(nextPatient.id).update({ status: "serving" }).then(function() {
+        playCallAlertTone();
+    }).catch(function(err) {
+        console.error(err);
+    });
 }
 
 function callSpecificPatient(bookingId) {
