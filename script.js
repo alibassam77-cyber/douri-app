@@ -247,26 +247,40 @@ function renderSkeletons() {
     grid.innerHTML = html;
 }
 
+function showDoctorsLoadError() {
+    var grid = document.getElementById("doctorsGrid");
+    if (grid) {
+        grid.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t("err_load_clinics") + '</p>';
+    }
+}
+
 function loadDoctors() {
     renderSkeletons();
-    db.collection("doctors").get().then(function(snapshot) {
-        var list = [];
-        snapshot.forEach(function(doc) {
-            var data = doc.data();
-            if (!data || data.isDeleted === true) return;
-            data.id = doc.id;
-            list.push(data);
+    try {
+        db.collection("doctors").get().then(function(snapshot) {
+            try {
+                var list = [];
+                snapshot.forEach(function(doc) {
+                    var data = doc.data();
+                    if (!data || data.isDeleted === true) return;
+                    data.id = doc.id;
+                    list.push(data);
+                });
+                allDoctors = list;
+                populateCityDatalist();
+                filterDoctors();
+            } catch (renderErr) {
+                console.error(renderErr);
+                showDoctorsLoadError();
+            }
+        }).catch(function(err) {
+            console.error(err);
+            showDoctorsLoadError();
         });
-        allDoctors = list;
-        populateCityDatalist();
-        filterDoctors();
-    }).catch(function(err) {
-        console.error(err);
-        var grid = document.getElementById("doctorsGrid");
-        if (grid) {
-            grid.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t("err_load_clinics") + '</p>';
-        }
-    });
+    } catch (syncErr) {
+        console.error(syncErr);
+        showDoctorsLoadError();
+    }
 }
 
 function populateCityDatalist() {
@@ -276,6 +290,7 @@ function populateCityDatalist() {
     allDoctors.forEach(function(doc) {
         if (!Array.isArray(doc.clinics)) return;
         doc.clinics.forEach(function(c) {
+            if (!c) return;
             if (c.city && String(c.city).trim()) {
                 citiesSet[String(c.city).trim()] = true;
             }
@@ -315,6 +330,7 @@ function filterDoctors() {
             if (Array.isArray(doc.clinics)) {
                 for (var i = 0; i < doc.clinics.length; i++) {
                     var c = doc.clinics[i];
+                    if (!c) continue;
                     var cAr = (c.city || "").toLowerCase();
                     var cEn = (c.cityEn || "").toLowerCase();
                     if (cAr.indexOf(cityQuery) !== -1 || cEn.indexOf(cityQuery) !== -1) {
