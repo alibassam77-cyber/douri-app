@@ -62,7 +62,7 @@ function getDoctorDisplayName() {
 }
 
 function setDoctorHeaderTitle() {
-    var titleEl = document.getElementById("doctorTitle");
+    var titleEl = document.getElementById("activeDoctorName") || document.getElementById("doctorTitle");
     if (titleEl) {
         titleEl.innerText = getDoctorDisplayName();
     }
@@ -100,17 +100,41 @@ function populateClinicSelector() {
     listenToQueue();
 }
 
+function changeClinic() {
+    var selector = document.getElementById("clinicSelector");
+    if (!selector) return;
+    var parsed = parseInt(selector.value, 10);
+    selectedClinicIndex = isNaN(parsed) ? 0 : parsed;
+    updateClinicStatusButton();
+    listenToQueue();
+}
+
+function changeAdminDate() {
+    var dateInput = document.getElementById("adminDate");
+    if (dateInput && dateInput.value) {
+        currentDateStr = dateInput.value;
+    } else {
+        currentDateStr = getTodayStr();
+        if (dateInput) dateInput.value = currentDateStr;
+    }
+    listenToQueue();
+}
+
 function renderEmptyClinicState() {
-    var waitingEl = document.getElementById("waitingCount");
-    var doneEl = document.getElementById("doneCount");
-    var statusEl = document.getElementById("clinicStatusText");
-    var servingEl = document.getElementById("currentlyServing");
-    var listEl = document.getElementById("queueList");
+    var waitingEl = document.getElementById("adminWaitingCount") || document.getElementById("waitingCount");
+    var doneEl = document.getElementById("adminDoneCount") || document.getElementById("doneCount");
+    var statusEl = document.getElementById("adminClinicStatusText") || document.getElementById("clinicStatusText");
+    var servingEl = document.getElementById("currentServingDisplay") || document.getElementById("currentlyServing");
+    var servingNameEl = document.getElementById("currentServingName");
+    var servingSerialEl = document.getElementById("currentServingSerial");
+    var listEl = document.getElementById("patientsQueue") || document.getElementById("queueList");
 
     if (waitingEl) waitingEl.innerText = "0";
     if (doneEl) doneEl.innerText = "0";
     if (statusEl) statusEl.innerText = t("closed_temp");
     if (servingEl) servingEl.innerText = "-";
+    if (servingNameEl) servingNameEl.innerText = "-";
+    if (servingSerialEl) servingSerialEl.innerText = "";
     if (listEl) {
         listEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t("no_selected_clinic_msg") + '</p>';
     }
@@ -119,7 +143,7 @@ function renderEmptyClinicState() {
 
 function updateClinicStatusButton() {
     var btn = document.getElementById("toggleClinicBtn");
-    var statusTextEl = document.getElementById("clinicStatusText");
+    var statusTextEl = document.getElementById("adminClinicStatusText") || document.getElementById("clinicStatusText");
     var clinic = getSelectedClinicObject();
 
     if (!clinic) {
@@ -147,7 +171,7 @@ function updateClinicStatusButton() {
 }
 
 function updateExportButtonState(hasBookings) {
-    var exportBtn = document.getElementById("save_send_pdf_btn") || document.getElementById("exportTxtBtn");
+    var exportBtn = document.getElementById("printQueuePdfBtn") || document.getElementById("save_send_pdf_btn") || document.getElementById("exportTxtBtn");
     if (!exportBtn) return;
     if (hasBookings) {
         exportBtn.disabled = false;
@@ -226,17 +250,32 @@ function renderQueueDashboard(bookings) {
         }
     });
 
-    var waitingEl = document.getElementById("waitingCount");
-    var doneEl = document.getElementById("doneCount");
-    var servingEl = document.getElementById("currentlyServing");
-    var listEl = document.getElementById("queueList");
+    var waitingEl = document.getElementById("adminWaitingCount") || document.getElementById("waitingCount");
+    var doneEl = document.getElementById("adminDoneCount") || document.getElementById("doneCount");
+    var servingEl = document.getElementById("currentServingDisplay") || document.getElementById("currentlyServing");
+    var servingNameEl = document.getElementById("currentServingName");
+    var servingSerialEl = document.getElementById("currentServingSerial");
+    var listEl = document.getElementById("patientsQueue") || document.getElementById("queueList");
 
     if (waitingEl) waitingEl.innerText = String(waitingCount);
     if (doneEl) doneEl.innerText = String(doneCount);
+
     if (servingEl) {
-        servingEl.innerText = servingItem
-            ? ("#" + (servingItem.ticketNumber || "-") + " — " + (servingItem.patientName || ""))
-            : "-";
+        if (servingNameEl) {
+            servingEl.innerText = servingItem ? ("#" + (servingItem.ticketNumber || "-")) : "-";
+        } else {
+            servingEl.innerText = servingItem
+                ? ("#" + (servingItem.ticketNumber || "-") + " — " + (servingItem.patientName || ""))
+                : "-";
+        }
+    }
+    if (servingNameEl) {
+        servingNameEl.innerText = servingItem ? (servingItem.patientName || "-") : "-";
+    }
+    if (servingSerialEl) {
+        servingSerialEl.innerText = (servingItem && servingItem.serialNumber)
+            ? (t("serial_prefix") + servingItem.serialNumber)
+            : "";
     }
 
     updateExportButtonState(activeList.length > 0);
@@ -423,7 +462,7 @@ function deferPatient(bookingId) {
     });
 }
 
-function toggleClinicOpenClose() {
+function toggleClinicStatus() {
     var clinic = getSelectedClinicObject();
     if (!currentDoctorId || !clinic || !currentDoctorData) return;
 
@@ -445,7 +484,11 @@ function toggleClinicOpenClose() {
     });
 }
 
-function exportQueueToTxt() {
+function toggleClinicOpenClose() {
+    toggleClinicStatus();
+}
+
+function printQueueSheetPdf() {
     var ordered = getOrderedActiveQueue();
     if (!ordered.length) {
         alert(t("err_no_bookings_to_export"));
@@ -459,7 +502,7 @@ function exportQueueToTxt() {
         var printContainer = document.getElementById("printableQueueSheet");
 
         if (!printContainer) {
-            printContainer = document.createElement("div");
+            printContainer = document.createElement("section");
             printContainer.id = "printableQueueSheet";
             printContainer.className = "printable-queue-sheet";
             document.body.appendChild(printContainer);
@@ -506,13 +549,17 @@ function exportQueueToTxt() {
     }
 }
 
+function exportQueueToTxt() {
+    printQueueSheetPdf();
+}
+
 function setAddClinicMapLocation(lat, lng, zoom) {
     var latNum = parseFloat(lat);
     var lngNum = parseFloat(lng);
     if (isNaN(latNum) || isNaN(lngNum)) return;
 
-    var latInp = document.getElementById("addClinicLat");
-    var lngInp = document.getElementById("addClinicLng");
+    var latInp = document.getElementById("addLat") || document.getElementById("addClinicLat");
+    var lngInp = document.getElementById("addLng") || document.getElementById("addClinicLng");
     if (latInp) latInp.value = latNum.toFixed(6);
     if (lngInp) lngInp.value = lngNum.toFixed(6);
 
@@ -573,10 +620,10 @@ function attachAddClinicMapLocationControl(mapInstance) {
 }
 
 function initAddClinicMapIfNeeded() {
-    var el = document.getElementById("add-clinic-map");
-    if (!el || typeof L === "undefined") return;
+    var mapId = document.getElementById("add-map") ? "add-map" : (document.getElementById("add-clinic-map") ? "add-clinic-map" : null);
+    if (!mapId || typeof L === "undefined") return;
     if (!addClinicMap) {
-        addClinicMap = L.map("add-clinic-map").setView([15.3694, 44.1910], 12);
+        addClinicMap = L.map(mapId).setView([15.3694, 44.1910], 12);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap"
         }).addTo(addClinicMap);
@@ -592,14 +639,14 @@ function openAddClinicModal() {
     var modal = document.getElementById("addClinicModal");
     if (!modal) return;
 
-    ["addClinicName", "addClinicCity", "addClinicStreet", "addClinicLandmark", "addClinicLat", "addClinicLng"].forEach(function(id) {
+    ["addClinicName", "addCity", "addStreet", "addLandmark", "addLat", "addLng", "addClinicCity", "addClinicStreet", "addClinicLandmark", "addClinicLat", "addClinicLng"].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.value = "";
     });
 
-    var startInp = document.getElementById("addClinicStartTime");
-    var endInp = document.getElementById("addClinicEndTime");
-    var srvInp = document.getElementById("addClinicServiceTime");
+    var startInp = document.getElementById("addStartTime") || document.getElementById("addClinicStartTime");
+    var endInp = document.getElementById("addEndTime") || document.getElementById("addClinicEndTime");
+    var srvInp = document.getElementById("addServiceTime") || document.getElementById("addClinicServiceTime");
     if (startInp) startInp.value = "09:00";
     if (endInp) endInp.value = "17:00";
     if (srvInp) srvInp.value = "10";
@@ -627,14 +674,14 @@ function saveNewClinic() {
         return;
     }
 
-    var city = ((document.getElementById("addClinicCity") || {}).value || "").trim();
-    var street = ((document.getElementById("addClinicStreet") || {}).value || "").trim();
-    var landmark = ((document.getElementById("addClinicLandmark") || {}).value || "").trim();
-    var startTime = ((document.getElementById("addClinicStartTime") || {}).value || "09:00");
-    var endTime = ((document.getElementById("addClinicEndTime") || {}).value || "17:00");
-    var serviceTime = parseInt(((document.getElementById("addClinicServiceTime") || {}).value || "10"), 10) || 10;
-    var latVal = parseFloat(((document.getElementById("addClinicLat") || {}).value || ""));
-    var lngVal = parseFloat(((document.getElementById("addClinicLng") || {}).value || ""));
+    var city = ((document.getElementById("addCity") || document.getElementById("addClinicCity") || {}).value || "").trim();
+    var street = ((document.getElementById("addStreet") || document.getElementById("addClinicStreet") || {}).value || "").trim();
+    var landmark = ((document.getElementById("addLandmark") || document.getElementById("addClinicLandmark") || {}).value || "").trim();
+    var startTime = ((document.getElementById("addStartTime") || document.getElementById("addClinicStartTime") || {}).value || "09:00");
+    var endTime = ((document.getElementById("addEndTime") || document.getElementById("addClinicEndTime") || {}).value || "17:00");
+    var serviceTime = parseInt(((document.getElementById("addServiceTime") || document.getElementById("addClinicServiceTime") || {}).value || "10"), 10) || 10;
+    var latVal = parseFloat(((document.getElementById("addLat") || document.getElementById("addClinicLat") || {}).value || ""));
+    var lngVal = parseFloat(((document.getElementById("addLng") || document.getElementById("addClinicLng") || {}).value || ""));
 
     var workingDays = [];
     for (var d = 0; d <= 6; d++) {
@@ -681,8 +728,8 @@ function setEditClinicMapLocation(lat, lng, zoom) {
     var lngNum = parseFloat(lng);
     if (isNaN(latNum) || isNaN(lngNum)) return;
 
-    var latInp = document.getElementById("editClinicLat");
-    var lngInp = document.getElementById("editClinicLng");
+    var latInp = document.getElementById("editLat") || document.getElementById("editClinicLat");
+    var lngInp = document.getElementById("editLng") || document.getElementById("editClinicLng");
     if (latInp) latInp.value = latNum.toFixed(6);
     if (lngInp) lngInp.value = lngNum.toFixed(6);
 
@@ -743,10 +790,10 @@ function attachEditClinicMapLocationControl(mapInstance) {
 }
 
 function initEditClinicMapIfNeeded() {
-    var el = document.getElementById("edit-clinic-map");
-    if (!el || typeof L === "undefined") return;
+    var mapId = document.getElementById("edit-map") ? "edit-map" : (document.getElementById("edit-clinic-map") ? "edit-clinic-map" : null);
+    if (!mapId || typeof L === "undefined") return;
     if (!editClinicMap) {
-        editClinicMap = L.map("edit-clinic-map").setView([15.3694, 44.1910], 12);
+        editClinicMap = L.map(mapId).setView([15.3694, 44.1910], 12);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap"
         }).addTo(editClinicMap);
@@ -768,21 +815,26 @@ function openEditClinicModal() {
     var modal = document.getElementById("editClinicModal");
     if (!modal) return;
 
-    var setVal = function(id, v) {
-        var el = document.getElementById(id);
-        if (el) el.value = v || "";
+    var setVal = function(ids, v) {
+        for (var i = 0; i < ids.length; i++) {
+            var el = document.getElementById(ids[i]);
+            if (el) {
+                el.value = v || "";
+                break;
+            }
+        }
     };
 
-    setVal("editClinicName", clinic.clinicName);
-    setVal("editClinicCity", clinic.city);
-    setVal("editClinicStreet", clinic.street);
-    setVal("editClinicLandmark", clinic.landmark);
-    setVal("editClinicStartTime", clinic.startTime || "09:00");
-    setVal("editClinicEndTime", clinic.endTime || "17:00");
-    setVal("editClinicServiceTime", clinic.serviceTime || 10);
-    setVal("editClinicLat", clinic.lat !== null && clinic.lat !== undefined ? clinic.lat : "");
-    setVal("editClinicLng", clinic.lng !== null && clinic.lng !== undefined ? clinic.lng : "");
-    setVal("deleteClinicConfirmInput", "");
+    setVal(["editClinicName"], clinic.clinicName);
+    setVal(["editCity", "editClinicCity"], clinic.city);
+    setVal(["editStreet", "editClinicStreet"], clinic.street);
+    setVal(["editLandmark", "editClinicLandmark"], clinic.landmark);
+    setVal(["editStartTime", "editClinicStartTime"], clinic.startTime || "09:00");
+    setVal(["editEndTime", "editClinicEndTime"], clinic.endTime || "17:00");
+    setVal(["editServiceTime", "editClinicServiceTime"], clinic.serviceTime || 10);
+    setVal(["editLat", "editClinicLat"], clinic.lat !== null && clinic.lat !== undefined ? clinic.lat : "");
+    setVal(["editLng", "editClinicLng"], clinic.lng !== null && clinic.lng !== undefined ? clinic.lng : "");
+    setVal(["deleteClinicConfirmInput"], "");
 
     var days = Array.isArray(clinic.workingDays) ? clinic.workingDays : [];
     for (var d = 0; d <= 6; d++) {
@@ -805,7 +857,7 @@ function closeEditClinicModal() {
     if (modal) modal.classList.add("hidden");
 }
 
-function saveClinicEdits() {
+function saveEditClinic() {
     var clinic = getSelectedClinicObject();
     if (!currentDoctorId || !clinic || !currentDoctorData) return;
 
@@ -815,14 +867,14 @@ function saveClinicEdits() {
         return;
     }
 
-    var city = ((document.getElementById("editClinicCity") || {}).value || "").trim();
-    var street = ((document.getElementById("editClinicStreet") || {}).value || "").trim();
-    var landmark = ((document.getElementById("editClinicLandmark") || {}).value || "").trim();
-    var startTime = ((document.getElementById("editClinicStartTime") || {}).value || "09:00");
-    var endTime = ((document.getElementById("editClinicEndTime") || {}).value || "17:00");
-    var serviceTime = parseInt(((document.getElementById("editClinicServiceTime") || {}).value || "10"), 10) || 10;
-    var latVal = parseFloat(((document.getElementById("editClinicLat") || {}).value || ""));
-    var lngVal = parseFloat(((document.getElementById("editClinicLng") || {}).value || ""));
+    var city = ((document.getElementById("editCity") || document.getElementById("editClinicCity") || {}).value || "").trim();
+    var street = ((document.getElementById("editStreet") || document.getElementById("editClinicStreet") || {}).value || "").trim();
+    var landmark = ((document.getElementById("editLandmark") || document.getElementById("editClinicLandmark") || {}).value || "").trim();
+    var startTime = ((document.getElementById("editStartTime") || document.getElementById("editClinicStartTime") || {}).value || "09:00");
+    var endTime = ((document.getElementById("editEndTime") || document.getElementById("editClinicEndTime") || {}).value || "17:00");
+    var serviceTime = parseInt(((document.getElementById("editServiceTime") || document.getElementById("editClinicServiceTime") || {}).value || "10"), 10) || 10;
+    var latVal = parseFloat(((document.getElementById("editLat") || document.getElementById("editClinicLat") || {}).value || ""));
+    var lngVal = parseFloat(((document.getElementById("editLng") || document.getElementById("editClinicLng") || {}).value || ""));
 
     var workingDays = [];
     for (var d = 0; d <= 6; d++) {
@@ -857,6 +909,10 @@ function saveClinicEdits() {
     });
 }
 
+function saveClinicEdits() {
+    saveEditClinic();
+}
+
 function deleteBookingsForClinic(doctorId, clinicIdx) {
     return db.collection("bookings")
         .where("doctorId", "==", doctorId)
@@ -884,7 +940,7 @@ function deleteAllBookingsForDoctor(doctorId) {
         });
 }
 
-function confirmDeleteClinic() {
+function deleteCurrentClinic() {
     var clinic = getSelectedClinicObject();
     if (!currentDoctorId || !clinic || !currentDoctorData) return;
 
@@ -928,6 +984,10 @@ function confirmDeleteClinic() {
     });
 }
 
+function confirmDeleteClinic() {
+    deleteCurrentClinic();
+}
+
 function logoutDoctor() {
     if (unsubscribeBookings) {
         unsubscribeBookings();
@@ -964,7 +1024,7 @@ function applySavedTheme() {
     }
 }
 
-window.onload = function() {
+function initAdminPage() {
     applySavedTheme();
     if (typeof applyLanguage === "function") {
         applyLanguage();
@@ -972,7 +1032,9 @@ window.onload = function() {
 
     var dateInput = document.getElementById("adminDate");
     if (dateInput) {
-        dateInput.value = getTodayStr();
+        if (!dateInput.value) {
+            dateInput.value = getTodayStr();
+        }
         currentDateStr = dateInput.value;
     }
 
@@ -994,4 +1056,10 @@ window.onload = function() {
             console.error(err);
         });
     });
-};
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAdminPage);
+} else {
+    initAdminPage();
+}
