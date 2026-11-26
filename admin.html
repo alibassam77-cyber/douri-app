@@ -73,19 +73,16 @@
                 <strong id="currentServingName">-</strong>
                 <small id="currentServingSerial" style="display:block; margin-top:4px;"></small>
             </div>
-            <button type="button" class="btn-primary next-btn" onclick="callNextPatient()">
-                <i class="fa-solid fa-bullhorn"></i> <span data-i18n="call_next_btn">نداء المريض التالي</span>
-            </button>
         </div>
 
         <div class="queue-section-header">
             <h3 style="margin:0;" data-i18n="waiting_queue_title">قائمة الانتظار</h3>
             <div class="queue-export-actions">
-                <button type="button" id="exportQueueTxtBtn" class="btn-outline export-btn-disabled" disabled onclick="exportQueueTxtFile()">
-                    <i class="fa-solid fa-file-lines"></i> <span data-i18n="export_txt_btn">تصدير ملف نصي (.txt)</span>
+                <button type="button" class="btn-primary next-btn" onclick="callNextPatient()">
+                    <i class="fa-solid fa-bullhorn"></i> <span data-i18n="call_next_btn">نداء التالي</span>
                 </button>
-                <button type="button" id="printQueuePdfBtn" class="btn-primary export-btn-disabled" disabled onclick="printQueueSheetPdf()">
-                    <i class="fa-solid fa-print"></i> <span data-i18n="print_pdf_btn">طباعة / حفظ PDF</span>
+                <button type="button" id="printQueuePdfBtn" class="btn-outline export-btn-disabled" disabled onclick="printQueueSheetPdf()">
+                    <i class="fa-solid fa-file-pdf"></i> <span data-i18n="save_send_pdf_btn">حفظ / إرسال PDF</span>
                 </button>
             </div>
         </div>
@@ -107,20 +104,11 @@
                 <label data-i18n="clinic_name_label">اسم العيادة</label>
                 <input type="text" id="addClinicName" placeholder="اسم العيادة" data-i18n-placeholder="clinic_name_placeholder">
 
-                <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
-                <input type="text" id="addClinicNameEn" placeholder="Al-Shifa Clinic" data-i18n-placeholder="clinic_name_en_placeholder">
-
                 <label data-i18n="city_label">المدينة</label>
                 <input type="text" id="addCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
 
-                <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
-                <input type="text" id="addCityEn" placeholder="City in English" data-i18n-placeholder="city_en_placeholder">
-
                 <label data-i18n="street_label">الشارع / الحي</label>
                 <input type="text" id="addStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
-
-                <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
-                <input type="text" id="addStreetEn" placeholder="Street or district in English" data-i18n-placeholder="street_en_placeholder">
 
                 <label data-i18n="landmark_label">علامة مميزة</label>
                 <input type="text" id="addLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
@@ -173,20 +161,11 @@
                 <label data-i18n="clinic_name_label">اسم العيادة</label>
                 <input type="text" id="editClinicName" placeholder="اسم العيادة" data-i18n-placeholder="clinic_name_placeholder">
 
-                <label data-i18n="clinic_name_en_label">اسم العيادة بالإنجليزية (اختياري)</label>
-                <input type="text" id="editClinicNameEn" placeholder="Al-Shifa Clinic" data-i18n-placeholder="clinic_name_en_placeholder">
-
                 <label data-i18n="city_label">المدينة</label>
                 <input type="text" id="editCity" placeholder="المدينة" data-i18n-placeholder="city_field_placeholder">
 
-                <label data-i18n="city_en_label">المدينة بالإنجليزية (اختياري)</label>
-                <input type="text" id="editCityEn" placeholder="City in English" data-i18n-placeholder="city_en_placeholder">
-
                 <label data-i18n="street_label">الشارع / الحي</label>
                 <input type="text" id="editStreet" placeholder="الشارع أو الحي" data-i18n-placeholder="street_placeholder">
-
-                <label data-i18n="street_en_label">الشارع / الحي بالإنجليزية (اختياري)</label>
-                <input type="text" id="editStreetEn" placeholder="Street or district in English" data-i18n-placeholder="street_en_placeholder">
 
                 <label data-i18n="landmark_label">علامة مميزة</label>
                 <input type="text" id="editLandmark" placeholder="بجوار..." data-i18n-placeholder="landmark_placeholder">
