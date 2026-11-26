@@ -13,387 +13,36 @@ if (!firebase.apps.length) {
 var db = firebase.firestore();
 var auth = firebase.auth();
 
-var DOCTOR_ACTIVATION_CODE = "DOCTOR@2024";
-
 var allDoctors = [];
 var selectedDoctor = null;
 var selectedClinic = null;
 var selectedClinicIndex = 0;
+
+var userLat = null;
+var userLng = null;
+var isNearestActive = false;
+
 var currentTicketBookingId = null;
-var unsubscribeDoctors = null;
-var unsubscribeBookings = null;
-var unsubscribeTicketBookings = null;
+var currentTicketDoctorId = null;
+var currentTicketClinicIndex = 0;
+var currentTicketDate = null;
+var unsubscribeTicketBooking = null;
+var unsubscribeTicketQueue = null;
+var unsubscribeTicketDoctor = null;
+var ticketCountdownInterval = null;
+
+var lastAlertedKey = null;
+var ticketAlertSoundCtx = null;
+
+var bookingCalYear = null;
+var bookingCalMonth = null;
+var selectedBookingDate = null;
+var bookingDayCounts = {};
+var bookingDayCountsLoading = false;
+
 var regMap = null;
 var regMarker = null;
 var regLocationControlAdded = false;
-
-var calendarViewYear = null;
-var calendarViewMonth = null;
-var calendarBookingsByDate = {};
-var lastTicketNumber = null;
-var lastAheadCount = null;
-var lastTicketStatus = null;
-var notified45MinForTicket = false;
-var audioCtx = null;
-
-var activeCountdownInterval = null;
-var activeTicketContext = null;
-var lastTicketViewState = null;
-
-var sortByNearestEnabled = false;
-var patientCurrentCoords = null;
-
-function isValidDoctorActivationCode(code) {
-    if (!code) return false;
-    return String(code).trim() === DOCTOR_ACTIVATION_CODE;
-}
-
-function getLocalizedDoctorName(doc) {
-    if (!doc) return "";
-    if (getCurrentLang() === "en" && doc.nameEn && String(doc.nameEn).trim()) {
-        return String(doc.nameEn).trim();
-    }
-    return doc.name || "";
-}
-
-function getLocalizedSpecialty(doc) {
-    if (!doc) return "";
-    if (getCurrentLang() === "en" && doc.specialtyEn && String(doc.specialtyEn).trim()) {
-        return String(doc.specialtyEn).trim();
-    }
-    return doc.specialty || "";
-}
-
-function getLocalizedClinicName(clinic) {
-    if (!clinic) return "";
-    if (getCurrentLang() === "en" && clinic.clinicNameEn && String(clinic.clinicNameEn).trim()) {
-        return String(clinic.clinicNameEn).trim();
-    }
-    return clinic.clinicName || "";
-}
-
-function getLocalizedCity(clinic) {
-    if (!clinic) return "";
-    if (getCurrentLang() === "en" && clinic.cityEn && String(clinic.cityEn).trim()) {
-        return String(clinic.cityEn).trim();
-    }
-    return clinic.city || "";
-}
-
-function getLocalizedStreet(clinic) {
-    if (!clinic) return "";
-    if (getCurrentLang() === "en" && clinic.streetEn && String(clinic.streetEn).trim()) {
-        return String(clinic.streetEn).trim();
-    }
-    return clinic.street || "";
-}
-
-function calculateDistanceKm(lat1, lng1, lat2, lng2) {
-    var nLat1 = parseFloat(lat1);
-    var nLng1 = parseFloat(lng1);
-    var nLat2 = parseFloat(lat2);
-    var nLng2 = parseFloat(lng2);
-    if (isNaN(nLat1) || isNaN(nLng1) || isNaN(nLat2) || isNaN(nLng2)) {
-        return null;
-    }
-    var toRad = function(deg) { return deg * Math.PI / 180; };
-    var R = 6371;
-    var dLat = toRad(nLat2 - nLat1);
-    var dLng = toRad(nLng2 - nLng1);
-    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(nLat1)) * Math.cos(toRad(nLat2)) *
-        Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-}
-
-function formatDistanceText(distanceKm) {
-    if (distanceKm === null || isNaN(distanceKm)) return "";
-    if (distanceKm < 1) {
-        var meters = Math.max(1, Math.round(distanceKm * 1000));
-        return t("distance_m").replace("{m}", meters);
-    }
-    return t("distance_km").replace("{km}", distanceKm.toFixed(1));
-}
-
-function getNearestClinicDistanceForDoctor(doc) {
-    if (!patientCurrentCoords || !doc || !Array.isArray(doc.clinics)) return null;
-    var minDist = null;
-    for (var i = 0; i < doc.clinics.length; i++) {
-        var c = doc.clinics[i];
-        if (!c) continue;
-        var d = calculateDistanceKm(patientCurrentCoords.lat, patientCurrentCoords.lng, c.lat, c.lng);
-        if (d !== null && (minDist === null || d < minDist)) {
-            minDist = d;
-        }
-    }
-    return minDist;
-}
-
-function updateNearestButtonLabel() {
-    var btn = document.getElementById("nearestSortBtn");
-    var span = document.getElementById("nearestSortBtnText");
-    if (!btn || !span) return;
-    span.innerText = sortByNearestEnabled ? t("nearest_active_btn") : t("nearest_btn");
-    if (sortByNearestEnabled) {
-        btn.classList.remove("btn-outline");
-        btn.classList.add("btn-primary");
-    } else {
-        btn.classList.remove("btn-primary");
-        btn.classList.add("btn-outline");
-    }
-}
-
-function toggleNearestSort() {
-    if (sortByNearestEnabled) {
-        sortByNearestEnabled = false;
-        updateNearestButtonLabel();
-        filterDoctors();
-        return;
-    }
-
-    if (patientCurrentCoords) {
-        sortByNearestEnabled = true;
-        updateNearestButtonLabel();
-        filterDoctors();
-        return;
-    }
-
-    if (!navigator.geolocation) {
-        alert(t("err_geo_unsupported"));
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(function(pos) {
-        patientCurrentCoords = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude
-        };
-        sortByNearestEnabled = true;
-        updateNearestButtonLabel();
-        filterDoctors();
-    }, function() {
-        alert(t("err_geo_failed"));
-    }, {
-        enableHighAccuracy: true,
-        timeout: 10000
-    });
-}
-
-function playPatientAlertSound(type) {
-    try {
-        var AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContextClass) return;
-        if (!audioCtx) {
-            audioCtx = new AudioContextClass();
-        }
-        if (audioCtx.state === "suspended") {
-            audioCtx.resume();
-        }
-        var now = audioCtx.currentTime;
-        var notes = type === "turn" ? [880, 1174.66, 1318.51, 1567.98] : [659.25, 783.99];
-        for (var i = 0; i < notes.length; i++) {
-            var osc = audioCtx.createOscillator();
-            var gain = audioCtx.createGain();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(notes[i], now + i * 0.16);
-            gain.gain.setValueAtTime(0.001, now + i * 0.16);
-            gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.16 + 0.03);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.16 + 0.15);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(now + i * 0.16);
-            osc.stop(now + i * 0.16 + 0.16);
-        }
-    } catch (e) {}
-}
-
-function triggerPatientVibration(type) {
-    try {
-        if (navigator && typeof navigator.vibrate === "function") {
-            if (type === "turn") {
-                navigator.vibrate([350, 120, 350, 120, 450]);
-            } else {
-                navigator.vibrate([180, 100, 180]);
-            }
-        }
-    } catch (e) {}
-}
-
-function showTicketAlert(message, type) {
-    var box = document.getElementById("ticketAlertBox");
-    if (!box) return;
-    box.innerText = message;
-    box.classList.remove("hidden");
-    playPatientAlertSound(type || "reorder");
-    triggerPatientVibration(type || "reorder");
-}
-
-function hideTicketAlert() {
-    var box = document.getElementById("ticketAlertBox");
-    if (!box) return;
-    box.innerText = "";
-    box.classList.add("hidden");
-}
-
-function updateTicketInactiveState(isInactive) {
-    var noticeEl = document.getElementById("inactiveTicketNotice");
-    var cancelBtn = document.getElementById("cancelTicketBtn");
-    if (noticeEl) {
-        if (isInactive) {
-            noticeEl.classList.remove("hidden");
-        } else {
-            noticeEl.classList.add("hidden");
-        }
-    }
-    if (cancelBtn) {
-        if (isInactive) {
-            cancelBtn.classList.add("hidden");
-        } else {
-            cancelBtn.classList.remove("hidden");
-        }
-    }
-}
-
-function stopTicketCountdown() {
-    if (activeCountdownInterval) {
-        clearInterval(activeCountdownInterval);
-        activeCountdownInterval = null;
-    }
-    activeTicketContext = null;
-}
-
-function renderTicketDetailsFromState(state) {
-    if (!state) return;
-
-    var nameEl = document.getElementById("patientNameDisplay");
-    var statusEl = document.getElementById("ticketStatus");
-    var numEl = document.getElementById("ticketNumber");
-    var docEl = document.getElementById("doctorNameDisplay");
-    var dateEl = document.getElementById("appointmentDateDisplay");
-    var aheadEl = document.getElementById("peopleAhead");
-    var waitEl = document.getElementById("waitTime");
-    var credBox = document.getElementById("bookingCredentials");
-    var refEl = document.getElementById("bookingReference");
-    var secEl = document.getElementById("bookingSecret");
-
-    if (nameEl) nameEl.innerText = state.patientName || "---";
-    if (numEl) numEl.innerText = state.ticketNumber || "-";
-    if (docEl) {
-        docEl.innerText = t("at_doctor") + (state.doctorName || "") + (state.clinicName ? " — " + state.clinicName : "");
-    }
-    if (dateEl) {
-        dateEl.innerText = t("appointment_date") + " " + (state.date || "");
-    }
-
-    var isInactive = state.status === "done" || state.status === "cancelled";
-    updateTicketInactiveState(isInactive);
-
-    if (statusEl) {
-        if (state.status === "done") {
-            statusEl.innerText = t("booking_done");
-            statusEl.className = "badge badge-closed";
-        } else if (state.status === "cancelled") {
-            statusEl.innerText = t("booking_cancelled");
-            statusEl.className = "badge badge-closed";
-        } else if (!state.isSameDay) {
-            statusEl.innerText = t("status_upcoming");
-            statusEl.className = "badge badge-open";
-        } else if (state.status === "serving" && state.isSameDay) {
-            statusEl.innerText = t("status_your_turn");
-            statusEl.className = "badge badge-open";
-        } else if (state.aheadCount === 1) {
-            statusEl.innerText = t("status_one_left");
-            statusEl.className = "badge badge-break";
-        } else {
-            statusEl.innerText = t("status_waiting");
-            statusEl.className = "badge badge-open";
-        }
-    }
-
-    if (aheadEl) aheadEl.innerText = state.aheadCount;
-    if (waitEl) waitEl.innerText = state.totalWaitMins;
-
-    if (credBox) {
-        if (state.patientSecret) {
-            credBox.classList.remove("hidden");
-            if (refEl) refEl.innerText = state.bookingId;
-            if (secEl) secEl.innerText = state.patientSecret;
-        } else {
-            credBox.classList.add("hidden");
-        }
-    }
-}
-
-function refreshCurrentTicketViewLanguage() {
-    var ticketView = document.getElementById("ticket-view");
-    if (!ticketView || ticketView.classList.contains("hidden") || !lastTicketViewState) return;
-    renderTicketDetailsFromState(lastTicketViewState);
-}
-
-function buildTicketShareText() {
-    var state = lastTicketViewState || {};
-    var patient = state.patientName || ((document.getElementById("patientNameDisplay") || {}).innerText || "---");
-    var clinic = ((state.doctorName || "") + (state.clinicName ? " — " + state.clinicName : "")) || ((document.getElementById("doctorNameDisplay") || {}).innerText || "---");
-    var date = state.date || ((document.getElementById("appointmentDateDisplay") || {}).innerText || "---");
-    var ticket = state.ticketNumber || ((document.getElementById("ticketNumber") || {}).innerText || "-");
-    var secret = state.patientSecret || ((document.getElementById("bookingSecret") || {}).innerText || "---");
-
-    return t("share_whatsapp_template")
-        .replace("{patient}", patient)
-        .replace("{clinic}", clinic)
-        .replace("{date}", date)
-        .replace("{ticket}", ticket)
-        .replace("{secret}", secret);
-}
-
-function shareTicketViaWhatsApp() {
-    var text = buildTicketShareText();
-    var url = "https://wa.me/?text=" + encodeURIComponent(text);
-    window.open(url, "_blank", "noopener");
-}
-
-function shareTicketDetails() {
-    var text = buildTicketShareText();
-    if (navigator.share) {
-        navigator.share({
-            title: t("ticket_title"),
-            text: text
-        }).catch(function() {});
-        return;
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function() {
-            alert(t("share_copied_msg"));
-        }).catch(function() {
-            alert(text);
-        });
-    } else {
-        alert(text);
-    }
-}
-
-function toggleTheme() {
-    document.body.classList.toggle("dark-mode");
-    var isDark = document.body.classList.contains("dark-mode");
-    localStorage.setItem("douri_theme", isDark ? "dark" : "light");
-    var btn = document.getElementById("themeToggle");
-    if (btn) {
-        btn.innerHTML = isDark ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
-    }
-}
-
-function applySavedTheme() {
-    var saved = localStorage.getItem("douri_theme");
-    var btn = document.getElementById("themeToggle");
-    if (saved === "dark") {
-        document.body.classList.add("dark-mode");
-        if (btn) btn.innerHTML = '<i class="fa-solid fa-sun"></i>';
-    } else {
-        document.body.classList.remove("dark-mode");
-        if (btn) btn.innerHTML = '<i class="fa-solid fa-moon"></i>';
-    }
-}
 
 function getTodayStr() {
     var now = new Date();
@@ -404,25 +53,12 @@ function getTodayStr() {
 }
 
 function getTomorrowStr() {
-    var d = new Date();
-    d.setDate(d.getDate() + 1);
-    var y = d.getFullYear();
-    var m = String(d.getMonth() + 1).padStart(2, "0");
-    var day = String(d.getDate()).padStart(2, "0");
-    return y + "-" + m + "-" + day;
-}
-
-function formatDateYMD(year, monthIndex, day) {
-    var m = String(monthIndex + 1).padStart(2, "0");
-    var d = String(day).padStart(2, "0");
-    return year + "-" + m + "-" + d;
-}
-
-function formatDateSlashes(dateStr) {
-    if (!dateStr || typeof dateStr !== "string") return "";
-    var parts = dateStr.split("-");
-    if (parts.length !== 3) return dateStr;
-    return parts[0] + "/" + parts[1] + "/" + parts[2];
+    var now = new Date();
+    now.setDate(now.getDate() + 1);
+    var y = now.getFullYear();
+    var m = String(now.getMonth() + 1).padStart(2, "0");
+    var d = String(now.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + d;
 }
 
 function parseMinutesFromHHMM(timeStr) {
@@ -435,533 +71,267 @@ function parseMinutesFromHHMM(timeStr) {
     return h * 60 + min;
 }
 
-function formatMinutesTo12H(totalMinutes) {
-    var minsInDay = ((totalMinutes % 1440) + 1440) % 1440;
-    var h24 = Math.floor(minsInDay / 60);
-    var min = minsInDay % 60;
-    var isAr = getCurrentLang() === "ar";
-    var period = h24 >= 12 ? (isAr ? "مساءً" : "PM") : (isAr ? "صباحاً" : "AM");
-    var h12 = h24 % 12;
-    if (h12 === 0) h12 = 12;
-    return String(h12).padStart(2, "0") + ":" + String(min).padStart(2, "0") + " " + period;
+function getClinicWorkingHoursText(clinic) {
+    if (!clinic) return "--:-- - --:--";
+    var start = clinic.startTime || "09:00";
+    var end = clinic.endTime || "17:00";
+    return start + " - " + end;
 }
 
-function formatExpectedAppointmentText(dateStr, expectedMinutes) {
-    var timeFormatted = formatMinutesTo12H(expectedMinutes);
-    var todayStr = getTodayStr();
-    var tomorrowStr = getTomorrowStr();
-    var isAr = getCurrentLang() === "ar";
-
-    if (dateStr === todayStr) {
-        return timeFormatted;
-    }
-
-    var slashDate = formatDateSlashes(dateStr);
-    if (dateStr === tomorrowStr) {
-        return t("tomorrow") + slashDate + (isAr ? " الساعة " : " at ") + timeFormatted;
-    }
-    return slashDate + (isAr ? " الساعة " : " at ") + timeFormatted;
-}
-
-function buildDateTimeFromYMDAndMinutes(dateStr, totalMinutes) {
-    if (!dateStr) return null;
-    var parts = dateStr.split("-");
-    if (parts.length !== 3) return null;
-    var y = parseInt(parts[0], 10);
-    var m = parseInt(parts[1], 10) - 1;
-    var d = parseInt(parts[2], 10);
-    if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
-    var safeMins = Math.max(0, totalMinutes || 0);
-    var h = Math.floor(safeMins / 60);
-    var min = safeMins % 60;
-    return new Date(y, m, d, h, min, 0, 0);
-}
-
-function formatCountdownDuration(diffMs) {
-    var totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
-    var hours = Math.floor(totalSeconds / 3600);
-    var mins = Math.floor((totalSeconds % 3600) / 60);
-    var secs = totalSeconds % 60;
-    return String(hours).padStart(2, "0") + ":" + String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
-}
-
-function findClinicForTicket(ticketData) {
-    if (!ticketData) return null;
-    var doc = allDoctors.find(function(d) { return d.id === ticketData.doctorId; });
-    if (!doc || !Array.isArray(doc.clinics)) return null;
-    var idx = parseInt(ticketData.clinicIndex, 10);
-    if (isNaN(idx) || idx < 0) idx = 0;
-    return doc.clinics[idx] || doc.clinics[0] || null;
-}
-
-function computeClampedExpectedMinutes(ctx) {
-    var openMins = typeof ctx.openMinutes === "number" ? ctx.openMinutes : 540;
-    var waitMins = typeof ctx.totalWaitMins === "number" ? ctx.totalWaitMins : 0;
-    var candidateMins = openMins + waitMins;
-
-    if (ctx.dateStr === getTodayStr()) {
-        var now = new Date();
-        var nowMins = now.getHours() * 60 + now.getMinutes();
-        if (nowMins > openMins && nowMins + waitMins > candidateMins) {
-            candidateMins = nowMins + waitMins;
-        }
-    }
-
-    if (typeof ctx.closeMinutes === "number" && ctx.closeMinutes > openMins && candidateMins > ctx.closeMinutes) {
-        return ctx.closeMinutes;
-    }
-    return candidateMins;
-}
-
-function check45MinuteAlertIfNeeded(ctx, nowMs, appointmentStartDateTime) {
-    if (!ctx || !ctx.isActive || ctx.dateStr !== getTodayStr()) return;
-    if (notified45MinForTicket) return;
-
-    var remainingMs = appointmentStartDateTime.getTime() - nowMs;
-    var fortyFiveMinsMs = 45 * 60 * 1000;
-    var oneMinuteMs = 60 * 1000;
-
-    if (remainingMs > 0 && remainingMs <= fortyFiveMinsMs && remainingMs >= (fortyFiveMinsMs - oneMinuteMs)) {
-        notified45MinForTicket = true;
-        showTicketAlert(t("alert_45_mins"), "turn");
-    }
-}
-
-function refreshTicketCountdownDisplay() {
-    var etaEl = document.getElementById("etaTime");
-    var cdEl = document.getElementById("appointmentCountdown");
-    if (!activeTicketContext || !etaEl || !cdEl) return;
-
-    var ctx = activeTicketContext;
-    var nowDate = new Date();
-    var nowMs = nowDate.getTime();
-    var displayedMins = computeClampedExpectedMinutes(ctx);
-    var targetDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, displayedMins);
-    var openDateTime = buildDateTimeFromYMDAndMinutes(ctx.dateStr, ctx.openMinutes);
-
-    if (etaEl) {
-        etaEl.innerText = formatExpectedAppointmentText(ctx.dateStr, displayedMins);
-    }
-
-    if (!targetDateTime) {
-        cdEl.innerText = "--:--:--";
-        return;
-    }
-
-    var todayStr = getTodayStr();
-    var isAr = getCurrentLang() === "ar";
-
-    if (ctx.dateStr > todayStr) {
-        var openTimeStr = formatMinutesTo12H(ctx.openMinutes);
-        var untilTargetMs = Math.max(0, targetDateTime.getTime() - nowMs);
-        var prefixFuture = isAr
-            ? ("يبدأ الدوام " + openTimeStr + " — متبقي ")
-            : ("Opens " + openTimeStr + " — ");
-        cdEl.innerText = prefixFuture + formatCountdownDuration(untilTargetMs);
-        return;
-    }
-
-    if (openDateTime && nowMs < openDateTime.getTime()) {
-        cdEl.innerText = formatCountdownDuration(targetDateTime.getTime() - nowMs);
-        check45MinuteAlertIfNeeded(ctx, nowMs, targetDateTime);
-        return;
-    }
-
-    if (nowMs < targetDateTime.getTime()) {
-        cdEl.innerText = formatCountdownDuration(targetDateTime.getTime() - nowMs);
-        check45MinuteAlertIfNeeded(ctx, nowMs, targetDateTime);
-    } else {
-        cdEl.innerText = t("countdown_due_now");
-    }
-}
-
-function startTicketCountdownLoop(context) {
-    if (activeCountdownInterval) {
-        clearInterval(activeCountdownInterval);
-        activeCountdownInterval = null;
-    }
-    activeTicketContext = context;
-    refreshTicketCountdownDisplay();
-    activeCountdownInterval = setInterval(refreshTicketCountdownDisplay, 1000);
-}
-
-function calculateDailyCapacity(clinic) {
-    if (!clinic) return 0;
-    var startMin = parseMinutesFromHHMM(clinic.startTime);
-    var endMin = parseMinutesFromHHMM(clinic.endTime);
-    var serviceTime = parseInt(clinic.serviceTime, 10);
-    if (startMin === null || endMin === null || isNaN(serviceTime) || serviceTime <= 0) {
-        return 0;
-    }
-    var diff = endMin - startMin;
-    if (diff <= 0) return 0;
-    return Math.floor(diff / serviceTime);
-}
-
-function getClinicWorkingDays(clinic) {
-    if (!clinic || !Array.isArray(clinic.workingDays)) return [];
-    var days = [];
-    for (var i = 0; i < clinic.workingDays.length; i++) {
-        var n = parseInt(clinic.workingDays[i], 10);
-        if (!isNaN(n) && n >= 0 && n <= 6) {
-            days.push(n);
-        }
-    }
-    return days;
-}
-
-function isShiftEndedForToday(dateStr, clinic) {
-    if (!dateStr || !clinic || dateStr !== getTodayStr()) return false;
-    var endMin = parseMinutesFromHHMM(clinic.endTime);
-    if (endMin === null) return false;
-    var now = new Date();
-    var nowMin = now.getHours() * 60 + now.getMinutes();
-    return nowMin >= endMin;
-}
-
-function isDateAvailableForClinic(dateStr, clinic) {
-    if (!dateStr || !clinic) return false;
-    var todayStr = getTodayStr();
-    if (dateStr < todayStr) return false;
-
-    var parts = dateStr.split("-");
-    if (parts.length !== 3) return false;
-    var dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-    var dayOfWeek = dt.getDay();
-
-    var workingDays = getClinicWorkingDays(clinic);
-    if (workingDays.length > 0 && workingDays.indexOf(dayOfWeek) === -1) {
-        return false;
-    }
-
-    var bookedCount = calendarBookingsByDate[dateStr] || 0;
-
-    if (isShiftEndedForToday(dateStr, clinic) && bookedCount <= 0) {
-        return false;
-    }
-
-    var capacity = calculateDailyCapacity(clinic);
-    if (capacity > 0 && bookedCount >= capacity) {
-        return false;
-    }
-
-    return true;
-}
-
-function renderCustomBookingCalendar() {
-    var calContainer = document.getElementById("customBookingCalendar");
-    var hintEl = document.getElementById("calendarHint");
-    var hiddenInput = document.getElementById("bookingDate");
-    if (!calContainer || !selectedClinic) return;
-
-    if (calendarViewYear === null || calendarViewMonth === null) {
-        var now = new Date();
-        calendarViewYear = now.getFullYear();
-        calendarViewMonth = now.getMonth();
-    }
-
-    var capacity = calculateDailyCapacity(selectedClinic);
-    var isAr = getCurrentLang() === "ar";
-    var monthNames = isAr
-        ? ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
-        : ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    var weekDays = isAr
-        ? ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"]
-        : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-    var firstDayOfMonth = new Date(calendarViewYear, calendarViewMonth, 1).getDay();
-    var daysInMonth = new Date(calendarViewYear, calendarViewMonth + 1, 0).getDate();
-    var currentSelected = hiddenInput ? hiddenInput.value : "";
-
-    var html = '<div class="cal-header">';
-    html += '<button type="button" class="btn-outline" onclick="changeCalendarMonth(-1)">&lt;</button>';
-    html += '<span>' + monthNames[calendarViewMonth] + ' ' + calendarViewYear + '</span>';
-    html += '<button type="button" class="btn-outline" onclick="changeCalendarMonth(1)">&gt;</button>';
-    html += '</div>';
-
-    html += '<div class="cal-weekdays">';
-    for (var w = 0; w < weekDays.length; w++) {
-        html += '<div class="cal-weekday">' + weekDays[w] + '</div>';
-    }
-    html += '</div>';
-
-    html += '<div class="cal-days-grid">';
-    for (var b = 0; b < firstDayOfMonth; b++) {
-        html += '<div></div>';
-    }
-
-    for (var day = 1; day <= daysInMonth; day++) {
-        var dateStr = formatDateYMD(calendarViewYear, calendarViewMonth, day);
-        var available = isDateAvailableForClinic(dateStr, selectedClinic);
-        var bookedCount = calendarBookingsByDate[dateStr] || 0;
-        var isFull = capacity > 0 && bookedCount >= capacity;
-        var isSelected = currentSelected === dateStr && available;
-
-        var cls = "cal-day-btn";
-        if (!available) cls += " disabled-day";
-        if (isSelected) cls += " selected";
-
-        var titleAttr = isFull ? t("cal_day_full") : (!available ? t("cal_day_unavailable") : t("cal_day_available"));
-        html += '<button type="button" class="' + cls + '" title="' + titleAttr + '" ' +
-            (!available ? 'disabled' : 'onclick="selectCalendarDate(\'' + dateStr + '\')"') + '>' +
-            day + '</button>';
-    }
-    html += '</div>';
-
-    calContainer.innerHTML = html;
-
-    if (hintEl) {
-        if (capacity > 0) {
-            hintEl.innerText = t("cal_capacity_hint").replace("{n}", capacity);
-        } else {
-            hintEl.innerText = t("cal_unavailable_hint");
-        }
-    }
-}
-
-function changeCalendarMonth(delta) {
-    if (calendarViewYear === null || calendarViewMonth === null) {
-        var now = new Date();
-        calendarViewYear = now.getFullYear();
-        calendarViewMonth = now.getMonth();
-    }
-    calendarViewMonth += delta;
-    if (calendarViewMonth < 0) {
-        calendarViewMonth = 11;
-        calendarViewYear -= 1;
-    } else if (calendarViewMonth > 11) {
-        calendarViewMonth = 0;
-        calendarViewYear += 1;
-    }
-    renderCustomBookingCalendar();
-}
-
-function selectCalendarDate(dateStr) {
-    if (!isDateAvailableForClinic(dateStr, selectedClinic)) return;
-    var hiddenInput = document.getElementById("bookingDate");
-    if (hiddenInput) hiddenInput.value = dateStr;
-    renderCustomBookingCalendar();
-}
-
-function loadClinicCalendarBookings(doctorId, clinicIndex) {
-    if (unsubscribeBookings) {
-        unsubscribeBookings();
-        unsubscribeBookings = null;
-    }
-    calendarBookingsByDate = {};
-    var todayStr = getTodayStr();
-
-    unsubscribeBookings = db.collection("bookings")
-        .where("doctorId", "==", doctorId)
-        .where("clinicIndex", "==", clinicIndex)
-        .onSnapshot(function(snapshot) {
-            var counts = {};
-            snapshot.forEach(function(doc) {
-                var data = doc.data();
-                if (!data || !data.date) return;
-                if (data.date < todayStr) return;
-                if (data.status === "cancelled" || data.status === "done") return;
-                counts[data.date] = (counts[data.date] || 0) + 1;
-            });
-            calendarBookingsByDate = counts;
-
-            var hiddenInput = document.getElementById("bookingDate");
-            if (hiddenInput && hiddenInput.value && !isDateAvailableForClinic(hiddenInput.value, selectedClinic)) {
-                hiddenInput.value = "";
-            }
-            if (hiddenInput && !hiddenInput.value) {
-                var firstAvail = findFirstAvailableDate(selectedClinic);
-                if (firstAvail) hiddenInput.value = firstAvail;
-            }
-            renderCustomBookingCalendar();
-        }, function(err) {
-            console.error(err);
-            renderCustomBookingCalendar();
-        });
-}
-
-function findFirstAvailableDate(clinic) {
+function getClinicLocationText(clinic) {
     if (!clinic) return "";
-    var base = new Date();
-    for (var i = 0; i < 60; i++) {
-        var d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-        var dateStr = formatDateYMD(d.getFullYear(), d.getMonth(), d.getDate());
-        if (isDateAvailableForClinic(dateStr, clinic)) {
-            return dateStr;
+    var isEn = getCurrentLang() === "en";
+    var parts = [];
+    var city = isEn && clinic.cityEn ? clinic.cityEn : clinic.city;
+    var street = isEn && clinic.streetEn ? clinic.streetEn : clinic.street;
+    var landmark = clinic.landmark;
+    if (city && String(city).trim()) parts.push(String(city).trim());
+    if (street && String(street).trim()) parts.push(String(street).trim());
+    if (landmark && String(landmark).trim()) parts.push(String(landmark).trim());
+    return parts.join(" - ");
+}
+
+function getClinicMapUrl(clinic) {
+    if (!clinic) return null;
+    var lat = parseFloat(clinic.lat);
+    var lng = parseFloat(clinic.lng);
+    if (!isNaN(lat) && !isNaN(lng)) {
+        return "https://www.google.com/maps?q=" + lat + "," + lng;
+    }
+    var loc = getClinicLocationText(clinic);
+    if (loc) {
+        return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(loc);
+    }
+    return null;
+}
+
+function getDoctorDisplayName(doc) {
+    if (!doc) return t("default_doctor_name");
+    if (getCurrentLang() === "en" && doc.nameEn && String(doc.nameEn).trim()) {
+        return String(doc.nameEn).trim();
+    }
+    return doc.name || t("default_doctor_name");
+}
+
+function getDoctorSpecialty(doc) {
+    if (!doc) return "";
+    if (getCurrentLang() === "en" && doc.specialtyEn && String(doc.specialtyEn).trim()) {
+        return String(doc.specialtyEn).trim();
+    }
+    return doc.specialty || "";
+}
+
+function getClinicDisplayName(clinic, idx) {
+    if (!clinic) return t("clinic_prefix") + ((idx || 0) + 1);
+    if (getCurrentLang() === "en" && clinic.clinicNameEn && String(clinic.clinicNameEn).trim()) {
+        return String(clinic.clinicNameEn).trim();
+    }
+    return clinic.clinicName || (t("clinic_prefix") + ((idx || 0) + 1));
+}
+
+function getClinicStatusInfo(clinic) {
+    if (!clinic || clinic.isClosed === true) {
+        return { text: t("closed_temp"), badgeClass: "badge-closed", canBook: false };
+    }
+    if (clinic.isOnBreak === true) {
+        return { text: t("on_break"), badgeClass: "badge-break", canBook: false };
+    }
+    return { text: t("available"), badgeClass: "badge-open", canBook: true };
+}
+
+function getDoctorOverallStatus(doc) {
+    var clinics = (doc && Array.isArray(doc.clinics)) ? doc.clinics : [];
+    if (clinics.length === 0) {
+        return { text: t("closed_temp"), badgeClass: "badge-closed", canBook: false };
+    }
+    var hasAvailable = false;
+    var hasBreak = false;
+    for (var i = 0; i < clinics.length; i++) {
+        var st = getClinicStatusInfo(clinics[i]);
+        if (st.canBook) {
+            hasAvailable = true;
+            break;
+        }
+        if (clinics[i] && clinics[i].isOnBreak === true && clinics[i].isClosed !== true) {
+            hasBreak = true;
         }
     }
-    return "";
+    if (hasAvailable) {
+        return { text: t("available"), badgeClass: "badge-open", canBook: true };
+    }
+    if (hasBreak) {
+        return { text: t("on_break"), badgeClass: "badge-break", canBook: false };
+    }
+    return { text: t("closed_temp"), badgeClass: "badge-closed", canBook: false };
 }
 
-function getSavedBookingIds() {
-    try {
-        var raw = localStorage.getItem("douri_my_bookings");
-        var arr = raw ? JSON.parse(raw) : [];
-        return Array.isArray(arr) ? arr : [];
-    } catch (e) {
-        return [];
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function getMinDistanceForDoctor(doc) {
+    if (userLat === null || userLng === null || !doc || !Array.isArray(doc.clinics)) return null;
+    var minDist = null;
+    for (var i = 0; i < doc.clinics.length; i++) {
+        var c = doc.clinics[i];
+        var lat = parseFloat(c.lat);
+        var lng = parseFloat(c.lng);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            var d = calculateDistanceKm(userLat, userLng, lat, lng);
+            if (minDist === null || d < minDist) {
+                minDist = d;
+            }
+        }
+    }
+    return minDist;
+}
+
+function formatDistanceLabel(km) {
+    if (km === null || km === undefined || isNaN(km)) return "";
+    if (km < 1) {
+        return t("distance_m").replace("{m}", Math.round(km * 1000));
+    }
+    return t("distance_km").replace("{km}", km.toFixed(1));
+}
+
+function updateNearestButtonLabel() {
+    var btn = document.getElementById("nearestBtn");
+    if (!btn) return;
+    var span = btn.querySelector("span");
+    var text = isNearestActive ? t("nearest_active_btn") : t("nearest_btn");
+    if (span) {
+        span.innerText = text;
+    } else {
+        btn.innerHTML = '<i class="fa-solid fa-location-dot"></i> ' + text;
     }
 }
 
-function saveBookingIdLocally(bookingId) {
-    if (!bookingId) return;
-    var ids = getSavedBookingIds();
-    if (ids.indexOf(bookingId) === -1) {
-        ids.push(bookingId);
-        localStorage.setItem("douri_my_bookings", JSON.stringify(ids));
-    }
-    updateActiveBookingBanner();
-}
-
-function removeBookingIdLocally(bookingId) {
-    var ids = getSavedBookingIds().filter(function(id) { return id !== bookingId; });
-    localStorage.setItem("douri_my_bookings", JSON.stringify(ids));
-    updateActiveBookingBanner();
-}
-
-function updateActiveBookingBanner() {
-    var banner = document.getElementById("activeBookingBanner");
-    var textEl = document.getElementById("bannerText");
-    var ids = getSavedBookingIds();
-    if (!banner || !textEl) return;
-
-    if (ids.length === 0) {
-        banner.classList.add("hidden");
+function toggleNearestDoctors() {
+    if (isNearestActive) {
+        isNearestActive = false;
+        updateNearestButtonLabel();
+        filterDoctors();
         return;
     }
 
-    Promise.all(ids.map(function(id) {
-        return db.collection("bookings").doc(id).get();
-    })).then(function(docs) {
-        var activeCount = 0;
-        var validIds = [];
-        docs.forEach(function(doc) {
-            if (doc.exists) {
-                var d = doc.data();
-                if (d.status !== "cancelled" && d.status !== "done") {
-                    activeCount++;
-                    validIds.push(doc.id);
-                }
-            }
-        });
-        localStorage.setItem("douri_my_bookings", JSON.stringify(validIds));
-        if (activeCount > 0) {
-            textEl.innerText = t("active_booking_msg").replace("{n}", activeCount);
-            banner.classList.remove("hidden");
-        } else {
-            banner.classList.add("hidden");
-        }
-    }).catch(function() {});
+    if (!navigator.geolocation) {
+        alert(t("err_geo_unsupported"));
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(function(pos) {
+        userLat = pos.coords.latitude;
+        userLng = pos.coords.longitude;
+        isNearestActive = true;
+        updateNearestButtonLabel();
+        filterDoctors();
+    }, function() {
+        alert(t("err_geo_failed"));
+    }, { enableHighAccuracy: true, timeout: 10000 });
 }
 
-function hasValidClinics(doc) {
-    return !!(doc && doc.isDeleted !== true && Array.isArray(doc.clinics) && doc.clinics.length > 0);
+function renderSkeletons() {
+    var grid = document.getElementById("doctorsGrid");
+    if (!grid) return;
+    var html = "";
+    for (var i = 0; i < 6; i++) {
+        html += '<div class="clinic-card skeleton-card"></div>';
+    }
+    grid.innerHTML = html;
 }
 
 function loadDoctors() {
-    var listEl = document.getElementById("doctorsList");
-    if (unsubscribeDoctors) {
-        unsubscribeDoctors();
-    }
-
-    var fallbackTimer = setTimeout(function() {
-        if (listEl && listEl.querySelector(".skeleton-card")) {
-            listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--text-muted);">' + t("err_load_clinics") + '</p>';
-        }
-    }, 10000);
-
-    unsubscribeDoctors = db.collection("doctors").onSnapshot(function(snapshot) {
-        clearTimeout(fallbackTimer);
-        allDoctors = [];
-        var citiesSet = {};
-
+    renderSkeletons();
+    db.collection("doctors").get().then(function(snapshot) {
+        var list = [];
         snapshot.forEach(function(doc) {
             var data = doc.data();
+            if (!data || data.isDeleted === true) return;
             data.id = doc.id;
-            allDoctors.push(data);
-            if (hasValidClinics(data)) {
-                data.clinics.forEach(function(c) {
-                    var cityLabel = getLocalizedCity(c) || (c && c.city);
-                    if (cityLabel) {
-                        citiesSet[cityLabel.trim()] = true;
-                    }
-                });
-            }
+            list.push(data);
         });
-
-        var datalist = document.getElementById("citiesList");
-        if (datalist) {
-            datalist.innerHTML = "";
-            Object.keys(citiesSet).sort().forEach(function(city) {
-                var opt = document.createElement("option");
-                opt.value = city;
-                datalist.appendChild(opt);
-            });
-        }
-
+        allDoctors = list;
+        populateCityDatalist();
         filterDoctors();
-        updateActiveBookingBanner();
-        if (activeTicketContext) {
-            var clinicObj = findClinicForTicket(activeTicketContext);
-            if (clinicObj) {
-                var parsedOpen = parseMinutesFromHHMM(clinicObj.startTime);
-                var parsedClose = parseMinutesFromHHMM(clinicObj.endTime);
-                if (parsedOpen !== null) {
-                    activeTicketContext.openMinutes = parsedOpen;
-                }
-                if (parsedClose !== null) {
-                    activeTicketContext.closeMinutes = parsedClose;
-                }
-                activeTicketContext.expectedMinutes = computeClampedExpectedMinutes(activeTicketContext);
-                refreshTicketCountdownDisplay();
-            }
-        }
-    }, function(error) {
-        clearTimeout(fallbackTimer);
-        console.error(error);
-        if (listEl) {
-            listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--danger);">' + t("err_fetch_db") + '</p>';
+    }).catch(function(err) {
+        console.error(err);
+        var grid = document.getElementById("doctorsGrid");
+        if (grid) {
+            grid.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t("err_load_clinics") + '</p>';
         }
     });
+}
+
+function populateCityDatalist() {
+    var dl = document.getElementById("citiesList");
+    if (!dl) return;
+    var citiesSet = {};
+    allDoctors.forEach(function(doc) {
+        if (!Array.isArray(doc.clinics)) return;
+        doc.clinics.forEach(function(c) {
+            if (c.city && String(c.city).trim()) {
+                citiesSet[String(c.city).trim()] = true;
+            }
+            if (c.cityEn && String(c.cityEn).trim()) {
+                citiesSet[String(c.cityEn).trim()] = true;
+            }
+        });
+    });
+    var html = "";
+    Object.keys(citiesSet).sort().forEach(function(city) {
+        html += '<option value="' + city + '"></option>';
+    });
+    dl.innerHTML = html;
 }
 
 function filterDoctors() {
     var searchInput = document.getElementById("searchInput");
-    var cityInput = document.getElementById("cityFilter");
+    var cityInput = document.getElementById("cityInput");
     var query = searchInput ? searchInput.value.trim().toLowerCase() : "";
     var cityQuery = cityInput ? cityInput.value.trim().toLowerCase() : "";
 
     var filtered = allDoctors.filter(function(doc) {
-        if (!hasValidClinics(doc)) return false;
+        var nameAr = (doc.name || "").toLowerCase();
+        var nameEn = (doc.nameEn || "").toLowerCase();
+        var specAr = (doc.specialty || "").toLowerCase();
+        var specEn = (doc.specialtyEn || "").toLowerCase();
 
-        var docNameAll = ((doc.name || "") + " " + (doc.nameEn || "")).toLowerCase();
-        var specAll = ((doc.specialty || "") + " " + (doc.specialtyEn || "")).toLowerCase();
-        var nameMatch = docNameAll.indexOf(query) !== -1;
-        var specMatch = specAll.indexOf(query) !== -1;
-        var clinicNameMatch = false;
-        var cityMatch = !cityQuery;
+        var matchesText = !query ||
+            nameAr.indexOf(query) !== -1 ||
+            nameEn.indexOf(query) !== -1 ||
+            specAr.indexOf(query) !== -1 ||
+            specEn.indexOf(query) !== -1;
 
-        for (var i = 0; i < doc.clinics.length; i++) {
-            var c = doc.clinics[i];
-            if (!c) continue;
-            var clinicAll = ((c.clinicName || "") + " " + (c.clinicNameEn || "")).toLowerCase();
-            var cityAll = ((c.city || "") + " " + (c.cityEn || "")).toLowerCase();
-            if (clinicAll.indexOf(query) !== -1) {
-                clinicNameMatch = true;
-            }
-            if (cityQuery && cityAll.indexOf(cityQuery) !== -1) {
-                cityMatch = true;
+        var matchesCity = true;
+        if (cityQuery) {
+            matchesCity = false;
+            if (Array.isArray(doc.clinics)) {
+                for (var i = 0; i < doc.clinics.length; i++) {
+                    var c = doc.clinics[i];
+                    var cAr = (c.city || "").toLowerCase();
+                    var cEn = (c.cityEn || "").toLowerCase();
+                    if (cAr.indexOf(cityQuery) !== -1 || cEn.indexOf(cityQuery) !== -1) {
+                        matchesCity = true;
+                        break;
+                    }
+                }
             }
         }
 
-        var textOk = !query || nameMatch || specMatch || clinicNameMatch;
-        return textOk && cityMatch;
+        return matchesText && matchesCity;
     });
 
-    if (sortByNearestEnabled && patientCurrentCoords) {
-        filtered = filtered.slice().sort(function(a, b) {
-            var da = getNearestClinicDistanceForDoctor(a);
-            var dbVal = getNearestClinicDistanceForDoctor(b);
+    if (isNearestActive && userLat !== null && userLng !== null) {
+        filtered.sort(function(a, b) {
+            var da = getMinDistanceForDoctor(a);
+            var dbVal = getMinDistanceForDoctor(b);
             if (da === null && dbVal === null) return 0;
             if (da === null) return 1;
             if (dbVal === null) return -1;
@@ -969,181 +339,297 @@ function filterDoctors() {
         });
     }
 
-    renderDoctorsList(filtered);
+    renderDoctorsGrid(filtered);
 }
 
-function buildMapLink(clinic) {
-    if (!clinic || !clinic.lat || !clinic.lng) return "";
-    var mapUrl = "https://www.google.com/maps?q=" + clinic.lat + "," + clinic.lng;
-    return '<a class="btn-outline" href="' + mapUrl + '" target="_blank" rel="noopener"><i class="fa-solid fa-map"></i> ' + t("view_map") + '</a>';
-}
+function renderDoctorsGrid(doctorsList) {
+    var grid = document.getElementById("doctorsGrid");
+    if (!grid) return;
 
-function renderDoctorsList(doctors) {
-    var listEl = document.getElementById("doctorsList");
-    if (!listEl) return;
-
-    var validDoctors = Array.isArray(doctors) ? doctors.filter(hasValidClinics) : [];
-
-    if (validDoctors.length === 0) {
-        listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--text-muted);">' + t("no_results") + '</p>';
+    if (!Array.isArray(doctorsList) || doctorsList.length === 0) {
+        grid.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t("no_results") + '</p>';
         return;
     }
 
     var html = "";
-    validDoctors.forEach(function(doc) {
-        var clinics = doc.clinics;
-        var primaryClinic = clinics[0] || {};
-        var isClosed = primaryClinic.isClosed === true;
-        var isOnBreak = primaryClinic.isOnBreak === true;
+    doctorsList.forEach(function(doc) {
+        var docName = getDoctorDisplayName(doc);
+        var spec = getDoctorSpecialty(doc);
+        var statusInfo = getDoctorOverallStatus(doc);
 
-        var displayDocName = getLocalizedDoctorName(doc) || t("default_doctor_name");
-        var displaySpec = getLocalizedSpecialty(doc);
-        var displayClinicName = getLocalizedClinicName(primaryClinic);
-        var displayCity = getLocalizedCity(primaryClinic);
-        var displayStreet = getLocalizedStreet(primaryClinic);
-
-        var statusBadge = '<span class="badge badge-open">' + t("available") + '</span>';
-        if (isClosed) {
-            statusBadge = '<span class="badge badge-closed">' + t("closed_temp") + '</span>';
-        } else if (isOnBreak) {
-            statusBadge = '<span class="badge badge-break">' + t("on_break") + '</span>';
+        var distBadge = "";
+        if (isNearestActive) {
+            var dKm = getMinDistanceForDoctor(doc);
+            var dText = formatDistanceLabel(dKm);
+            if (dText) {
+                distBadge = '<span class="badge badge-break">' + dText + '</span>';
+            }
         }
-
-        var hoursText = "";
-        if (primaryClinic.startTime && primaryClinic.endTime) {
-            hoursText = "<p><strong>" + t("hours_label") + "</strong> " + primaryClinic.startTime + " - " + primaryClinic.endTime + "</p>";
-        }
-
-        var locationText = "";
-        if (displayCity || displayStreet) {
-            locationText = "<p><i class=\"fa-solid fa-location-dot\"></i> " +
-                displayCity + (displayStreet ? " - " + displayStreet : "") + "</p>";
-        }
-
-        var nearestDist = getNearestClinicDistanceForDoctor(doc);
-        var distanceText = "";
-        if (nearestDist !== null) {
-            distanceText = "<p><i class=\"fa-solid fa-route\"></i> " + formatDistanceText(nearestDist) + "</p>";
-        }
-
-        var actionBtn = "";
-        if (isClosed) {
-            actionBtn = '<button type="button" class="btn-outline" disabled>' + t("closed_temp") + '</button>';
-        } else if (clinics.length > 1) {
-            actionBtn = '<button type="button" class="btn-primary" onclick="openClinicSelection(\'' + doc.id + '\')">' + t("choose_clinic_btn") + '</button>';
-        } else {
-            actionBtn = '<button type="button" class="btn-primary" onclick="openBookingModal(\'' + doc.id + '\', 0)">' + t("book_now") + '</button>';
-        }
-
-        var mapBtn = clinics.length <= 1 ? buildMapLink(primaryClinic) : "";
 
         html += '<div class="clinic-card">' +
-            '<div class="clinic-header">' +
-                '<h3>' + displayDocName + '</h3>' +
-                statusBadge +
+            '<div>' +
+                '<div class="clinic-header">' +
+                    '<h3>' + docName + '</h3>' +
+                    '<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
+                        distBadge +
+                        '<span class="badge ' + statusInfo.badgeClass + '">' + statusInfo.text + '</span>' +
+                    '</div>' +
+                '</div>' +
+                (spec ? ('<p class="specialty">' + spec + '</p>') : '') +
             '</div>' +
-            '<p class="specialty">' + displaySpec + (displayClinicName ? " — " + displayClinicName : "") + '</p>' +
-            '<div class="clinic-info">' + locationText + distanceText + hoursText + '</div>' +
-            '<div class="clinic-actions">' + actionBtn + mapBtn + '</div>' +
+            '<div class="clinic-actions">' +
+                '<button type="button" class="btn-primary" onclick="openChooseClinicModal(\'' + doc.id + '\')">' + t("choose_clinic_btn") + '</button>' +
+            '</div>' +
+        '</div>';
+    });
+
+    grid.innerHTML = html;
+}
+
+function openChooseClinicModal(doctorId) {
+    var doc = allDoctors.find(function(d) { return d.id === doctorId; });
+    if (!doc) return;
+
+    selectedDoctor = doc;
+    var clinics = Array.isArray(doc.clinics) ? doc.clinics : [];
+
+    var modal = document.getElementById("chooseClinicModal");
+    var listEl = document.getElementById("clinicChoicesList");
+    var titleEl = document.getElementById("chooseClinicModalTitle");
+    if (!modal || !listEl) return;
+
+    if (titleEl) {
+        titleEl.innerText = t("choose_clinic_title") + " - " + getDoctorDisplayName(doc);
+    }
+
+    if (clinics.length === 0) {
+        listEl.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t("no_results") + '</p>';
+        modal.classList.remove("hidden");
+        return;
+    }
+
+    var html = "";
+    clinics.forEach(function(clinic, idx) {
+        var cName = getClinicDisplayName(clinic, idx);
+        var hoursText = getClinicWorkingHoursText(clinic);
+        var locText = getClinicLocationText(clinic);
+        var statusInfo = getClinicStatusInfo(clinic);
+        var mapUrl = getClinicMapUrl(clinic);
+
+        html += '<div class="clinic-card" style="margin-bottom:10px;">' +
+            '<div>' +
+                '<div class="clinic-header">' +
+                    '<h3>' + cName + '</h3>' +
+                    '<span class="badge ' + statusInfo.badgeClass + '">' + statusInfo.text + '</span>' +
+                '</div>' +
+                '<div class="clinic-info">' +
+                    '<p><i class="fa-regular fa-clock"></i> ' + t("hours_label") + ' ' + hoursText + '</p>' +
+                    (locText ? ('<p><i class="fa-solid fa-location-dot"></i> ' + locText + '</p>') : '') +
+                '</div>' +
+            '</div>' +
+            '<div class="clinic-actions">' +
+                '<button type="button" class="btn-primary" ' + (!statusInfo.canBook ? "disabled" : "") + ' onclick="selectClinicAndOpenBooking(' + idx + ')">' + t("book_now") + '</button>' +
+                (mapUrl ? ('<a class="btn-outline" href="' + mapUrl + '" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-map-location-dot"></i> ' + t("view_map") + '</a>') : '') +
+            '</div>' +
         '</div>';
     });
 
     listEl.innerHTML = html;
-}
-
-function openClinicSelection(doctorId) {
-    var doc = allDoctors.find(function(d) { return d.id === doctorId; });
-    if (!doc || !hasValidClinics(doc)) return;
-
-    var container = document.getElementById("clinicSelectionList");
-    var modal = document.getElementById("clinicSelectionModal");
-    if (!container || !modal) return;
-
-    var html = "";
-    doc.clinics.forEach(function(c, idx) {
-        var closed = c.isClosed === true;
-        var mapBtn = buildMapLink(c);
-        var cName = getLocalizedClinicName(c) || (t("clinic_prefix") + (idx + 1));
-        var cCity = getLocalizedCity(c);
-        var cStreet = getLocalizedStreet(c);
-        var dist = patientCurrentCoords ? calculateDistanceKm(patientCurrentCoords.lat, patientCurrentCoords.lng, c.lat, c.lng) : null;
-        var distHtml = dist !== null ? '<p class="clinic-meta"><i class="fa-solid fa-route"></i> ' + formatDistanceText(dist) + '</p>' : '';
-
-        html += '<div class="clinic-card" style="margin-bottom:10px;">' +
-            '<div class="clinic-header"><h3>' + cName + '</h3>' +
-            '<span class="badge ' + (closed ? "badge-closed" : "badge-open") + '">' + (closed ? t("closed_temp") : t("available")) + '</span></div>' +
-            '<p class="specialty">' + cCity + (cStreet ? " - " + cStreet : "") + '</p>' +
-            distHtml +
-            '<div class="clinic-actions">' +
-                '<button type="button" class="btn-primary" ' + (closed ? "disabled" : 'onclick="closeClinicSelectionModal(); openBookingModal(\'' + doc.id + '\', ' + idx + ')"') + '>' +
-                (closed ? t("closed_temp") : t("book_now")) + '</button>' +
-                mapBtn +
-            '</div>' +
-        '</div>';
-    });
-
-    container.innerHTML = html;
     modal.classList.remove("hidden");
 }
 
-function closeClinicSelectionModal() {
-    var modal = document.getElementById("clinicSelectionModal");
+function closeChooseClinicModal() {
+    var modal = document.getElementById("chooseClinicModal");
     if (modal) modal.classList.add("hidden");
 }
 
-function openBookingModal(doctorId, clinicIndex) {
-    var doc = allDoctors.find(function(d) { return d.id === doctorId; });
-    if (!doc || !hasValidClinics(doc)) return;
-    var clinic = doc.clinics[clinicIndex || 0];
-    if (!clinic || clinic.isClosed === true) return;
+function selectClinicAndOpenBooking(clinicIdx) {
+    if (!selectedDoctor || !Array.isArray(selectedDoctor.clinics)) return;
+    var clinic = selectedDoctor.clinics[clinicIdx];
+    if (!clinic) return;
+    var statusInfo = getClinicStatusInfo(clinic);
+    if (!statusInfo.canBook) {
+        alert(statusInfo.text);
+        return;
+    }
+    closeChooseClinicModal();
+    openBookingModalForClinic(selectedDoctor, clinic, clinicIdx);
+}
 
+function openBookingModalForClinic(doc, clinic, clinicIdx) {
     selectedDoctor = doc;
     selectedClinic = clinic;
-    selectedClinicIndex = clinicIndex || 0;
+    selectedClinicIndex = clinicIdx;
+    selectedBookingDate = null;
+    bookingDayCounts = {};
 
     var now = new Date();
-    calendarViewYear = now.getFullYear();
-    calendarViewMonth = now.getMonth();
-    calendarBookingsByDate = {};
+    bookingCalYear = now.getFullYear();
+    bookingCalMonth = now.getMonth();
 
-    var titleEl = document.getElementById("modalDoctorName");
-    var dName = getLocalizedDoctorName(doc);
-    var cName = getLocalizedClinicName(clinic);
-    if (titleEl) {
-        titleEl.innerText = t("book_now") + " — " + dName + (cName ? " (" + cName + ")" : "");
+    var pName = document.getElementById("patientName");
+    var pPhone = document.getElementById("patientPhone");
+    if (pName) pName.value = "";
+    if (pPhone) pPhone.value = "";
+
+    var subtitleEl = document.getElementById("bookingClinicSubtitle");
+    if (subtitleEl) {
+        var locText = getClinicLocationText(clinic);
+        subtitleEl.innerText = getDoctorDisplayName(doc) + " — " + getClinicDisplayName(clinic, clinicIdx) + (locText ? (" (" + locText + ")") : "");
     }
-
-    var nameInput = document.getElementById("bookingName");
-    var phoneInput = document.getElementById("bookingPhone");
-    var dateInput = document.getElementById("bookingDate");
-    if (nameInput) nameInput.value = "";
-    if (phoneInput) phoneInput.value = "";
-    if (dateInput) dateInput.value = "";
-
-    loadClinicCalendarBookings(doc.id, selectedClinicIndex);
-    renderCustomBookingCalendar();
 
     var modal = document.getElementById("bookingModal");
-    if (modal) {
-        modal.classList.remove("hidden");
-        modal.scrollTop = 0;
-        var card = modal.querySelector(".modal-card");
-        if (card) card.scrollTop = 0;
-        var body = modal.querySelector(".modal-body");
-        if (body) body.scrollTop = 0;
-    }
+    if (modal) modal.classList.remove("hidden");
+
+    renderCustomBookingCalendar();
+    fetchBookingDayCountsForMonth(bookingCalYear, bookingCalMonth);
 }
 
-function closeModal() {
+function closeBookingModal() {
     var modal = document.getElementById("bookingModal");
     if (modal) modal.classList.add("hidden");
-    if (unsubscribeBookings) {
-        unsubscribeBookings();
-        unsubscribeBookings = null;
-    }
 }
 
-function generate12DigitSecret() {
+function shiftBookingCalendarMonth(delta) {
+    bookingCalMonth += delta;
+    if (bookingCalMonth < 0) {
+        bookingCalMonth = 11;
+        bookingCalYear -= 1;
+    } else if (bookingCalMonth > 11) {
+        bookingCalMonth = 0;
+        bookingCalYear += 1;
+    }
+    renderCustomBookingCalendar();
+    fetchBookingDayCountsForMonth(bookingCalYear, bookingCalMonth);
+}
+
+function formatYMD(year, monthZeroBased, day) {
+    return year + "-" + String(monthZeroBased + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+}
+
+function getDailyCapacityForClinic(clinic) {
+    if (!clinic) return 30;
+    var startMin = parseMinutesFromHHMM(clinic.startTime || "09:00");
+    var endMin = parseMinutesFromHHMM(clinic.endTime || "17:00");
+    var serviceTime = parseInt(clinic.serviceTime, 10);
+    if (isNaN(serviceTime) || serviceTime <= 0) serviceTime = 10;
+    if (startMin !== null && endMin !== null && endMin > startMin) {
+        return Math.max(1, Math.floor((endMin - startMin) / serviceTime));
+    }
+    return 30;
+}
+
+function isDayAvailableForClinic(clinic, dateStr, dayOfWeek) {
+    if (!clinic || !dateStr) return false;
+    var todayStr = getTodayStr();
+    if (dateStr < todayStr) return false;
+    if (Array.isArray(clinic.workingDays) && clinic.workingDays.length > 0) {
+        return clinic.workingDays.indexOf(dayOfWeek) !== -1;
+    }
+    return true;
+}
+
+function fetchBookingDayCountsForMonth(year, monthZeroBased) {
+    if (!selectedDoctor || !selectedClinic) return;
+    var prefix = year + "-" + String(monthZeroBased + 1).padStart(2, "0") + "-";
+    var startDate = prefix + "01";
+    var endDate = prefix + "31";
+    bookingDayCountsLoading = true;
+
+    db.collection("bookings")
+        .where("doctorId", "==", selectedDoctor.id)
+        .where("clinicIndex", "==", selectedClinicIndex)
+        .where("date", ">=", startDate)
+        .where("date", "<=", endDate)
+        .get()
+        .then(function(snap) {
+            var counts = {};
+            snap.forEach(function(doc) {
+                var d = doc.data();
+                if (d && d.status !== "cancelled" && d.date) {
+                    counts[d.date] = (counts[d.date] || 0) + 1;
+                }
+            });
+            bookingDayCounts = counts;
+            bookingDayCountsLoading = false;
+            renderCustomBookingCalendar();
+        })
+        .catch(function(err) {
+            console.error(err);
+            bookingDayCountsLoading = false;
+            renderCustomBookingCalendar();
+        });
+}
+
+function renderCustomBookingCalendar() {
+    var container = document.getElementById("bookingCalendarContainer");
+    if (!container || !selectedClinic) return;
+
+    var monthNamesAr = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+    var monthNamesEn = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    var monthLabel = (getCurrentLang() === "en" ? monthNamesEn[bookingCalMonth] : monthNamesAr[bookingCalMonth]) + " " + bookingCalYear;
+
+    var weekdayKeys = ["day_0", "day_1", "day_2", "day_3", "day_4", "day_5", "day_6"];
+    var weekdaysHtml = '<div class="cal-weekdays">';
+    weekdayKeys.forEach(function(k) {
+        weekdaysHtml += '<div class="cal-weekday">' + t(k) + '</div>';
+    });
+    weekdaysHtml += '</div>';
+
+    var firstDayOfWeek = new Date(bookingCalYear, bookingCalMonth, 1).getDay();
+    var daysInMonth = new Date(bookingCalYear, bookingCalMonth + 1, 0).getDate();
+    var capacity = getDailyCapacityForClinic(selectedClinic);
+
+    var daysHtml = '<div class="cal-days-grid">';
+    for (var b = 0; b < firstDayOfWeek; b++) {
+        daysHtml += '<div></div>';
+    }
+
+    for (var day = 1; day <= daysInMonth; day++) {
+        var ymd = formatYMD(bookingCalYear, bookingCalMonth, day);
+        var dow = new Date(bookingCalYear, bookingCalMonth, day).getDay();
+        var dayAllowed = isDayAvailableForClinic(selectedClinic, ymd, dow);
+        var bookedCount = bookingDayCounts[ymd] || 0;
+        var isFull = bookedCount >= capacity;
+        var isSelectable = dayAllowed && !isFull;
+        var isSelected = selectedBookingDate === ymd && isSelectable;
+
+        var titleText = !dayAllowed
+            ? t("cal_day_unavailable")
+            : (isFull ? t("cal_day_full") : t("cal_day_available") + " (" + bookedCount + "/" + capacity + ")");
+
+        var cls = "cal-day-btn";
+        if (isSelected) cls += " selected";
+        if (!isSelectable) cls += " disabled-day";
+
+        daysHtml += '<button type="button" class="' + cls + '" title="' + titleText + '" ' +
+            (!isSelectable ? "disabled" : "") +
+            ' onclick="selectBookingCalendarDay(\'' + ymd + '\')">' +
+            day +
+            '</button>';
+    }
+    daysHtml += '</div>';
+
+    var hintText = t("cal_capacity_hint").replace("{n}", String(capacity));
+
+    container.innerHTML = '<div class="custom-calendar">' +
+        '<div class="cal-header">' +
+            '<button type="button" class="btn-outline" onclick="shiftBookingCalendarMonth(-1)"><i class="fa-solid fa-chevron-right"></i></button>' +
+            '<span>' + monthLabel + '</span>' +
+            '<button type="button" class="btn-outline" onclick="shiftBookingCalendarMonth(1)"><i class="fa-solid fa-chevron-left"></i></button>' +
+        '</div>' +
+        weekdaysHtml +
+        daysHtml +
+        '<div style="font-size:11.5px; color:var(--text-muted); margin-top:8px;">' + hintText + '</div>' +
+        '</div>';
+}
+
+function selectBookingCalendarDay(ymd) {
+    selectedBookingDate = ymd;
+    renderCustomBookingCalendar();
+}
+
+function generateSecretCode12() {
     var code = "";
     for (var i = 0; i < 12; i++) {
         code += Math.floor(Math.random() * 10);
@@ -1152,188 +638,279 @@ function generate12DigitSecret() {
 }
 
 function confirmBooking() {
-    if (!selectedDoctor || !selectedClinic) return;
-    var nameInput = document.getElementById("bookingName");
-    var phoneInput = document.getElementById("bookingPhone");
-    var dateInput = document.getElementById("bookingDate");
-
+    var nameInput = document.getElementById("patientName");
+    var phoneInput = document.getElementById("patientPhone");
     var patientName = nameInput ? nameInput.value.trim() : "";
     var patientPhone = phoneInput ? phoneInput.value.trim() : "";
-    var dateStr = dateInput ? dateInput.value.trim() : "";
 
     if (!patientName) {
         alert(t("err_enter_patient_name"));
         return;
     }
-    if (!dateStr || !isDateAvailableForClinic(dateStr, selectedClinic)) {
+
+    if (!selectedBookingDate) {
         alert(t("err_select_valid_day"));
         return;
     }
 
-    var capacity = calculateDailyCapacity(selectedClinic);
-    var docRef = db.collection("doctors").doc(selectedDoctor.id);
-    var newBookingRef = db.collection("bookings").doc();
-    var secretCode = generate12DigitSecret();
-
-    db.runTransaction(function(transaction) {
-        return transaction.get(docRef).then(function(docSnap) {
-            if (!docSnap.exists) {
-                throw new Error(t("err_clinic_not_found"));
-            }
-            var docData = docSnap.data();
-            if (docData.isDeleted === true) {
-                throw new Error(t("err_clinic_not_found"));
-            }
-            var clinics = Array.isArray(docData.clinics) ? docData.clinics.slice() : [];
-            var clinicObj = clinics[selectedClinicIndex];
-            if (!clinicObj || clinicObj.isClosed === true) {
-                throw new Error(t("err_clinic_closed_now"));
-            }
-
-            var currentSerial = parseInt(clinicObj.serialNumber, 10) || 0;
-            var nextSerial = currentSerial + 1;
-            clinicObj.serialNumber = nextSerial;
-            clinics[selectedClinicIndex] = clinicObj;
-
-            var dailyKey = selectedClinicIndex + "_" + dateStr;
-            var dailyCounters = clinicObj.dailyCounters && typeof clinicObj.dailyCounters === "object"
-                ? Object.assign({}, clinicObj.dailyCounters)
-                : {};
-            var nextQueueNumber = (parseInt(dailyCounters[dailyKey], 10) || 0) + 1;
-            if (capacity > 0 && nextQueueNumber > capacity) {
-                throw new Error(t("err_daily_quota_full"));
-            }
-            dailyCounters[dailyKey] = nextQueueNumber;
-            clinicObj.dailyCounters = dailyCounters;
-
-            transaction.update(docRef, { clinics: clinics });
-
-            transaction.set(newBookingRef, {
-                doctorId: selectedDoctor.id,
-                doctorName: docData.name || "",
-                doctorNameEn: docData.nameEn || "",
-                specialty: docData.specialty || "",
-                specialtyEn: docData.specialtyEn || "",
-                clinicIndex: selectedClinicIndex,
-                clinicName: clinicObj.clinicName || "",
-                clinicNameEn: clinicObj.clinicNameEn || "",
-                clinicStartTime: clinicObj.startTime || "09:00",
-                clinicEndTime: clinicObj.endTime || "17:00",
-                serviceTime: parseInt(clinicObj.serviceTime, 10) || 10,
-                patientName: patientName,
-                patientPhone: patientPhone,
-                date: dateStr,
-                ticketNumber: nextQueueNumber,
-                serialNumber: nextSerial,
-                patientSecret: secretCode,
-                status: "waiting",
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-            return {
-                bookingId: newBookingRef.id,
-                ticketNumber: nextQueueNumber,
-                secretCode: secretCode
-            };
-        });
-    }).then(function(result) {
-        saveBookingIdLocally(result.bookingId);
-        closeModal();
-        openTicketView(result.bookingId);
-    }).catch(function(err) {
-        alert(err && err.message ? err.message : t("err_booking_failed"));
-    });
-}
-
-function goBackToSearch() {
-    if (unsubscribeTicketBookings) {
-        unsubscribeTicketBookings();
-        unsubscribeTicketBookings = null;
-    }
-    stopTicketCountdown();
-    lastTicketViewState = null;
-    currentTicketBookingId = null;
-    lastTicketNumber = null;
-    lastAheadCount = null;
-    lastTicketStatus = null;
-    notified45MinForTicket = false;
-    updateTicketInactiveState(false);
-    hideTicketAlert();
-    var mainView = document.getElementById("main-view");
-    var bookingsView = document.getElementById("bookings-view");
-    var ticketView = document.getElementById("ticket-view");
-    if (mainView) mainView.classList.remove("hidden");
-    if (bookingsView) bookingsView.classList.add("hidden");
-    if (ticketView) ticketView.classList.add("hidden");
-    updateActiveBookingBanner();
-}
-
-function showMyBookingsView() {
-    if (unsubscribeTicketBookings) {
-        unsubscribeTicketBookings();
-        unsubscribeTicketBookings = null;
-    }
-    stopTicketCountdown();
-    lastTicketViewState = null;
-    currentTicketBookingId = null;
-    lastTicketNumber = null;
-    lastAheadCount = null;
-    lastTicketStatus = null;
-    notified45MinForTicket = false;
-    updateTicketInactiveState(false);
-    hideTicketAlert();
-    var mainView = document.getElementById("main-view");
-    var bookingsView = document.getElementById("bookings-view");
-    var ticketView = document.getElementById("ticket-view");
-    var listEl = document.getElementById("myBookingsList");
-
-    if (mainView) mainView.classList.add("hidden");
-    if (bookingsView) bookingsView.classList.remove("hidden");
-    if (ticketView) ticketView.classList.add("hidden");
-    if (!listEl) return;
-
-    var ids = getSavedBookingIds();
-    if (ids.length === 0) {
-        listEl.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--text-muted);">' + t("no_bookings") + '</p>';
+    if (!selectedDoctor || !selectedClinic) {
+        alert(t("err_clinic_not_found"));
         return;
     }
 
-    listEl.innerHTML = '<div class="clinic-card skeleton-card"></div>';
+    var statusInfo = getClinicStatusInfo(selectedClinic);
+    if (!statusInfo.canBook) {
+        alert(t("err_clinic_closed_now"));
+        return;
+    }
 
-    Promise.all(ids.map(function(id) {
-        return db.collection("bookings").doc(id).get();
-    })).then(function(docs) {
-        var html = "";
-        docs.forEach(function(doc) {
-            if (!doc.exists) return;
-            var b = doc.data();
-            var statusLabel = b.status === "done" ? t("booking_done") : (b.status === "cancelled" ? t("booking_cancelled") : t("status_waiting"));
-            var docDisp = (getCurrentLang() === "en" && b.doctorNameEn) ? b.doctorNameEn : (b.doctorName || "");
-            var clinDisp = (getCurrentLang() === "en" && b.clinicNameEn) ? b.clinicNameEn : (b.clinicName || "");
-            html += '<div class="clinic-card">' +
-                '<div class="clinic-header"><h3>' + (b.patientName || "") + '</h3><span class="badge badge-open">' + statusLabel + '</span></div>' +
-                '<p class="specialty">' + docDisp + (clinDisp ? " — " + clinDisp : "") + '</p>' +
-                '<div class="clinic-info">' +
-                    '<p><strong>' + t("appointment_date") + '</strong> ' + (b.date || "") + '</p>' +
-                    '<p><strong>' + t("your_number") + '</strong> ' + (b.ticketNumber || "-") + '</p>' +
-                '</div>' +
-                '<div class="clinic-actions">' +
-                    '<button type="button" class="btn-primary" onclick="openTicketView(\'' + doc.id + '\')">' + t("view_ticket") + '</button>' +
-                '</div>' +
-            '</div>';
+    var capacity = getDailyCapacityForClinic(selectedClinic);
+    var doctorRef = db.collection("doctors").doc(selectedDoctor.id);
+    var newBookingRef = db.collection("bookings").doc();
+
+    db.runTransaction(function(transaction) {
+        return transaction.get(doctorRef).then(function(docSnap) {
+            if (!docSnap.exists) {
+                throw new Error("CLINIC_NOT_FOUND");
+            }
+            var docData = docSnap.data() || {};
+            var clinics = Array.isArray(docData.clinics) ? docData.clinics.slice() : [];
+            var targetClinic = clinics[selectedClinicIndex];
+            if (!targetClinic) {
+                throw new Error("CLINIC_NOT_FOUND");
+            }
+            if (targetClinic.isClosed === true) {
+                throw new Error("CLINIC_CLOSED");
+            }
+
+            var dailyCounters = Object.assign({}, targetClinic.dailyCounters || {});
+            var currentCount = parseInt(dailyCounters[selectedBookingDate] || 0, 10) || 0;
+            if (currentCount >= capacity) {
+                throw new Error("QUOTA_FULL");
+            }
+
+            var nextTicket = currentCount + 1;
+            var nextSerial = (parseInt(targetClinic.serialNumber || 0, 10) || 0) + 1;
+
+            dailyCounters[selectedBookingDate] = nextTicket;
+            clinics[selectedClinicIndex] = Object.assign({}, targetClinic, {
+                dailyCounters: dailyCounters,
+                serialNumber: nextSerial
+            });
+
+            var secretCode = generateSecretCode12();
+            var bookingPayload = {
+                doctorId: selectedDoctor.id,
+                doctorName: selectedDoctor.name || "",
+                doctorNameEn: selectedDoctor.nameEn || "",
+                specialty: selectedDoctor.specialty || "",
+                specialtyEn: selectedDoctor.specialtyEn || "",
+                clinicIndex: selectedClinicIndex,
+                clinicName: targetClinic.clinicName || "",
+                clinicNameEn: targetClinic.clinicNameEn || "",
+                city: targetClinic.city || "",
+                street: targetClinic.street || "",
+                landmark: targetClinic.landmark || "",
+                startTime: targetClinic.startTime || "09:00",
+                endTime: targetClinic.endTime || "17:00",
+                serviceTime: parseInt(targetClinic.serviceTime, 10) || 10,
+                date: selectedBookingDate,
+                patientName: patientName,
+                patientPhone: patientPhone,
+                ticketNumber: nextTicket,
+                serialNumber: nextSerial,
+                secretCode: secretCode,
+                status: "waiting",
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            transaction.update(doctorRef, { clinics: clinics });
+            transaction.set(newBookingRef, bookingPayload);
+
+            return {
+                bookingId: newBookingRef.id,
+                secretCode: secretCode
+            };
         });
-        listEl.innerHTML = html || '<p style="grid-column:1/-1; text-align:center; color:var(--text-muted);">' + t("no_bookings") + '</p>';
+    }).then(function(res) {
+        saveBookingToLocalStorage(res.bookingId, res.secretCode);
+        closeBookingModal();
+        updateActiveBookingBanner();
+        openTicketView(res.bookingId);
+    }).catch(function(err) {
+        console.error(err);
+        if (err && err.message === "CLINIC_NOT_FOUND") {
+            alert(t("err_clinic_not_found"));
+        } else if (err && err.message === "CLINIC_CLOSED") {
+            alert(t("err_clinic_closed_now"));
+        } else if (err && err.message === "QUOTA_FULL") {
+            alert(t("err_daily_quota_full"));
+        } else {
+            alert(t("err_booking_failed"));
+        }
     });
 }
 
-function restoreBookingByCode() {
-    var inputCode = prompt(t("secret_prompt"));
-    if (!inputCode) return;
-    var cleanCode = inputCode.trim();
-    if (!cleanCode) return;
+function getSavedBookingsFromLocalStorage() {
+    try {
+        var raw = localStorage.getItem("douri_my_bookings");
+        var parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveBookingToLocalStorage(bookingId, secretCode) {
+    var list = getSavedBookingsFromLocalStorage();
+    var exists = list.some(function(item) {
+        return item && item.id === bookingId;
+    });
+    if (!exists) {
+        list.unshift({
+            id: bookingId,
+            secretCode: secretCode || "",
+            savedAt: Date.now()
+        });
+        localStorage.setItem("douri_my_bookings", JSON.stringify(list));
+    }
+}
+
+function removeBookingFromLocalStorage(bookingId) {
+    var list = getSavedBookingsFromLocalStorage().filter(function(item) {
+        return item && item.id !== bookingId;
+    });
+    localStorage.setItem("douri_my_bookings", JSON.stringify(list));
+}
+
+function updateActiveBookingBanner() {
+    var banner = document.getElementById("activeBookingBanner");
+    var textEl = document.getElementById("activeBookingBannerText");
+    if (!banner || !textEl) return;
+
+    var saved = getSavedBookingsFromLocalStorage();
+    if (!saved.length) {
+        banner.classList.add("hidden");
+        return;
+    }
+
+    var activeCount = 0;
+    var promises = saved.map(function(entry) {
+        return db.collection("bookings").doc(entry.id).get().then(function(snap) {
+            if (!snap.exists) {
+                removeBookingFromLocalStorage(entry.id);
+                return;
+            }
+            var data = snap.data();
+            if (data && data.status !== "done" && data.status !== "cancelled") {
+                activeCount++;
+            } else {
+                removeBookingFromLocalStorage(entry.id);
+            }
+        }).catch(function() {});
+    });
+
+    Promise.all(promises).then(function() {
+        if (activeCount > 0) {
+            textEl.innerText = t("active_booking_msg").replace("{n}", String(activeCount));
+            banner.classList.remove("hidden");
+        } else {
+            banner.classList.add("hidden");
+        }
+    });
+}
+
+function openMyBookingsView() {
+    var searchSection = document.getElementById("searchSection");
+    var ticketSection = document.getElementById("ticketSection");
+    var myBookingsSection = document.getElementById("myBookingsSection");
+
+    if (searchSection) searchSection.classList.add("hidden");
+    if (ticketSection) ticketSection.classList.add("hidden");
+    if (myBookingsSection) myBookingsSection.classList.remove("hidden");
+
+    renderMyBookingsList();
+}
+
+function backToSearchView() {
+    cleanupTicketListeners();
+    var searchSection = document.getElementById("searchSection");
+    var ticketSection = document.getElementById("ticketSection");
+    var myBookingsSection = document.getElementById("myBookingsSection");
+
+    if (ticketSection) ticketSection.classList.add("hidden");
+    if (myBookingsSection) myBookingsSection.classList.add("hidden");
+    if (searchSection) searchSection.classList.remove("hidden");
+
+    updateActiveBookingBanner();
+    loadDoctors();
+}
+
+function renderMyBookingsList() {
+    var container = document.getElementById("myBookingsList");
+    if (!container) return;
+
+    var saved = getSavedBookingsFromLocalStorage();
+    if (!saved.length) {
+        container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t("no_bookings") + '</p>';
+        return;
+    }
+
+    container.innerHTML = "";
+    var renderedAny = false;
+
+    saved.forEach(function(entry) {
+        db.collection("bookings").doc(entry.id).get().then(function(snap) {
+            if (!snap.exists) {
+                removeBookingFromLocalStorage(entry.id);
+                return;
+            }
+            var b = snap.data();
+            if (!b || b.status === "done" || b.status === "cancelled") {
+                removeBookingFromLocalStorage(entry.id);
+                return;
+            }
+
+            renderedAny = true;
+            var docName = (getCurrentLang() === "en" && b.doctorNameEn) ? b.doctorNameEn : (b.doctorName || t("default_doctor_name"));
+            var clinicName = (getCurrentLang() === "en" && b.clinicNameEn) ? b.clinicNameEn : (b.clinicName || "");
+
+            var card = document.createElement("div");
+            card.className = "clinic-card";
+            card.style.marginBottom = "10px";
+            card.innerHTML =
+                '<div>' +
+                    '<div class="clinic-header">' +
+                        '<h3>' + docName + (clinicName ? (' - ' + clinicName) : '') + '</h3>' +
+                        '<span class="badge badge-open">#' + (b.ticketNumber || "-") + '</span>' +
+                    '</div>' +
+                    '<p class="clinic-meta">' + t("patient_name_label") + ': ' + (b.patientName || "") + '</p>' +
+                    '<p class="clinic-meta">' + t("appointment_date") + ' ' + (b.date || "") + '</p>' +
+                '</div>' +
+                '<div class="clinic-actions">' +
+                    '<button type="button" class="btn-primary" onclick="openTicketView(\'' + snap.id + '\')">' + t("view_ticket") + '</button>' +
+                '</div>';
+            container.appendChild(card);
+        }).catch(function(err) {
+            console.error(err);
+        });
+    });
+
+    setTimeout(function() {
+        if (!renderedAny && container.children.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">' + t("no_bookings") + '</p>';
+        }
+    }, 600);
+}
+
+function restoreBookingBySecret() {
+    var code = prompt(t("secret_prompt"));
+    if (!code) return;
+    var trimmed = code.trim();
+    if (!trimmed) return;
 
     db.collection("bookings")
-        .where("patientSecret", "==", cleanCode)
+        .where("secretCode", "==", trimmed)
         .limit(1)
         .get()
         .then(function(snap) {
@@ -1342,270 +919,501 @@ function restoreBookingByCode() {
                 return;
             }
             var docSnap = snap.docs[0];
-            saveBookingIdLocally(docSnap.id);
+            var data = docSnap.data();
+            if (!data || data.status === "done" || data.status === "cancelled") {
+                alert(t("invalid_booking"));
+                return;
+            }
+            saveBookingToLocalStorage(docSnap.id, data.secretCode || trimmed);
+            updateActiveBookingBanner();
             openTicketView(docSnap.id);
         })
-        .catch(function() {
-            alert(t("invalid_booking"));
+        .catch(function(err) {
+            console.error(err);
+            alert(t("err_fetch_db"));
         });
 }
 
+function cleanupTicketListeners() {
+    if (unsubscribeTicketBooking) {
+        unsubscribeTicketBooking();
+        unsubscribeTicketBooking = null;
+    }
+    if (unsubscribeTicketQueue) {
+        unsubscribeTicketQueue();
+        unsubscribeTicketQueue = null;
+    }
+    if (unsubscribeTicketDoctor) {
+        unsubscribeTicketDoctor();
+        unsubscribeTicketDoctor = null;
+    }
+    if (ticketCountdownInterval) {
+        clearInterval(ticketCountdownInterval);
+        ticketCountdownInterval = null;
+    }
+}
+
+function playTicketAlertSound() {
+    try {
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!ticketAlertSoundCtx) {
+            ticketAlertSoundCtx = new AudioCtx();
+        }
+        if (ticketAlertSoundCtx.state === "suspended") {
+            ticketAlertSoundCtx.resume();
+        }
+        var now = ticketAlertSoundCtx.currentTime;
+        var notes = [659.25, 880.0, 1174.66];
+        for (var i = 0; i < notes.length; i++) {
+            var osc = ticketAlertSoundCtx.createOscillator();
+            var gain = ticketAlertSoundCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(notes[i], now + i * 0.15);
+            gain.gain.setValueAtTime(0.001, now + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.15 + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.15 + 0.14);
+            osc.connect(gain);
+            gain.connect(ticketAlertSoundCtx.destination);
+            osc.start(now + i * 0.15);
+            osc.stop(now + i * 0.15 + 0.15);
+        }
+    } catch (e) {}
+}
+
+function showTicketAlertBanner(message) {
+    var box = document.getElementById("ticketAlertBanner");
+    if (!box) return;
+    box.innerText = message;
+    box.classList.remove("hidden");
+    playTicketAlertSound();
+}
+
 function openTicketView(bookingId) {
+    cleanupTicketListeners();
     currentTicketBookingId = bookingId;
-    lastTicketNumber = null;
-    lastAheadCount = null;
-    lastTicketStatus = null;
-    notified45MinForTicket = false;
-    lastTicketViewState = null;
-    updateTicketInactiveState(false);
-    stopTicketCountdown();
-    hideTicketAlert();
 
-    var mainView = document.getElementById("main-view");
-    var bookingsView = document.getElementById("bookings-view");
-    var ticketView = document.getElementById("ticket-view");
-    if (mainView) mainView.classList.add("hidden");
-    if (bookingsView) bookingsView.classList.add("hidden");
-    if (ticketView) ticketView.classList.remove("hidden");
+    var searchSection = document.getElementById("searchSection");
+    var myBookingsSection = document.getElementById("myBookingsSection");
+    var ticketSection = document.getElementById("ticketSection");
 
-    if (unsubscribeTicketBookings) {
-        unsubscribeTicketBookings();
-        unsubscribeTicketBookings = null;
+    if (searchSection) searchSection.classList.add("hidden");
+    if (myBookingsSection) myBookingsSection.classList.add("hidden");
+    if (ticketSection) ticketSection.classList.remove("hidden");
+
+    var alertBox = document.getElementById("ticketAlertBanner");
+    if (alertBox) {
+        alertBox.classList.add("hidden");
+        alertBox.innerText = "";
     }
 
-    db.collection("bookings").doc(bookingId).get().then(function(docSnap) {
+    unsubscribeTicketBooking = db.collection("bookings").doc(bookingId).onSnapshot(function(docSnap) {
         if (!docSnap.exists) {
-            alert(t("invalid_booking"));
-            goBackToSearch();
+            backToSearchView();
             return;
         }
         var b = docSnap.data();
         b.id = docSnap.id;
-        listenToQueueForTicket(b);
+        currentTicketDoctorId = b.doctorId;
+        currentTicketClinicIndex = parseInt(b.clinicIndex, 10) || 0;
+        currentTicketDate = b.date;
+
+        renderTicketBaseDetails(b);
+
+        if (b.status === "done" || b.status === "cancelled") {
+            removeBookingFromLocalStorage(docSnap.id);
+            var inactiveNotice = document.getElementById("inactiveTicketNotice");
+            var cancelBtn = document.getElementById("cancelBookingBtn");
+            if (inactiveNotice) inactiveNotice.classList.remove("hidden");
+            if (cancelBtn) cancelBtn.disabled = true;
+        } else {
+            var inactiveNotice2 = document.getElementById("inactiveTicketNotice");
+            var cancelBtn2 = document.getElementById("cancelBookingBtn");
+            if (inactiveNotice2) inactiveNotice2.classList.add("hidden");
+            if (cancelBtn2) cancelBtn2.disabled = false;
+        }
+
+        attachTicketQueueAndDoctorListeners(b);
+    }, function(err) {
+        console.error(err);
     });
 }
 
-function listenToQueueForTicket(ticketData) {
-    if (unsubscribeTicketBookings) {
-        unsubscribeTicketBookings();
-    }
+function renderTicketBaseDetails(b) {
+    var docNameEl = document.getElementById("ticketDoctorName");
+    var clinicNameEl = document.getElementById("ticketClinicName");
+    var numEl = document.getElementById("ticketNumberDisplay");
+    var patientEl = document.getElementById("ticketPatientName");
+    var dateEl = document.getElementById("ticketDateDisplay");
+    var refEl = document.getElementById("ticketBookingRef");
+    var secretEl = document.getElementById("ticketSecretDisplay");
 
-    unsubscribeTicketBookings = db.collection("bookings")
-        .where("doctorId", "==", ticketData.doctorId)
-        .where("clinicIndex", "==", ticketData.clinicIndex)
-        .where("date", "==", ticketData.date)
-        .onSnapshot(function(snapshot) {
-            var currentTicket = null;
-            var activeQueue = [];
+    var docName = (getCurrentLang() === "en" && b.doctorNameEn) ? b.doctorNameEn : (b.doctorName || t("default_doctor_name"));
+    var clinicName = (getCurrentLang() === "en" && b.clinicNameEn) ? b.clinicNameEn : (b.clinicName || "");
 
-            snapshot.forEach(function(doc) {
-                var item = doc.data();
-                item.id = doc.id;
-                if (doc.id === ticketData.id) {
-                    currentTicket = item;
-                }
-                if (item.status !== "cancelled" && item.status !== "done") {
-                    activeQueue.push(item);
-                }
-            });
-
-            if (!currentTicket) return;
-
-            activeQueue.sort(function(a, b) {
-                return (parseInt(a.ticketNumber, 10) || 0) - (parseInt(b.ticketNumber, 10) || 0);
-            });
-
-            var myNum = parseInt(currentTicket.ticketNumber, 10) || 0;
-            var aheadCount = 0;
-            for (var i = 0; i < activeQueue.length; i++) {
-                var qNum = parseInt(activeQueue[i].ticketNumber, 10) || 0;
-                if (qNum < myNum) {
-                    aheadCount++;
-                }
-            }
-
-            var isSameDay = currentTicket.date === getTodayStr();
-            var isTicketActive = currentTicket.status !== "cancelled" && currentTicket.status !== "done";
-            var isWaitingTurn = isTicketActive && currentTicket.status !== "serving";
-
-            if (isSameDay && isTicketActive) {
-                if (currentTicket.status === "serving" && lastTicketStatus !== "serving") {
-                    showTicketAlert(t("alert_your_turn"), "turn");
-                } else if (aheadCount === 3 && lastAheadCount !== 3) {
-                    showTicketAlert(t("alert_3_ahead"), "turn");
-                }
-            } else {
-                hideTicketAlert();
-            }
-
-            lastTicketNumber = myNum;
-            lastAheadCount = aheadCount;
-            lastTicketStatus = currentTicket.status;
-
-            var serviceMins = parseInt(currentTicket.serviceTime, 10) || 10;
-            var totalWaitMins = aheadCount * serviceMins;
-
-            var linkedClinic = findClinicForTicket(currentTicket);
-            var linkedDoc = allDoctors.find(function(d) { return d.id === currentTicket.doctorId; });
-            var docNameLocalized = (getCurrentLang() === "en" && ((linkedDoc && linkedDoc.nameEn) || currentTicket.doctorNameEn))
-                ? ((linkedDoc && linkedDoc.nameEn) || currentTicket.doctorNameEn)
-                : (currentTicket.doctorName || (linkedDoc && linkedDoc.name) || "");
-            var clinicNameLocalized = (getCurrentLang() === "en" && ((linkedClinic && linkedClinic.clinicNameEn) || currentTicket.clinicNameEn))
-                ? ((linkedClinic && linkedClinic.clinicNameEn) || currentTicket.clinicNameEn)
-                : (currentTicket.clinicName || (linkedClinic && linkedClinic.clinicName) || "");
-
-            lastTicketViewState = {
-                bookingId: currentTicket.id,
-                patientName: currentTicket.patientName || "---",
-                ticketNumber: myNum || "-",
-                doctorName: docNameLocalized,
-                clinicName: clinicNameLocalized,
-                date: currentTicket.date || "",
-                status: currentTicket.status || "waiting",
-                isSameDay: isSameDay,
-                aheadCount: aheadCount,
-                totalWaitMins: totalWaitMins,
-                patientSecret: currentTicket.patientSecret || ""
-            };
-
-            renderTicketDetailsFromState(lastTicketViewState);
-
-            var startTimeStr = (linkedClinic && linkedClinic.startTime) || currentTicket.clinicStartTime || "09:00";
-            var endTimeStr = (linkedClinic && linkedClinic.endTime) || currentTicket.clinicEndTime || null;
-            var openMins = parseMinutesFromHHMM(startTimeStr);
-            if (openMins === null) openMins = 540;
-            var closeMins = endTimeStr ? parseMinutesFromHHMM(endTimeStr) : null;
-
-            var ctx = {
-                doctorId: currentTicket.doctorId,
-                clinicIndex: currentTicket.clinicIndex,
-                dateStr: currentTicket.date,
-                openMinutes: openMins,
-                closeMinutes: closeMins,
-                totalWaitMins: totalWaitMins,
-                expectedMinutes: openMins + totalWaitMins,
-                serviceTime: serviceMins,
-                aheadCount: aheadCount,
-                isActive: isTicketActive,
-                isWaitingTurn: isWaitingTurn
-            };
-            ctx.expectedMinutes = computeClampedExpectedMinutes(ctx);
-
-            startTicketCountdownLoop(ctx);
-        });
+    if (docNameEl) docNameEl.innerText = docName;
+    if (clinicNameEl) clinicNameEl.innerText = clinicName;
+    if (numEl) numEl.innerText = "#" + (b.ticketNumber || "-");
+    if (patientEl) patientEl.innerText = t("patient_name_label") + ": " + (b.patientName || "");
+    if (dateEl) dateEl.innerText = t("appointment_date") + " " + (b.date || "");
+    if (refEl) refEl.innerText = b.id || "";
+    if (secretEl) secretEl.innerText = b.secretCode || "-";
 }
 
-function copyPatientCredentials() {
-    var secEl = document.getElementById("bookingSecret");
-    var code = secEl ? secEl.innerText.trim() : "";
-    if (!code || code === "---") return;
+function attachTicketQueueAndDoctorListeners(booking) {
+    if (unsubscribeTicketQueue) {
+        unsubscribeTicketQueue();
+        unsubscribeTicketQueue = null;
+    }
+    if (unsubscribeTicketDoctor) {
+        unsubscribeTicketDoctor();
+        unsubscribeTicketDoctor = null;
+    }
+
+    var latestQueueDocs = [];
+    var latestClinicObj = null;
+
+    var recomputeTicketMetrics = function() {
+        var myTicketNum = parseInt(booking.ticketNumber, 10) || 1;
+        var serviceTime = parseInt(booking.serviceTime, 10) || (latestClinicObj && parseInt(latestClinicObj.serviceTime, 10)) || 10;
+        var startTimeStr = (latestClinicObj && latestClinicObj.startTime) || booking.startTime || "09:00";
+
+        var peopleAhead = 0;
+        latestQueueDocs.forEach(function(item) {
+            if (item.id === booking.id) return;
+            if (item.status === "done" || item.status === "cancelled") return;
+            var otherNum = parseInt(item.ticketNumber, 10) || 0;
+            if (otherNum < myTicketNum) {
+                peopleAhead++;
+            }
+        });
+
+        var waitMins = peopleAhead * serviceTime;
+        var aheadEl = document.getElementById("ticketPeopleAhead");
+        var waitEl = document.getElementById("ticketWaitTime");
+        var etaEl = document.getElementById("ticketEtaTime");
+        var statusBadge = document.getElementById("ticketStatusBadge");
+
+        if (aheadEl) aheadEl.innerText = String(peopleAhead);
+        if (waitEl) waitEl.innerText = String(waitMins);
+
+        var startMin = parseMinutesFromHHMM(startTimeStr);
+        var etaMinutesTotal = (startMin !== null ? startMin : 540) + waitMins;
+        var etaH = String(Math.floor((etaMinutesTotal % 1440) / 60)).padStart(2, "0");
+        var etaM = String(etaMinutesTotal % 60).padStart(2, "0");
+        if (etaEl) etaEl.innerText = etaH + ":" + etaM;
+
+        if (statusBadge) {
+            if (booking.status === "done") {
+                statusBadge.className = "badge badge-closed";
+                statusBadge.innerText = t("booking_done");
+            } else if (booking.status === "serving" || peopleAhead === 0) {
+                statusBadge.className = "badge badge-open";
+                statusBadge.innerText = t("status_your_turn");
+            } else if (peopleAhead === 1) {
+                statusBadge.className = "badge badge-break";
+                statusBadge.innerText = t("status_one_left");
+            } else {
+                statusBadge.className = "badge badge-break";
+                statusBadge.innerText = t("status_waiting");
+            }
+        }
+
+        if (booking.status !== "done" && booking.status !== "cancelled") {
+            var alertKey = booking.id + "_" + booking.date;
+            if (peopleAhead === 0 && lastAlertedKey !== alertKey + "_turn") {
+                lastAlertedKey = alertKey + "_turn";
+                showTicketAlertBanner(t("alert_your_turn"));
+            } else if (peopleAhead > 0 && peopleAhead <= 3 && lastAlertedKey !== alertKey + "_3ahead") {
+                lastAlertedKey = alertKey + "_3ahead";
+                showTicketAlertBanner(t("alert_3_ahead"));
+            }
+        }
+
+        startTicketCountdownUpdater(booking, waitMins, startTimeStr);
+    };
+
+    unsubscribeTicketQueue = db.collection("bookings")
+        .where("doctorId", "==", booking.doctorId)
+        .where("clinicIndex", "==", currentTicketClinicIndex)
+        .where("date", "==", booking.date)
+        .onSnapshot(function(snap) {
+            var arr = [];
+            snap.forEach(function(d) {
+                var obj = d.data();
+                obj.id = d.id;
+                arr.push(obj);
+            });
+            latestQueueDocs = arr;
+            recomputeTicketMetrics();
+        });
+
+    if (booking.doctorId) {
+        unsubscribeTicketDoctor = db.collection("doctors").doc(booking.doctorId).onSnapshot(function(docSnap) {
+            if (docSnap.exists) {
+                var dData = docSnap.data();
+                if (dData && Array.isArray(dData.clinics)) {
+                    latestClinicObj = dData.clinics[currentTicketClinicIndex] || null;
+                }
+            }
+            recomputeTicketMetrics();
+        });
+    }
+
+    recomputeTicketMetrics();
+}
+
+function startTicketCountdownUpdater(booking, waitMins, startTimeStr) {
+    if (ticketCountdownInterval) {
+        clearInterval(ticketCountdownInterval);
+        ticketCountdownInterval = null;
+    }
+
+    var countdownEl = document.getElementById("ticketCountdown");
+    if (!countdownEl) return;
+
+    var updateFn = function() {
+        if (!booking || booking.status === "done" || booking.status === "cancelled") {
+            countdownEl.innerText = "--:--:--";
+            return;
+        }
+        var todayStr = getTodayStr();
+        if (booking.date > todayStr) {
+            countdownEl.innerText = t("countdown_after_open");
+            return;
+        }
+
+        var now = new Date();
+        var startMin = parseMinutesFromHHMM(startTimeStr);
+        var targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        var baseMinutes = (startMin !== null ? startMin : 540) + waitMins;
+        targetDate.setMinutes(baseMinutes);
+
+        var diffMs = targetDate.getTime() - now.getTime();
+        if (diffMs <= 0) {
+            countdownEl.innerText = t("countdown_due_now");
+            return;
+        }
+
+        var totalSecs = Math.floor(diffMs / 1000);
+        var hrs = String(Math.floor(totalSecs / 3600)).padStart(2, "0");
+        var mins = String(Math.floor((totalSecs % 3600) / 60)).padStart(2, "0");
+        var secs = String(totalSecs % 60).padStart(2, "0");
+        countdownEl.innerText = hrs + ":" + mins + ":" + secs;
+
+        var minsLeft = diffMs / 60000;
+        if (minsLeft > 0 && minsLeft <= 45) {
+            var k45 = booking.id + "_" + booking.date + "_45m";
+            if (lastAlertedKey !== k45) {
+                lastAlertedKey = k45;
+                showTicketAlertBanner(t("alert_45_mins"));
+            }
+        }
+    };
+
+    updateFn();
+    ticketCountdownInterval = setInterval(updateFn, 1000);
+}
+
+function refreshCurrentTicketViewLanguage() {
+    if (currentTicketBookingId) {
+        openTicketView(currentTicketBookingId);
+    }
+}
+
+function refreshTicketCountdownDisplay() {
+    if (currentTicketBookingId) {
+        openTicketView(currentTicketBookingId);
+    }
+}
+
+function copyTicketSecret() {
+    var secretEl = document.getElementById("ticketSecretDisplay");
+    var code = secretEl ? secretEl.innerText.trim() : "";
+    if (!code || code === "-") return;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(code).then(function() {
             alert(t("copy_success"));
         }).catch(function() {
-            alert(code);
+            fallbackCopyText(code, t("copy_success"));
         });
     } else {
-        alert(code);
+        fallbackCopyText(code, t("copy_success"));
     }
 }
 
-function cancelCurrentTicket() {
+function fallbackCopyText(text, successMsg) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand("copy");
+        alert(successMsg);
+    } catch (e) {}
+    document.body.removeChild(ta);
+}
+
+function buildShareTicketText() {
+    var docName = (document.getElementById("ticketDoctorName") || {}).innerText || "";
+    var clinicName = (document.getElementById("ticketClinicName") || {}).innerText || "";
+    var patientLine = (document.getElementById("ticketPatientName") || {}).innerText || "";
+    var dateLine = (document.getElementById("ticketDateDisplay") || {}).innerText || "";
+    var ticketNum = ((document.getElementById("ticketNumberDisplay") || {}).innerText || "").replace("#", "");
+    var secret = (document.getElementById("ticketSecretDisplay") || {}).innerText || "";
+
+    var patientClean = patientLine.replace(/^[^:]+:\s*/, "");
+    var dateClean = dateLine.replace(/^[^:]+:\s*/, "");
+    var clinicFull = docName + (clinicName ? (" - " + clinicName) : "");
+
+    return t("share_whatsapp_template")
+        .replace("{patient}", patientClean)
+        .replace("{clinic}", clinicFull)
+        .replace("{date}", dateClean)
+        .replace("{ticket}", ticketNum)
+        .replace("{secret}", secret);
+}
+
+function shareTicketWhatsapp() {
+    var text = buildShareTicketText();
+    var url = "https://wa.me/?text=" + encodeURIComponent(text);
+    window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function shareTicketGeneral() {
+    var text = buildShareTicketText();
+    if (navigator.share) {
+        navigator.share({
+            title: t("ticket_title"),
+            text: text
+        }).catch(function() {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+            alert(t("share_copied_msg"));
+        });
+    } else {
+        fallbackCopyText(text, t("share_copied_msg"));
+    }
+}
+
+function cancelCurrentBooking() {
     if (!currentTicketBookingId) return;
     if (!confirm(t("confirm_cancel_booking"))) return;
 
-    var bookingRef = db.collection("bookings").doc(currentTicketBookingId);
-
-    bookingRef.get().then(function(docSnap) {
-        if (!docSnap.exists) return;
-        return bookingRef.update({ status: "cancelled" }).then(function() {
-            removeBookingIdLocally(currentTicketBookingId);
-        });
-    }).then(function() {
+    var bookingId = currentTicketBookingId;
+    db.collection("bookings").doc(bookingId).update({ status: "cancelled" }).then(function() {
+        removeBookingFromLocalStorage(bookingId);
         alert(t("booking_cancelled"));
-        showMyBookingsView();
+        backToSearchView();
     }).catch(function(err) {
         console.error(err);
         alert(t("err_cancel_booking"));
     });
 }
 
-function openDoctorModal() {
-    var modal = document.getElementById("doctorModal");
-    if (modal) modal.classList.remove("hidden");
-    switchAuthTab("login");
-    initRegMapIfNeeded();
+function openAuthModal(defaultTab) {
+    var modal = document.getElementById("authModal");
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    switchAuthTab(defaultTab || "login");
 }
 
-function closeDoctorModal() {
-    var modal = document.getElementById("doctorModal");
+function closeAuthModal() {
+    var modal = document.getElementById("authModal");
     if (modal) modal.classList.add("hidden");
 }
 
 function switchAuthTab(tab) {
-    var tabLogin = document.getElementById("tabLogin");
-    var tabRegister = document.getElementById("tabRegister");
-    var loginSec = document.getElementById("loginSection");
-    var regSec = document.getElementById("registerSection");
+    var loginTab = document.getElementById("tabLoginBtn");
+    var regTab = document.getElementById("tabRegisterBtn");
+    var loginForm = document.getElementById("loginFormBox");
+    var regForm = document.getElementById("registerFormBox");
 
     if (tab === "register") {
-        if (tabLogin) tabLogin.classList.remove("active");
-        if (tabRegister) tabRegister.classList.add("active");
-        if (loginSec) loginSec.classList.add("hidden");
-        if (regSec) regSec.classList.remove("hidden");
+        if (loginTab) loginTab.classList.remove("active");
+        if (regTab) regTab.classList.add("active");
+        if (loginForm) loginForm.classList.add("hidden");
+        if (regForm) regForm.classList.remove("hidden");
         initRegMapIfNeeded();
     } else {
-        if (tabLogin) tabLogin.classList.add("active");
-        if (tabRegister) tabRegister.classList.remove("active");
-        if (loginSec) loginSec.classList.remove("hidden");
-        if (regSec) regSec.classList.add("hidden");
+        if (regTab) regTab.classList.remove("active");
+        if (loginTab) loginTab.classList.add("active");
+        if (regForm) regForm.classList.add("hidden");
+        if (loginForm) loginForm.classList.remove("hidden");
     }
 }
 
-function setClinicMapLocation(lat, lng, zoomLevel) {
+function loginDoctorAccount() {
+    var email = ((document.getElementById("loginEmail") || {}).value || "").trim();
+    var password = ((document.getElementById("loginPassword") || {}).value || "").trim();
+
+    if (!email || !password) {
+        alert(t("err_enter_email_pass"));
+        return;
+    }
+
+    auth.signInWithEmailAndPassword(email, password).then(function(cred) {
+        var uid = cred.user.uid;
+        return db.collection("doctors").doc(uid).get().then(function(docSnap) {
+            if (!docSnap.exists || (docSnap.data() && docSnap.data().isDeleted === true)) {
+                var reactivate = confirm(t("confirm_reactivate_account"));
+                if (!reactivate) {
+                    return auth.signOut();
+                }
+                return db.collection("doctors").doc(uid).set({
+                    ownerUid: uid,
+                    email: email,
+                    clinics: [],
+                    isDeleted: false
+                }, { merge: true }).then(function() {
+                    window.location.href = "admin.html";
+                });
+            }
+            window.location.href = "admin.html";
+        });
+    }).catch(function(err) {
+        console.error(err);
+        alert(t("err_login_failed"));
+    });
+}
+
+function setRegMapLocation(lat, lng, zoom) {
     var latNum = parseFloat(lat);
     var lngNum = parseFloat(lng);
     if (isNaN(latNum) || isNaN(lngNum)) return;
 
-    var latFixed = latNum.toFixed(6);
-    var lngFixed = lngNum.toFixed(6);
-    var latInp = document.getElementById("docLat");
-    var lngInp = document.getElementById("docLng");
-    if (latInp) latInp.value = latFixed;
-    if (lngInp) lngInp.value = lngFixed;
+    var latInp = document.getElementById("regLat");
+    var lngInp = document.getElementById("regLng");
+    if (latInp) latInp.value = latNum.toFixed(6);
+    if (lngInp) lngInp.value = lngNum.toFixed(6);
 
     initRegMapIfNeeded();
     if (regMap) {
-        regMap.setView([latNum, lngNum], zoomLevel || 15);
+        regMap.setView([latNum, lngNum], zoom || 15);
         if (regMarker) {
             regMarker.setLatLng([latNum, lngNum]);
         } else {
             regMarker = L.marker([latNum, lngNum]).addTo(regMap);
         }
-        setTimeout(function() {
-            if (regMap) regMap.invalidateSize();
-        }, 150);
+        setTimeout(function() { if (regMap) regMap.invalidateSize(); }, 150);
     }
 }
 
-function useCurrentLocationForClinic() {
+function useCurrentLocationForRegClinic() {
     if (!navigator.geolocation) {
         alert(t("err_geo_unsupported"));
         return;
     }
     navigator.geolocation.getCurrentPosition(function(pos) {
-        setClinicMapLocation(pos.coords.latitude, pos.coords.longitude, 16);
+        setRegMapLocation(pos.coords.latitude, pos.coords.longitude, 16);
     }, function() {
-        alert(t("err_geo_failed"));
-    }, {
-        enableHighAccuracy: true,
-        timeout: 10000
-    });
+        alert(t("err_geo_short"));
+    }, { enableHighAccuracy: true, timeout: 10000 });
 }
 
-function attachMapLocationControl(mapInstance) {
-    if (!mapInstance || regLocationControlAdded || typeof L === "undefined") return;
+function attachRegMapLocationControl(mapInstance) {
+    if (!mapInstance || typeof L === "undefined" || regLocationControlAdded) return;
     var LocationControl = L.Control.extend({
         options: { position: "topright" },
         onAdd: function() {
@@ -1627,7 +1435,7 @@ function attachMapLocationControl(mapInstance) {
             L.DomEvent.on(btn, "click", function(e) {
                 L.DomEvent.stopPropagation(e);
                 L.DomEvent.preventDefault(e);
-                useCurrentLocationForClinic();
+                useCurrentLocationForRegClinic();
             });
             return btn;
         }
@@ -1637,202 +1445,159 @@ function attachMapLocationControl(mapInstance) {
 }
 
 function initRegMapIfNeeded() {
-    var mapEl = document.getElementById("reg-map");
-    if (!mapEl || typeof L === "undefined") return;
+    var el = document.getElementById("reg-map");
+    if (!el || typeof L === "undefined") return;
     if (!regMap) {
         regMap = L.map("reg-map").setView([15.3694, 44.1910], 12);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap"
         }).addTo(regMap);
-        attachMapLocationControl(regMap);
+        attachRegMapLocationControl(regMap);
         regMap.on("click", function(e) {
-            setClinicMapLocation(e.latlng.lat, e.latlng.lng, regMap.getZoom());
+            setRegMapLocation(e.latlng.lat, e.latlng.lng, regMap.getZoom());
         });
     }
-    setTimeout(function() {
-        if (regMap) regMap.invalidateSize();
-    }, 200);
+    setTimeout(function() { if (regMap) regMap.invalidateSize(); }, 200);
 }
 
-function addAnotherClinicField() {
-    alert(t("info_add_clinic_from_admin"));
-}
-
-function loginDoctor() {
-    var emailEl = document.getElementById("loginEmail");
-    var passEl = document.getElementById("loginPassword");
-    var email = emailEl ? emailEl.value.trim() : "";
-    var password = passEl ? passEl.value : "";
-
-    if (!email || !password) {
-        alert(t("err_enter_email_pass"));
-        return;
-    }
-
-    auth.signInWithEmailAndPassword(email, password).then(function(cred) {
-        var uid = cred && cred.user ? cred.user.uid : null;
-        if (!uid) {
-            return auth.signOut().then(function() {
-                alert(t("err_account_not_found"));
-            });
-        }
-
-        return db.collection("doctors").doc(uid).get().then(function(docSnap) {
-            var docData = docSnap.exists ? docSnap.data() : null;
-            if (!docSnap.exists || !docData || docData.isDeleted === true) {
-                var reactivate = confirm(t("confirm_reactivate_account"));
-                if (reactivate) {
-                    return db.collection("doctors").doc(uid).set({
-                        ownerUid: uid,
-                        email: email,
-                        name: email.split("@")[0],
-                        specialty: "",
-                        phone: "",
-                        clinics: [],
-                        isDeleted: false,
-                        reactivatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }).then(function() {
-                        window.location.href = "admin.html";
-                    });
-                }
-                return auth.signOut().then(function() {
-                    alert(t("err_account_not_found"));
-                });
-            }
-            window.location.href = "admin.html";
-        });
-    }).catch(function(err) {
-        alert(err && err.message ? err.message : t("err_login_failed"));
-    });
-}
-
-function collectRegistrationFormData() {
-    var activationCode = ((document.getElementById("regActivationCode") || {}).value || "").trim();
+function registerDoctorAccount() {
     var email = ((document.getElementById("regEmail") || {}).value || "").trim();
-    var password = ((document.getElementById("regPassword") || {}).value || "");
-    var docName = ((document.getElementById("docName") || {}).value || "").trim();
-    var docNameEn = ((document.getElementById("docNameEn") || {}).value || "").trim();
-    var specialty = ((document.getElementById("docSpecialty") || {}).value || "").trim();
-    var specialtyEn = ((document.getElementById("docSpecialtyEn") || {}).value || "").trim();
-    var phone = ((document.getElementById("docPhone") || {}).value || "").trim();
-    var clinicName = ((document.getElementById("docClinicName") || {}).value || "").trim();
-    var clinicNameEn = ((document.getElementById("docClinicNameEn") || {}).value || "").trim();
-    var city = ((document.getElementById("docCity") || {}).value || "").trim();
-    var cityEn = ((document.getElementById("docCityEn") || {}).value || "").trim();
-    var street = ((document.getElementById("docStreet") || {}).value || "").trim();
-    var streetEn = ((document.getElementById("docStreetEn") || {}).value || "").trim();
-    var landmark = ((document.getElementById("docLandmark") || {}).value || "").trim();
-    var startTime = ((document.getElementById("docStartTime") || {}).value || "09:00");
-    var endTime = ((document.getElementById("docEndTime") || {}).value || "17:00");
-    var serviceTime = parseInt(((document.getElementById("docServiceTime") || {}).value || "10"), 10) || 10;
-    var latRaw = parseFloat(((document.getElementById("docLat") || {}).value || ""));
-    var lngRaw = parseFloat(((document.getElementById("docLng") || {}).value || ""));
+    var password = ((document.getElementById("regPassword") || {}).value || "").trim();
+    var activationCode = ((document.getElementById("regActivationCode") || {}).value || "").trim();
+    var name = ((document.getElementById("regDoctorName") || {}).value || "").trim();
+    var nameEn = ((document.getElementById("regDoctorNameEn") || {}).value || "").trim();
+    var specialty = ((document.getElementById("regSpecialty") || {}).value || "").trim();
+    var specialtyEn = ((document.getElementById("regSpecialtyEn") || {}).value || "").trim();
+    var phone = ((document.getElementById("regPhone") || {}).value || "").trim();
+    var clinicName = ((document.getElementById("regClinicName") || {}).value || "").trim();
+    var clinicNameEn = ((document.getElementById("regClinicNameEn") || {}).value || "").trim();
+    var city = ((document.getElementById("regCity") || {}).value || "").trim();
+    var cityEn = ((document.getElementById("regCityEn") || {}).value || "").trim();
+    var street = ((document.getElementById("regStreet") || {}).value || "").trim();
+    var streetEn = ((document.getElementById("regStreetEn") || {}).value || "").trim();
+    var landmark = ((document.getElementById("regLandmark") || {}).value || "").trim();
+    var startTime = ((document.getElementById("regStartTime") || {}).value || "09:00");
+    var endTime = ((document.getElementById("regEndTime") || {}).value || "17:00");
+    var serviceTime = parseInt(((document.getElementById("regServiceTime") || {}).value || "10"), 10) || 10;
+    var latVal = parseFloat(((document.getElementById("regLat") || {}).value || ""));
+    var lngVal = parseFloat(((document.getElementById("regLng") || {}).value || ""));
 
-    var workingDays = [];
-    for (var d = 0; d <= 6; d++) {
-        var cb = document.getElementById("day_" + d);
-        if (cb && cb.checked) workingDays.push(d);
-    }
-
-    return {
-        activationCode: activationCode,
-        email: email,
-        password: password,
-        docName: docName,
-        docNameEn: docNameEn,
-        specialty: specialty,
-        specialtyEn: specialtyEn,
-        phone: phone,
-        clinic: {
-            clinicName: clinicName,
-            clinicNameEn: clinicNameEn,
-            city: city,
-            cityEn: cityEn,
-            street: street,
-            streetEn: streetEn,
-            landmark: landmark,
-            startTime: startTime,
-            endTime: endTime,
-            serviceTime: serviceTime,
-            workingDays: workingDays,
-            lat: isNaN(latRaw) ? null : latRaw,
-            lng: isNaN(lngRaw) ? null : lngRaw,
-            serialNumber: 0,
-            dailyCounters: {},
-            isClosed: false,
-            isOnBreak: false
-        }
-    };
-}
-
-function writeDoctorRecordForUid(uid, formData, isReactivation) {
-    var payload = {
-        ownerUid: uid,
-        email: formData.email,
-        name: formData.docName,
-        nameEn: formData.docNameEn || "",
-        specialty: formData.specialty,
-        specialtyEn: formData.specialtyEn || "",
-        phone: formData.phone,
-        clinics: [formData.clinic],
-        isDeleted: false
-    };
-    if (isReactivation) {
-        payload.reactivatedAt = firebase.firestore.FieldValue.serverTimestamp();
-    } else {
-        payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-    }
-    return db.collection("doctors").doc(uid).set(payload, { merge: true });
-}
-
-function registerAndSaveDoctor() {
-    var formData = collectRegistrationFormData();
-
-    if (!formData.email || !formData.password || !formData.docName || !formData.clinic.clinicName) {
+    if (!email || !password || !name || !clinicName) {
         alert(t("err_reg_required_fields"));
         return;
     }
 
-    if (!formData.activationCode) {
+    if (!activationCode) {
         alert(t("err_enter_activation_code"));
         return;
     }
 
-    if (!isValidDoctorActivationCode(formData.activationCode)) {
-        alert(t("err_invalid_activation_code"));
-        return;
+    var workingDays = [];
+    for (var d = 0; d <= 6; d++) {
+        var cb = document.getElementById("reg_day_" + d);
+        if (cb && cb.checked) workingDays.push(d);
     }
 
-    auth.createUserWithEmailAndPassword(formData.email, formData.password).then(function(cred) {
-        var uid = cred.user.uid;
-        return writeDoctorRecordForUid(uid, formData, false);
-    }).then(function() {
-        window.location.href = "admin.html";
-    }).catch(function(err) {
-        var errCode = err && err.code ? err.code : "";
-        if (errCode === "auth/email-already-in-use") {
-            return auth.signInWithEmailAndPassword(formData.email, formData.password).then(function(signInCred) {
-                var uid = signInCred.user.uid;
-                return db.collection("doctors").doc(uid).get().then(function(docSnap) {
-                    var existing = docSnap.exists ? docSnap.data() : null;
-                    var hasClinics = existing && existing.isDeleted !== true && Array.isArray(existing.clinics) && existing.clinics.length > 0;
-                    if (hasClinics) {
-                        throw new Error(t("err_email_active_doctor"));
-                    }
-                    return writeDoctorRecordForUid(uid, formData, true).then(function() {
-                        window.location.href = "admin.html";
-                    });
-                });
-            }).catch(function(reErr) {
-                if (reErr && reErr.code === "auth/wrong-password") {
-                    alert(t("err_wrong_password_existing"));
-                } else {
-                    alert(reErr && reErr.message ? reErr.message : t("err_reactivate_failed"));
-                }
-            });
+    var initialClinic = {
+        clinicName: clinicName,
+        clinicNameEn: clinicNameEn,
+        city: city,
+        cityEn: cityEn,
+        street: street,
+        streetEn: streetEn,
+        landmark: landmark,
+        startTime: startTime,
+        endTime: endTime,
+        serviceTime: serviceTime,
+        workingDays: workingDays,
+        lat: isNaN(latVal) ? null : latVal,
+        lng: isNaN(lngVal) ? null : lngVal,
+        serialNumber: 0,
+        dailyCounters: {},
+        isClosed: false,
+        isOnBreak: false
+    };
+
+    db.collection("activationCodes").where("code", "==", activationCode).limit(1).get().then(function(codeSnap) {
+        if (codeSnap.empty) {
+            alert(t("err_invalid_activation_code"));
+            return;
         }
-        alert(err && err.message ? err.message : t("err_create_account_failed"));
+
+        auth.createUserWithEmailAndPassword(email, password).then(function(cred) {
+            var uid = cred.user.uid;
+            return db.collection("doctors").doc(uid).set({
+                ownerUid: uid,
+                email: email,
+                name: name,
+                nameEn: nameEn,
+                specialty: specialty,
+                specialtyEn: specialtyEn,
+                phone: phone,
+                clinics: [initialClinic],
+                isDeleted: false
+            }).then(function() {
+                window.location.href = "admin.html";
+            });
+        }).catch(function(err) {
+            if (err && err.code === "auth/email-already-in-use") {
+                auth.signInWithEmailAndPassword(email, password).then(function(cred) {
+                    var uid = cred.user.uid;
+                    return db.collection("doctors").doc(uid).get().then(function(docSnap) {
+                        if (docSnap.exists && docSnap.data() && docSnap.data().isDeleted !== true) {
+                            alert(t("err_email_active_doctor"));
+                            return auth.signOut();
+                        }
+                        return db.collection("doctors").doc(uid).set({
+                            ownerUid: uid,
+                            email: email,
+                            name: name,
+                            nameEn: nameEn,
+                            specialty: specialty,
+                            specialtyEn: specialtyEn,
+                            phone: phone,
+                            clinics: [initialClinic],
+                            isDeleted: false
+                        }, { merge: true }).then(function() {
+                            window.location.href = "admin.html";
+                        });
+                    });
+                }).catch(function() {
+                    alert(t("err_wrong_password_existing"));
+                });
+            } else {
+                console.error(err);
+                alert(t("err_create_account_failed"));
+            }
+        });
+    }).catch(function(err) {
+        console.error(err);
+        alert(t("err_create_account_failed"));
     });
+}
+
+function toggleTheme() {
+    document.body.classList.toggle("dark-mode");
+    var isDark = document.body.classList.contains("dark-mode");
+    localStorage.setItem("douri_theme", isDark ? "dark" : "light");
+    var icon = document.getElementById("themeIcon");
+    if (icon) {
+        icon.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+    }
+}
+
+function applySavedTheme() {
+    var saved = localStorage.getItem("douri_theme");
+    var isDark = saved === "dark";
+    if (isDark) {
+        document.body.classList.add("dark-mode");
+    } else {
+        document.body.classList.remove("dark-mode");
+    }
+    var icon = document.getElementById("themeIcon");
+    if (icon) {
+        icon.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+    }
 }
 
 window.onload = function() {
@@ -1841,5 +1606,6 @@ window.onload = function() {
         applyLanguage();
     }
     updateNearestButtonLabel();
+    updateActiveBookingBanner();
     loadDoctors();
 };
