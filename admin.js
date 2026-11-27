@@ -182,6 +182,28 @@ function updateExportButtonState(hasBookings) {
     }
 }
 
+function getQueueDisplayPriority(status) {
+    if (status === "serving") return 0;
+    if (status === "done") return 2;
+    return 1;
+}
+
+function sortQueueForDoctorView(list) {
+    return list.slice().sort(function(a, b) {
+        var pa = getQueueDisplayPriority(a && a.status);
+        var pb = getQueueDisplayPriority(b && b.status);
+        if (pa !== pb) return pa - pb;
+
+        var ta = parseInt(a && a.ticketNumber, 10) || 0;
+        var tb = parseInt(b && b.ticketNumber, 10) || 0;
+        if (ta !== tb) return ta - tb;
+
+        var sa = parseInt(a && a.serialNumber, 10) || 0;
+        var sb = parseInt(b && b.serialNumber, 10) || 0;
+        return sa - sb;
+    });
+}
+
 function listenToQueue() {
     if (unsubscribeBookings) {
         unsubscribeBookings();
@@ -214,15 +236,7 @@ function listenToQueue() {
                 list.push(item);
             });
 
-            list.sort(function(a, b) {
-                var ta = parseInt(a.ticketNumber, 10) || 0;
-                var tb = parseInt(b.ticketNumber, 10) || 0;
-                if (ta !== tb) return ta - tb;
-                var sa = parseInt(a.serialNumber, 10) || 0;
-                var sb = parseInt(b.serialNumber, 10) || 0;
-                return sa - sb;
-            });
-
+            list = sortQueueForDoctorView(list);
             currentQueueDocs = list;
             renderQueueDashboard(list);
         }, function(err) {
@@ -287,8 +301,9 @@ function renderQueueDashboard(bookings) {
         return;
     }
 
+    var orderedDisplayList = sortQueueForDoctorView(activeList);
     var html = "";
-    activeList.forEach(function(b) {
+    orderedDisplayList.forEach(function(b) {
         var isServing = b.status === "serving";
         var isDone = b.status === "done";
         var badgeClass = isDone ? "badge-closed" : (isServing ? "badge-open" : "badge-break");
