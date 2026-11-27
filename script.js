@@ -30,6 +30,7 @@ var ticketCountdownInterval = null;
 
 var lastAlertedKey = null;
 var ticketAlertSoundCtx = null;
+var ticketFlashTimeout = null;
 
 var bookingCalYear = null;
 var bookingCalMonth = null;
@@ -666,6 +667,14 @@ function generateSecretCode12() {
     return code;
 }
 
+function requestNotificationPermissionIfNeeded() {
+    try {
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission().catch(function() {});
+        }
+    } catch (e) {}
+}
+
 function confirmBooking() {
     var nameInput = document.getElementById("bookingName") || document.getElementById("patientName");
     var phoneInput = document.getElementById("bookingPhone") || document.getElementById("patientPhone");
@@ -695,6 +704,8 @@ function confirmBooking() {
         alert(t("err_clinic_closed_now"));
         return;
     }
+
+    requestNotificationPermissionIfNeeded();
 
     var capacity = getDailyCapacityForClinic(selectedClinic);
     var doctorRef = db.collection("doctors").doc(selectedDoctor.id);
@@ -995,6 +1006,14 @@ function cleanupTicketListeners() {
         clearInterval(ticketCountdownInterval);
         ticketCountdownInterval = null;
     }
+    if (ticketFlashTimeout) {
+        clearTimeout(ticketFlashTimeout);
+        ticketFlashTimeout = null;
+    }
+    var flashEl = document.getElementById("ticketFlashOverlay");
+    if (flashEl) {
+        flashEl.style.display = "none";
+    }
 }
 
 function playTicketAlertSound() {
@@ -1008,34 +1027,116 @@ function playTicketAlertSound() {
             ticketAlertSoundCtx.resume();
         }
         var now = ticketAlertSoundCtx.currentTime;
-        var notes = [659.25, 880.0, 1174.66];
+        var notes = [659.25, 880.0, 1174.66, 1318.5];
         for (var i = 0; i < notes.length; i++) {
             var osc = ticketAlertSoundCtx.createOscillator();
             var gain = ticketAlertSoundCtx.createGain();
             osc.type = "sine";
-            osc.frequency.setValueAtTime(notes[i], now + i * 0.15);
-            gain.gain.setValueAtTime(0.001, now + i * 0.15);
-            gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.15 + 0.03);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.15 + 0.14);
+            osc.frequency.setValueAtTime(notes[i], now + i * 0.14);
+            gain.gain.setValueAtTime(0.001, now + i * 0.14);
+            gain.gain.exponentialRampToValueAtTime(0.3, now + i * 0.14 + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.14 + 0.13);
             osc.connect(gain);
             gain.connect(ticketAlertSoundCtx.destination);
-            osc.start(now + i * 0.15);
-            osc.stop(now + i * 0.15 + 0.15);
+            osc.start(now + i * 0.14);
+            osc.stop(now + i * 0.14 + 0.14);
+        }
+    } catch (e) {}
+}
+
+function triggerDeviceVibration() {
+    try {
+        if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+            navigator.vibrate([600, 200, 600, 200, 800]);
+        }
+    } catch (e) {}
+}
+
+function triggerScreenFlash() {
+    try {
+        var flashEl = document.getElementById("ticketFlashOverlay");
+        if (!flashEl) {
+            flashEl = document.createElement("div");
+            flashEl.id = "ticketFlashOverlay";
+            flashEl.style.position = "fixed";
+            flashEl.style.inset = "0";
+            flashEl.style.zIndex = "99999";
+            flashEl.style.pointerEvents = "none";
+            flashEl.style.background = "rgba(239, 68, 68, 0.42)";
+            flashEl.style.transition = "opacity 0.2s ease";
+            document.body.appendChild(flashEl);
+        }
+
+        if (ticketFlashTimeout) {
+            clearTimeout(ticketFlashTimeout);
+        }
+
+        var pulses = 0;
+        flashEl.style.display = "block";
+        flashEl.style.opacity = "1";
+
+        var pulseTimer = setInterval(function() {
+            pulses++;
+            flashEl.style.opacity = (pulses % 2 === 0) ? "0.95" : "0.15";
+            if (pulses >= 8) {
+                clearInterval(pulseTimer);
+                flashEl.style.display = "none";
+            }
+        }, 220);
+
+        ticketFlashTimeout = setTimeout(function() {
+            clearInterval(pulseTimer);
+            flashEl.style.display = "none";
+        }, 2200);
+    } catch (e) {}
+}
+
+function triggerSystemNotification(message) {
+    try {
+        if ("Notification" in window) {
+            if (Notification.permission === "granted") {
+                var n = new Notification(t("ticket_title"), {
+                    body: message,
+                    vibrate: [600, 200, 600, 200, 800],
+                    requireInteraction: true,
+                    tag: "douri-ticket-alert"
+                });
+                n.onclick = function() {
+                    window.focus();
+                    n.close();
+                };
+            } else if (Notification.permission === "default") {
+                Notification.requestPermission().then(function(perm) {
+                    if (perm === "granted") {
+                        new Notification(t("ticket_title"), {
+                            body: message,
+                            vibrate: [600, 200, 600, 200, 800],
+                            requireInteraction: true,
+                            tag: "douri-ticket-alert"
+                        });
+                    }
+                }).catch(function() {});
+            }
         }
     } catch (e) {}
 }
 
 function showTicketAlertBanner(message) {
     var box = document.getElementById("ticketAlertBox") || document.getElementById("ticketAlertBanner");
-    if (!box) return;
-    box.innerText = message;
-    box.classList.remove("hidden");
+    if (box) {
+        box.innerText = message;
+        box.classList.remove("hidden");
+    }
     playTicketAlertSound();
+    triggerDeviceVibration();
+    triggerScreenFlash();
+    triggerSystemNotification(message);
 }
 
 function openTicketView(bookingId) {
     cleanupTicketListeners();
     currentTicketBookingId = bookingId;
+    requestNotificationPermissionIfNeeded();
 
     var mainView = document.getElementById("main-view") || document.getElementById("searchSection");
     var bookingsView = document.getElementById("bookings-view") || document.getElementById("myBookingsSection");
@@ -1145,11 +1246,13 @@ function attachTicketQueueAndDoctorListeners(booking) {
         var etaM = String(etaMinutesTotal % 60).padStart(2, "0");
         if (etaEl) etaEl.innerText = etaH + ":" + etaM;
 
+        var isYourTurnNow = (booking.status === "serving" || peopleAhead === 0);
+
         if (statusBadge) {
             if (booking.status === "done") {
                 statusBadge.className = "badge badge-closed";
                 statusBadge.innerText = t("booking_done");
-            } else if (booking.status === "serving" || peopleAhead === 0) {
+            } else if (isYourTurnNow) {
                 statusBadge.className = "badge badge-open";
                 statusBadge.innerText = t("status_your_turn");
             } else if (peopleAhead === 1) {
@@ -1163,16 +1266,13 @@ function attachTicketQueueAndDoctorListeners(booking) {
 
         if (booking.status !== "done" && booking.status !== "cancelled") {
             var alertKey = booking.id + "_" + booking.date;
-            if (peopleAhead === 0 && lastAlertedKey !== alertKey + "_turn") {
+            if (isYourTurnNow && lastAlertedKey !== alertKey + "_turn") {
                 lastAlertedKey = alertKey + "_turn";
                 showTicketAlertBanner(t("alert_your_turn"));
-            } else if (peopleAhead > 0 && peopleAhead <= 3 && lastAlertedKey !== alertKey + "_3ahead") {
-                lastAlertedKey = alertKey + "_3ahead";
-                showTicketAlertBanner(t("alert_3_ahead"));
             }
         }
 
-        startTicketCountdownUpdater(booking, waitMins, startTimeStr);
+        startTicketCountdownUpdater(booking, peopleAhead, serviceTime, startTimeStr);
     };
 
     unsubscribeTicketQueue = db.collection("bookings")
@@ -1205,7 +1305,7 @@ function attachTicketQueueAndDoctorListeners(booking) {
     recomputeTicketMetrics();
 }
 
-function startTicketCountdownUpdater(booking, waitMins, startTimeStr) {
+function startTicketCountdownUpdater(booking, peopleAhead, serviceTime, startTimeStr) {
     if (ticketCountdownInterval) {
         clearInterval(ticketCountdownInterval);
         ticketCountdownInterval = null;
@@ -1214,28 +1314,40 @@ function startTicketCountdownUpdater(booking, waitMins, startTimeStr) {
     var countdownEl = document.getElementById("appointmentCountdown") || document.getElementById("ticketCountdown");
     if (!countdownEl) return;
 
+    var safeAhead = Math.max(0, parseInt(peopleAhead, 10) || 0);
+    var safeService = Math.max(1, parseInt(serviceTime, 10) || 10);
+    var queueDurationSecs = safeAhead * safeService * 60;
+    var countdownAnchorKey = "douri_cd_anchor_" + booking.id + "_" + safeAhead + "_" + safeService;
+
+    var storedAnchor = null;
+    try {
+        storedAnchor = localStorage.getItem(countdownAnchorKey);
+    } catch (e) {}
+
+    var anchorEndMs = null;
+    if (storedAnchor) {
+        anchorEndMs = parseInt(storedAnchor, 10);
+    }
+    if (!anchorEndMs || isNaN(anchorEndMs) || anchorEndMs <= Date.now()) {
+        anchorEndMs = Date.now() + queueDurationSecs * 1000;
+        try {
+            localStorage.setItem(countdownAnchorKey, String(anchorEndMs));
+        } catch (e) {}
+    }
+
     var updateFn = function() {
         if (!booking || booking.status === "done" || booking.status === "cancelled") {
-            countdownEl.innerText = "--:--";
-            return;
-        }
-        var todayStr = getTodayStr();
-        if (booking.date > todayStr) {
-            countdownEl.innerText = t("countdown_after_open");
+            countdownEl.innerText = "--:--:--";
             return;
         }
 
-        var now = new Date();
-        var startMin = parseMinutesFromHHMM(startTimeStr);
-        var targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        var baseMinutes = (startMin !== null ? startMin : 540) + waitMins;
-        targetDate.setMinutes(baseMinutes);
-
-        var diffMs = targetDate.getTime() - now.getTime();
-        if (diffMs <= 0) {
-            countdownEl.innerText = t("countdown_due_now");
+        if (booking.status === "serving" || safeAhead === 0) {
+            countdownEl.innerText = "00:00:00";
             return;
         }
+
+        var diffMs = anchorEndMs - Date.now();
+        if (diffMs < 0) diffMs = 0;
 
         var totalSecs = Math.floor(diffMs / 1000);
         var hrs = String(Math.floor(totalSecs / 3600)).padStart(2, "0");
@@ -1243,13 +1355,10 @@ function startTicketCountdownUpdater(booking, waitMins, startTimeStr) {
         var secs = String(totalSecs % 60).padStart(2, "0");
         countdownEl.innerText = hrs + ":" + mins + ":" + secs;
 
-        var minsLeft = diffMs / 60000;
-        if (minsLeft > 0 && minsLeft <= 45) {
-            var k45 = booking.id + "_" + booking.date + "_45m";
-            if (lastAlertedKey !== k45) {
-                lastAlertedKey = k45;
-                showTicketAlertBanner(t("alert_45_mins"));
-            }
+        var alertKey = booking.id + "_" + booking.date;
+        if (totalSecs === 45 * 60 && lastAlertedKey !== alertKey + "_45m") {
+            lastAlertedKey = alertKey + "_45m";
+            showTicketAlertBanner(t("alert_45_mins"));
         }
     };
 
