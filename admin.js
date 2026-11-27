@@ -391,29 +391,24 @@ function callNextPatient() {
 
     var ordered = getOrderedActiveQueue();
     var currentServing = ordered.find(function(b) { return b.status === "serving"; });
-    var nextWaiting = ordered.find(function(b) { return b.status === "waiting"; });
-
-    var batch = db.batch();
-
-    if (currentServing && nextWaiting) {
-        batch.update(db.collection("bookings").doc(currentServing.id), { status: "done" });
-        batch.update(db.collection("bookings").doc(nextWaiting.id), { status: "serving" });
-    } else if (currentServing && !nextWaiting) {
-        batch.update(db.collection("bookings").doc(currentServing.id), { status: "done" });
-        batch.commit().then(function() {
-            alert(msgAllDoneSafe());
-        }).catch(function(err) {
-            console.error(err);
-        });
+    if (currentServing) {
+        alert(
+            getCurrentLang() === "en"
+                ? "Please press (Finish) for the current patient first before calling the next patient."
+                : "يجب أولاً الضغط على (إنهاء الكشف) للمريض الحالي قبل نداء المريض التالي."
+        );
         return;
-    } else if (!currentServing && nextWaiting) {
-        batch.update(db.collection("bookings").doc(nextWaiting.id), { status: "serving" });
-    } else {
+    }
+
+    var nextWaiting = ordered.find(function(b) { return b.status === "waiting"; });
+    if (!nextWaiting) {
         alert(t("err_no_waiting_patients"));
         return;
     }
 
-    batch.commit().catch(function(err) {
+    db.collection("bookings").doc(nextWaiting.id).update({
+        status: "serving"
+    }).catch(function(err) {
         console.error(err);
     });
 }
@@ -488,6 +483,139 @@ function toggleClinicOpenClose() {
     toggleClinicStatus();
 }
 
+function loadJsPdfLibraryIfNeeded() {
+    return new Promise(function(resolve, reject) {
+        if (window.jspdf && window.jspdf.jsPDF) {
+            resolve(window.jspdf.jsPDF);
+            return;
+        }
+        var script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        script.async = true;
+        script.onload = function() {
+            if (window.jspdf && window.jspdf.jsPDF) {
+                resolve(window.jspdf.jsPDF);
+            } else {
+                reject(new Error("jsPDF unavailable"));
+            }
+        };
+        script.onerror = function() {
+            reject(new Error("Failed to load jsPDF"));
+        };
+        document.head.appendChild(script);
+    });
+}
+
+function escapePdfAscii(str) {
+    return String(str || "")
+        .replace(/[^\x20-\x7E]/g, "")
+        .replace(/\\/g, "\\\\")
+        .replace(/\(/g, "\\(")
+        .replace(/\)/g, "\\)");
+}
+
+function buildSimplePdfBlob(lines) {
+    var contentLines = ["BT", "/F1 12 Tf", "40 760 Td", "18 TL"];
+    lines.forEach(function(line, idx) {
+        var safe = escapePdfAscii(line);
+        if (idx === 0) {
+            contentLines.push("(" + safe + ") Tj");
+        } else {
+            contentLines.push("T* (" + safe + ") Tj");
+        }
+    });
+    contentLines.push("ET");
+    var streamData = contentLines.join("\n");
+
+    var objects = [];
+    objects.push("1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj");
+    objects.push("2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj");
+    objects.push("3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj");
+    objects.push("4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj");
+    objects.push("5 0 obj << /Length " + streamData.length + " >> stream\n" + streamData + "\nendstream endobj");
+
+    var pdf = "%PDF-1.4\n";
+    var offsets = [0];
+    for (var i = 0; i < objects.length; i++) {
+        offsets.push(pdf.length);
+        pdf += objects[i] + "\n";
+    }
+    var xrefPos = pdf.length;
+    pdf += "xref\n0 " + (objects.length + 1) + "\n";
+    pdf += "0000000000 65535 f \n";
+    for (var j = 1; j < offsets.length; j++) {
+        pdf += String(offsets[j]).padStart(10, "0") + " 00000 n \n";
+    }
+    pdf += "trailer << /Size " + (objects.length + 1) + " /Root 1 0 R >>\nstartxref\n" + xrefPos + "\n%%EOF";
+
+    return new Blob([pdf], { type: "application/pdf" });
+}
+
+function createQueuePdfBlob(ordered, docName, clinicName, dateStr) {
+    return loadJsPdfLibraryIfNeeded().then(function(JsPDF) {
+        var doc = new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text("Clinic Queue Sheet", 40, 45);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        doc.text("Date: " + dateStr, 40, 65);
+        doc.text("Clinic Index: " + (selectedClinicIndex + 1), 40, 82);
+
+        var y = 115;
+        doc.setFont("helvetica", "bold");
+        doc.text("Row", 40, y);
+        doc.text("Ticket", 95, y);
+        doc.text("Phone", 170, y);
+        doc.text("Status", 310, y);
+        doc.text("Patient / Notes", 415, y);
+        y += 18;
+        doc.setFont("helvetica", "normal");
+
+        ordered.forEach(function(b, idx) {
+            if (y > 780) {
+                doc.addPage();
+                y = 50;
+            }
+            var stCode = b.status === "done" ? "Done" : (b.status === "serving" ? "Serving" : "Waiting");
+            var phoneClean = String(b.patientPhone || "-").replace(/[^\x20-\x7E]/g, "");
+            doc.text(String(idx + 1), 40, y);
+            doc.text("#" + String(b.ticketNumber || "-"), 95, y);
+            doc.text(phoneClean || "-", 170, y);
+            doc.text(stCode, 310, y);
+            doc.text(String(b.patientName || ""), 415, y);
+            y += 20;
+        });
+
+        return doc.output("blob");
+    }).catch(function() {
+        var lines = [
+            "Clinic Queue Sheet",
+            "Date: " + dateStr,
+            "Clinic: " + (selectedClinicIndex + 1),
+            "----------------------------------------"
+        ];
+        ordered.forEach(function(b, idx) {
+            var stCode = b.status === "done" ? "Done" : (b.status === "serving" ? "Serving" : "Waiting");
+            lines.push((idx + 1) + ". #" + (b.ticketNumber || "-") + " | " + (b.patientPhone || "-") + " | " + stCode);
+        });
+        return buildSimplePdfBlob(lines);
+    });
+}
+
+function triggerDownloadToDownloads(blob, fileName) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function() {
+        URL.revokeObjectURL(url);
+    }, 3000);
+}
+
 function printQueueSheetPdf() {
     var ordered = getOrderedActiveQueue();
     if (!ordered.length) {
@@ -495,58 +623,29 @@ function printQueueSheetPdf() {
         return;
     }
 
-    try {
-        var clinic = getSelectedClinicObject();
-        var clinicName = getClinicDisplayName(clinic, selectedClinicIndex);
-        var docName = getDoctorDisplayName();
-        var printContainer = document.getElementById("printableQueueSheet");
+    var clinic = getSelectedClinicObject();
+    var clinicName = getClinicDisplayName(clinic, selectedClinicIndex);
+    var docName = getDoctorDisplayName();
+    var safeDate = String(currentDateStr || getTodayStr()).replace(/[^0-9-]/g, "");
+    var fileName = "queue-" + safeDate + "-c" + (selectedClinicIndex + 1) + ".pdf";
 
-        if (!printContainer) {
-            printContainer = document.createElement("section");
-            printContainer.id = "printableQueueSheet";
-            printContainer.className = "printable-queue-sheet";
-            document.body.appendChild(printContainer);
+    createQueuePdfBlob(ordered, docName, clinicName, currentDateStr).then(function(pdfBlob) {
+        triggerDownloadToDownloads(pdfBlob, fileName);
+
+        var fileObj = new File([pdfBlob], fileName, { type: "application/pdf" });
+        if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [fileObj] }))) {
+            return navigator.share({
+                title: docName + " — " + clinicName,
+                text: t("date_label") + " " + currentDateStr,
+                files: [fileObj]
+            }).catch(function(shareErr) {
+                if (shareErr && shareErr.name === "AbortError") return;
+            });
         }
-
-        var rowsHtml = "";
-        ordered.forEach(function(b, idx) {
-            var stText = b.status === "done"
-                ? t("booking_done")
-                : (b.status === "serving" ? t("status_serving") : t("status_waiting_admin"));
-            rowsHtml += '<tr>' +
-                '<td>' + (idx + 1) + '</td>' +
-                '<td>#' + (b.ticketNumber || "-") + '</td>' +
-                '<td>' + (b.patientName || "") + '</td>' +
-                '<td>' + (b.patientPhone || "-") + '</td>' +
-                '<td>' + stText + '</td>' +
-                '<td class="print-pay-col"></td>' +
-            '</tr>';
-        });
-
-        printContainer.innerHTML =
-            '<div class="print-sheet-header">' +
-                '<h2>' + docName + ' — ' + clinicName + '</h2>' +
-                '<p>' + t("date_label") + ' ' + currentDateStr + '</p>' +
-            '</div>' +
-            '<table class="print-queue-table">' +
-                '<thead>' +
-                    '<tr>' +
-                        '<th>#</th>' +
-                        '<th>' + t("your_ticket_label") + '</th>' +
-                        '<th>' + t("patient_name_label") + '</th>' +
-                        '<th>' + t("patient_phone_label") + '</th>' +
-                        '<th>' + t("stat_status_label") + '</th>' +
-                        '<th class="print-pay-col">' + (getCurrentLang() === "en" ? "Payment / Notes" : "الدفع / ملاحظات") + '</th>' +
-                    '</tr>' +
-                '</thead>' +
-                '<tbody>' + rowsHtml + '</tbody>' +
-            '</table>';
-
-        window.print();
-    } catch (err) {
+    }).catch(function(err) {
         console.error(err);
         alert(t("err_export_failed"));
-    }
+    });
 }
 
 function exportQueueToTxt() {
