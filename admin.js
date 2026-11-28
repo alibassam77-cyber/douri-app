@@ -566,6 +566,91 @@ function buildSimplePdfBlob(lines) {
     return new Blob([pdf], { type: "application/pdf" });
 }
 
+function containsArabicText(str) {
+    return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(String(str || ""));
+}
+
+function renderArabicTextToPngDataUrl(text, options) {
+    var opts = options || {};
+    var fontSize = opts.fontSize || 14;
+    var isBold = opts.bold === true;
+    var color = opts.color || "#111827";
+    var align = opts.align || "right";
+    var maxWidthPt = opts.maxWidthPt || 180;
+    var scale = 3;
+
+    var canvas = document.createElement("canvas");
+    var widthPx = Math.max(60, Math.ceil(maxWidthPt * scale));
+    var heightPx = Math.max(24, Math.ceil((fontSize + 10) * scale));
+    canvas.width = widthPx;
+    canvas.height = heightPx;
+
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.clearRect(0, 0, widthPx, heightPx);
+    var weightPrefix = isBold ? "bold " : "";
+    ctx.font = weightPrefix + (fontSize * scale) + "px 'Cairo', 'Tajawal', 'Noto Sans Arabic', Arial, sans-serif";
+    ctx.fillStyle = color;
+    ctx.textBaseline = "middle";
+    ctx.direction = "rtl";
+
+    var textStr = String(text || "");
+    while (textStr.length > 1 && ctx.measureText(textStr).width > widthPx - 8) {
+        textStr = textStr.slice(0, -1);
+    }
+
+    if (align === "right") {
+        ctx.textAlign = "right";
+        ctx.fillText(textStr, widthPx - 4, heightPx / 2);
+    } else if (align === "center") {
+        ctx.textAlign = "center";
+        ctx.fillText(textStr, widthPx / 2, heightPx / 2);
+    } else {
+        ctx.textAlign = "left";
+        ctx.fillText(textStr, 4, heightPx / 2);
+    }
+
+    return {
+        dataUrl: canvas.toDataURL("image/png"),
+        widthPt: widthPx / scale,
+        heightPt: heightPx / scale
+    };
+}
+
+function drawPdfField(doc, text, xPt, yBaselinePt, options) {
+    var opts = options || {};
+    var str = String(text === undefined || text === null ? "" : text);
+    if (!str) return;
+
+    if (containsArabicText(str)) {
+        var imgInfo = renderArabicTextToPngDataUrl(str, {
+            fontSize: opts.fontSize || 11,
+            bold: opts.bold === true,
+            color: opts.color || "#111827",
+            align: opts.align || "right",
+            maxWidthPt: opts.maxWidthPt || 160
+        });
+        if (imgInfo && imgInfo.dataUrl) {
+            var topY = yBaselinePt - (imgInfo.heightPt * 0.72);
+            var drawX = xPt;
+            if ((opts.align || "right") === "right") {
+                drawX = xPt - imgInfo.widthPt;
+            } else if (opts.align === "center") {
+                drawX = xPt - (imgInfo.widthPt / 2);
+            }
+            doc.addImage(imgInfo.dataUrl, "PNG", drawX, topY, imgInfo.widthPt, imgInfo.heightPt);
+            return;
+        }
+    }
+
+    doc.setFont("helvetica", opts.bold ? "bold" : "normal");
+    doc.setFontSize(opts.fontSize || 11);
+    doc.text(str.replace(/[^\x20-\x7E]/g, ""), xPt, yBaselinePt, {
+        align: opts.align === "right" ? "left" : (opts.align || "left")
+    });
+}
+
 function createQueuePdfBlob(ordered, docName, clinicName, dateStr) {
     return loadJsPdfLibraryIfNeeded().then(function(JsPDF) {
         var doc = new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
@@ -577,15 +662,22 @@ function createQueuePdfBlob(ordered, docName, clinicName, dateStr) {
         doc.text("Date: " + dateStr, 40, 65);
         doc.text("Clinic Index: " + (selectedClinicIndex + 1), 40, 82);
 
+        if (docName) {
+            drawPdfField(doc, docName, 555, 45, { fontSize: 12, bold: true, align: "right", maxWidthPt: 220 });
+        }
+        if (clinicName) {
+            drawPdfField(doc, clinicName, 555, 65, { fontSize: 11, bold: false, align: "right", maxWidthPt: 220 });
+        }
+
         var y = 115;
         doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
         doc.text("Row", 40, y);
-        doc.text("Ticket", 95, y);
-        doc.text("Phone", 170, y);
-        doc.text("Status", 310, y);
-        doc.text("Patient / Notes", 415, y);
-        y += 18;
-        doc.setFont("helvetica", "normal");
+        doc.text("Ticket", 90, y);
+        doc.text("Phone", 155, y);
+        doc.text("Status", 275, y);
+        doc.text("Patient / Notes", 555, y, { align: "right" });
+        y += 20;
 
         ordered.forEach(function(b, idx) {
             if (y > 780) {
@@ -594,12 +686,22 @@ function createQueuePdfBlob(ordered, docName, clinicName, dateStr) {
             }
             var stCode = b.status === "done" ? "Done" : (b.status === "serving" ? "Serving" : "Waiting");
             var phoneClean = String(b.patientPhone || "-").replace(/[^\x20-\x7E]/g, "");
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(11);
             doc.text(String(idx + 1), 40, y);
-            doc.text("#" + String(b.ticketNumber || "-"), 95, y);
-            doc.text(phoneClean || "-", 170, y);
-            doc.text(stCode, 310, y);
-            doc.text(String(b.patientName || ""), 415, y);
-            y += 20;
+            doc.text("#" + String(b.ticketNumber || "-"), 90, y);
+            doc.text(phoneClean || "-", 155, y);
+            doc.text(stCode, 275, y);
+
+            drawPdfField(doc, b.patientName || "-", 555, y, {
+                fontSize: 11,
+                bold: false,
+                align: "right",
+                maxWidthPt: 210
+            });
+
+            y += 22;
         });
 
         return doc.output("blob");
